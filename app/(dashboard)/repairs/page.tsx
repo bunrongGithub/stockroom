@@ -1,13 +1,16 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Edit, Trash2, X, Phone, User, Smartphone, Clock, Printer } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, X, Phone, User, Smartphone, Clock, Printer, Loader2 } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 
 export default function RepairsPage() {
   const [repairsData, setRepairsData] = useState<any[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null); // ឥឡូវនេះផ្ទុក UUID របស់ Supabase
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
 
   // --- State សម្រាប់ Form ---
   const [customerName, setCustomerName] = useState('');
@@ -25,9 +28,45 @@ export default function RepairsPage() {
   const [repairStatus, setRepairStatus] = useState('Completed'); 
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
 
+  // ---------------- ទាញយកទិន្នន័យពី Supabase ----------------
+  const fetchRepairs = async () => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('repairs')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      // បំប្លែងទិន្នន័យពី Supabase (snake_case) មកជាទម្រង់ដែល UI កំពុងប្រើ (camelCase)
+      if (data) {
+        const formattedData = data.map(row => ({
+          id: row.id, // Supabase UUID
+          receipt_no: row.receipt_no || '00000000',
+          date: row.date ? row.date.split('T')[0] : new Date().toISOString().split('T')[0],
+          customerName: row.customer_name || '',
+          customerPhone: row.customer_phone || '',
+          deviceModel: row.device_name || '',
+          issue: row.issue_description || '',
+          items: row.items || [],
+          totalCost: Number(row.total_cost) || 0,
+          deposit: Number(row.deposit) || 0,
+          balance: Number(row.balance) || 0,
+          warranty: Number(row.warranty) || 0,
+          status: row.status || 'Pending'
+        }));
+        setRepairsData(formattedData);
+      }
+    } catch (error) {
+      console.error("Error fetching repairs:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const stored = localStorage.getItem('icase_repairs_data');
-    if (stored) setRepairsData(JSON.parse(stored));
+    fetchRepairs();
   }, []);
 
   const addItemRow = () => {
@@ -48,56 +87,77 @@ export default function RepairsPage() {
     return repairItems.reduce((sum, item) => sum + (parseFloat(item.price) || 0) * (item.qty || 1), 0);
   };
 
-  const handleSave = () => {
+  // ---------------- រក្សាទុកទិន្នន័យទៅ Supabase ----------------
+  const handleSave = async () => {
     if (!customerName || !deviceModel || repairItems.some(i => !i.description || !i.price)) {
       alert('សូមបំពេញព័ត៌មានអតិថិជន និងការជួសជុលឲ្យបានគ្រប់គ្រាន់!');
       return;
     }
 
-    const tCost = calculateSubTotal();
-    const dep = parseFloat(deposit) || 0;
+    setIsSaving(true);
+    try {
+      const tCost = calculateSubTotal();
+      const dep = parseFloat(deposit) || 0;
 
-    let newId = editingId;
-    if (!newId) {
-      let maxId = 0;
-      repairsData.forEach(rep => {
-        if (/^\d+$/.test(rep.id)) {
-          const num = parseInt(rep.id, 10);
-          if (num > maxId) maxId = num;
-        }
-      });
-      newId = String(maxId + 1).padStart(8, '0');
+      // បង្កើតលេខវិក្កយបត្រថ្មី (Receipt No) បើមិនទាន់មាន
+      let newReceiptNo = '';
+      if (editingId) {
+        newReceiptNo = repairsData.find(r => r.id === editingId)?.receipt_no;
+      }
+      
+      if (!newReceiptNo) {
+        let maxId = 0;
+        repairsData.forEach(rep => {
+          if (rep.receipt_no && /^\d+$/.test(rep.receipt_no)) {
+            const num = parseInt(rep.receipt_no, 10);
+            if (num > maxId) maxId = num;
+          }
+        });
+        newReceiptNo = String(maxId + 1).padStart(8, '0');
+      }
+
+      const payload = {
+        receipt_no: newReceiptNo,
+        date: new Date(date).toISOString(),
+        customer_name: customerName,
+        customer_phone: customerPhone,
+        device_name: deviceModel,
+        issue_description: issue,
+        items: repairItems,
+        total_cost: tCost,
+        deposit: dep,
+        balance: tCost - dep,
+        warranty: parseInt(repairWarranty) || 0,
+        status: repairStatus
+      };
+
+      if (editingId) {
+        // Update ទិន្នន័យចាស់
+        const { error } = await supabase
+          .from('repairs')
+          .update(payload)
+          .eq('id', editingId);
+        if (error) throw error;
+      } else {
+        // Insert ទិន្នន័យថ្មី
+        const { error } = await supabase
+          .from('repairs')
+          .insert([payload]);
+        if (error) throw error;
+      }
+
+      await fetchRepairs(); // ទាញយកទិន្នន័យថ្មីមកបង្ហាញ
+      resetForm();
+    } catch (error: any) {
+      console.error("Error saving repair:", error);
+      alert(`មានបញ្ហាក្នុងការរក្សាទុក៖ ${error.message}`);
+    } finally {
+      setIsSaving(false);
     }
-
-    const newRepair = {
-      id: newId,
-      date: new Date(date).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
-      customerName,
-      customerPhone,
-      deviceModel,
-      issue,
-      items: repairItems,
-      totalCost: tCost,
-      deposit: dep,
-      balance: tCost - dep,
-      warranty: parseInt(repairWarranty) || 0,
-      status: repairStatus
-    };
-
-    let updated;
-    if (editingId) {
-      updated = repairsData.map(r => r.id === editingId ? newRepair : r);
-    } else {
-      updated = [newRepair, ...repairsData];
-    }
-
-    setRepairsData(updated);
-    localStorage.setItem('icase_repairs_data', JSON.stringify(updated));
-    resetForm();
   };
 
   const handleEdit = (repair: any) => {
-    setEditingId(repair.id);
+    setEditingId(repair.id); // Supabase UUID
     setCustomerName(repair.customerName);
     setCustomerPhone(repair.customerPhone || '');
     setDeviceModel(repair.deviceModel);
@@ -112,19 +172,27 @@ export default function RepairsPage() {
       setRepairItems([{ id: Date.now(), description: repair.issue || 'ជួសជុលទូទៅ', qty: 1, price: repair.totalCost.toString() }]);
     }
     
-    const dateObj = new Date(repair.date);
-    const yyyy = dateObj.getFullYear();
-    const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
-    const dd = String(dateObj.getDate()).padStart(2, '0');
-    setDate(`${yyyy}-${mm}-${dd}`);
+    setDate(repair.date);
     setIsModalOpen(true);
   };
 
-  const handleDelete = (id: string) => {
+  // ---------------- លុបទិន្នន័យពី Supabase ----------------
+  const handleDelete = async (id: string) => {
     if (confirm('តើអ្នកចង់លុបទិន្នន័យជួសជុលនេះមែនទេ?')) {
-      const updated = repairsData.filter(r => r.id !== id);
-      setRepairsData(updated);
-      localStorage.setItem('icase_repairs_data', JSON.stringify(updated));
+      try {
+        const { error } = await supabase
+          .from('repairs')
+          .delete()
+          .eq('id', id);
+        
+        if (error) throw error;
+        
+        // Update UI ដោយមិនបាច់ Fetch ថ្មី
+        setRepairsData(repairsData.filter(r => r.id !== id));
+      } catch (error: any) {
+        console.error("Error deleting repair:", error);
+        alert("មិនអាចលុបទិន្នន័យបានទេ!");
+      }
     }
   };
 
@@ -137,23 +205,44 @@ export default function RepairsPage() {
     setIsModalOpen(false);
   };
 
-  // ---------------- មុខងារបោះពុម្ពវិក្កយបត្រ (Print Invoice) ទំហំ A5 ----------------
-  const handlePrintInvoice = (repair: any) => {
+  // ---------------- មុខងារបោះពុម្ពវិក្កយបត្រ (Print Invoice) ----------------
+  const handlePrintInvoice = async (repair: any) => {
     const printWindow = window.open('', '_blank');
     if (!printWindow) return alert('សូមអនុញ្ញាត Pop-ups សម្រាប់គេហទំព័រនេះសិន!');
 
-    // ទាញទិន្នន័យហាងពី Settings
-    const settings = JSON.parse(localStorage.getItem('icase_store_settings') || 'null') || {
+    printWindow.document.write('<html><head><title>Loading...</title></head><body><h2 style="text-align:center; margin-top:20vh; font-family:sans-serif;">កំពុងរៀបចំវិក្កយបត្រ...</h2></body></html>');
+
+    // ទាញយកទិន្នន័យហាងពី Supabase ផ្ទាល់
+    let settings = {
       storeName: 'iCase',
       subTitle: 'Premium Service Center',
       phone: '(+855) 11 864 447',
       telegram: '011 864 447',
       facebook: 'Icase service center',
       address: 'Phnom Penh, Cambodia',
-      adminName: 'Chhun kakada',
+      adminName: 'Admin',
       thankYouNote: 'Thank you for support us!',
-      warrantyTerms: 'Warranty applies for manufacturer defects. Physical damages after pickup are not covered. Goods sold are not refundable.'
+      warrantyTerms: 'Warranty applies for manufacturer defects. Physical damages after pickup are not covered.'
     };
+
+    try {
+      const { data } = await supabase.from('settings').select('*').limit(1);
+      if (data && data.length > 0) {
+        settings = {
+          storeName: data[0].shop_name || settings.storeName,
+          subTitle: data[0].sub_title || settings.subTitle,
+          phone: data[0].phone || settings.phone,
+          telegram: data[0].telegram || settings.telegram,
+          facebook: data[0].facebook || settings.facebook,
+          address: data[0].address || settings.address,
+          adminName: data[0].admin_name || settings.adminName,
+          thankYouNote: data[0].thank_you_note || settings.thankYouNote,
+          warrantyTerms: data[0].warranty_terms || settings.warrantyTerms,
+        };
+      }
+    } catch (e) {
+      console.error("Could not fetch settings for invoice");
+    }
 
     const statusColor = repair.status === 'Completed' || repair.status === 'Delivered' ? '#10b981' : 
                         repair.status === 'Pending' ? '#f59e0b' : '#8b5cf6';
@@ -174,7 +263,6 @@ export default function RepairsPage() {
       `;
     }).join('');
 
-    // គណនាថ្ងៃផុតកំណត់ធានា (Warranty Expiration Date)
     let warrantyExpDate = 'N/A';
     const warrantyMonths = parseInt(repair.warranty) || 0;
     
@@ -184,12 +272,14 @@ export default function RepairsPage() {
       warrantyExpDate = d.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
     }
 
+    const displayDate = new Date(repair.date).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
+
     const htmlContent = `
       <!DOCTYPE html>
       <html lang="en">
       <head>
         <meta charset="UTF-8">
-        <title>Repair Invoice #${repair.id.toUpperCase()}</title>
+        <title>Repair Invoice #${repair.receipt_no}</title>
         <style>
           @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
           @page { size: A5 portrait; margin: 0; }
@@ -222,7 +312,6 @@ export default function RepairsPage() {
       <body>
         <div class="invoice-box">
           
-          <!-- Header Area -->
           <div class="header-shape">
             <div class="header-left-bg"></div>
             <div class="header-left-slant"></div>
@@ -231,8 +320,8 @@ export default function RepairsPage() {
               <div style="width: 40%; padding-top: 20px; color: white;">
                 <h1 style="font-size: 20px; font-weight: 800; letter-spacing: 1px;">REPAIR RECEIPT</h1>
                 <table style="color: white; font-size: 10px; margin-top: 10px; width: auto; font-weight: 500;">
-                  <tr><td style="padding: 2px 15px 2px 0; border: none; color: #ffd6d6;">Receipt No</td><td style="padding: 2px 0; border: none;">: REP-${repair.id.toUpperCase()}</td></tr>
-                  <tr><td style="padding: 2px 15px 2px 0; border: none; color: #ffd6d6;">Date</td><td style="padding: 2px 0; border: none;">: ${repair.date}</td></tr>
+                  <tr><td style="padding: 2px 15px 2px 0; border: none; color: #ffd6d6;">Receipt No</td><td style="padding: 2px 0; border: none;">: REP-${repair.receipt_no}</td></tr>
+                  <tr><td style="padding: 2px 15px 2px 0; border: none; color: #ffd6d6;">Date</td><td style="padding: 2px 0; border: none;">: ${displayDate}</td></tr>
                 </table>
               </div>
               <div style="width: 60%; display: flex; align-items: center; justify-content: flex-end; color: white;">
@@ -245,7 +334,6 @@ export default function RepairsPage() {
           </div>
           
           <div class="content-wrapper">
-            <!-- Billing Details -->
             <div style="display: flex; justify-content: space-between; margin-bottom: 25px;">
               <div>
                 <h3 style="font-size: 10px; color: #666; font-weight: 600; text-transform: uppercase; margin-bottom: 5px; letter-spacing: 1px;">CUSTOMER DETAILS</h3>
@@ -259,7 +347,6 @@ export default function RepairsPage() {
               </div>
             </div>
 
-            <!-- Item Table -->
             <table>
               <thead>
                 <tr>
@@ -275,7 +362,6 @@ export default function RepairsPage() {
               </tbody>
             </table>
 
-            <!-- Totals Area -->
             <div class="totals-wrapper">
               <table class="totals-table">
                 <tr>
@@ -293,7 +379,6 @@ export default function RepairsPage() {
               </table>
             </div>
 
-            <!-- Footer Area -->
             <div style="display: flex; justify-content: space-between; align-items: flex-end;">
               <div style="width: 65%;">
                 <h4 style="margin: 0 0 5px 0; font-size: 12px; color: #111;">Terms & Condition</h4>
@@ -349,13 +434,15 @@ export default function RepairsPage() {
       </html>
     `;
 
+    printWindow.document.open();
     printWindow.document.write(htmlContent);
     printWindow.document.close();
   };
 
   const filtered = repairsData.filter(r => 
     r.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    r.deviceModel.toLowerCase().includes(searchQuery.toLowerCase())
+    r.deviceModel.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    r.receipt_no.includes(searchQuery)
   );
 
   return (
@@ -373,65 +460,75 @@ export default function RepairsPage() {
       <div className="relative max-w-md">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
         <input 
-          type="text" placeholder="Search by customer or device..." 
+          type="text" placeholder="Search by name, device or receipt no..." 
           value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
           className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a9e52] outline-none"
         />
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-gray-50 border-b border-gray-200 text-sm font-semibold text-gray-700">
-                <th className="px-6 py-4">Receipt No</th>
-                <th className="px-6 py-4">Customer & Device</th>
-                <th className="px-6 py-4">Parts & Services</th>
-                <th className="px-6 py-4">Finances</th>
-                <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4 text-center">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {filtered.map((repair) => (
-                <tr key={repair.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 text-sm font-mono text-gray-500">{repair.id}</td>
-                  <td className="px-6 py-4">
-                    <div className="font-medium text-gray-900">{repair.customerName}</div>
-                    <div className="text-xs text-gray-500 flex items-center gap-1"><Smartphone size={12}/> {repair.deviceModel}</div>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
-                    {repair.items ? repair.items[0]?.description + (repair.items.length > 1 ? '...' : '') : (repair.issue || '-')}
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="text-sm font-bold text-gray-900">${repair.totalCost.toFixed(2)}</div>
-                    {repair.balance > 0 ? (
-                      <div className="text-[10px] font-bold text-red-500 uppercase">Due: ${repair.balance.toFixed(2)}</div>
-                    ) : (
-                      <div className="text-[10px] font-bold text-emerald-500 uppercase">Paid</div>
-                    )}
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
-                      repair.status === 'Delivered' ? 'bg-blue-100 text-blue-700' :
-                      repair.status === 'Completed' ? 'bg-green-100 text-green-700' :
-                      repair.status === 'In Progress' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'
-                    }`}>
-                      {repair.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-center">
-                    <div className="flex justify-center gap-3 text-gray-400">
-                      <button onClick={() => handlePrintInvoice(repair)} className="hover:text-[#dc2626] transition-colors" title="ព្រីនវិក្កយបត្រ (A5)"><Printer size={18}/></button>
-                      <button onClick={() => handleEdit(repair)} className="hover:text-blue-600 transition-colors" title="កែប្រែ"><Edit size={18}/></button>
-                      <button onClick={() => handleDelete(repair.id)} className="hover:text-red-600 transition-colors" title="លុប"><Trash2 size={18}/></button>
-                    </div>
-                  </td>
+      <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden min-h-[400px]">
+        {isLoading ? (
+          <div className="flex justify-center items-center h-64">
+            <Loader2 className="animate-spin text-[#1a9e52]" size={40} />
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-200 text-sm font-semibold text-gray-700">
+                  <th className="px-6 py-4">Receipt No</th>
+                  <th className="px-6 py-4">Customer & Device</th>
+                  <th className="px-6 py-4">Parts & Services</th>
+                  <th className="px-6 py-4">Finances</th>
+                  <th className="px-6 py-4">Status</th>
+                  <th className="px-6 py-4 text-center">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {filtered.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="text-center py-10 text-gray-500">មិនមានទិន្នន័យជួសជុលទេ</td>
+                  </tr>
+                ) : filtered.map((repair) => (
+                  <tr key={repair.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 text-sm font-mono text-gray-500">REP-{repair.receipt_no}</td>
+                    <td className="px-6 py-4">
+                      <div className="font-medium text-gray-900">{repair.customerName}</div>
+                      <div className="text-xs text-gray-500 flex items-center gap-1"><Smartphone size={12}/> {repair.deviceModel}</div>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-600">
+                      {repair.items ? repair.items[0]?.description + (repair.items.length > 1 ? '...' : '') : (repair.issue || '-')}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm font-bold text-gray-900">${repair.totalCost.toFixed(2)}</div>
+                      {repair.balance > 0 ? (
+                        <div className="text-[10px] font-bold text-red-500 uppercase">Due: ${repair.balance.toFixed(2)}</div>
+                      ) : (
+                        <div className="text-[10px] font-bold text-emerald-500 uppercase">Paid</div>
+                      )}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                        repair.status === 'Delivered' ? 'bg-blue-100 text-blue-700' :
+                        repair.status === 'Completed' ? 'bg-green-100 text-green-700' :
+                        repair.status === 'In Progress' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'
+                      }`}>
+                        {repair.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <div className="flex justify-center gap-3 text-gray-400">
+                        <button onClick={() => handlePrintInvoice(repair)} className="hover:text-[#dc2626] transition-colors" title="ព្រីនវិក្កយបត្រ (A5)"><Printer size={18}/></button>
+                        <button onClick={() => handleEdit(repair)} className="hover:text-blue-600 transition-colors" title="កែប្រែ"><Edit size={18}/></button>
+                        <button onClick={() => handleDelete(repair.id)} className="hover:text-red-600 transition-colors" title="លុប"><Trash2 size={18}/></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {isModalOpen && (
@@ -553,8 +650,9 @@ export default function RepairsPage() {
             </div>
             
             <div className="p-6 bg-gray-50 border-t flex justify-end gap-3">
-              <button onClick={resetForm} className="px-4 py-2 border rounded-lg text-sm font-medium hover:bg-gray-100">Cancel</button>
-              <button onClick={handleSave} className="px-4 py-2 bg-[#1a9e52] text-white rounded-lg text-sm font-medium hover:bg-emerald-600 shadow-sm">
+              <button onClick={resetForm} disabled={isSaving} className="px-4 py-2 border rounded-lg text-sm font-medium hover:bg-gray-100 disabled:opacity-50">Cancel</button>
+              <button onClick={handleSave} disabled={isSaving} className="px-4 py-2 bg-[#1a9e52] text-white rounded-lg text-sm font-medium hover:bg-emerald-600 shadow-sm flex items-center gap-2 disabled:opacity-70">
+                {isSaving && <Loader2 className="animate-spin" size={16} />}
                 {editingId ? 'Update' : 'Save'}
               </button>
             </div>

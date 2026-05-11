@@ -1,10 +1,13 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { DollarSign, Wrench, ShoppingBag, Receipt, TrendingUp, Package, AlertCircle, Calendar } from "lucide-react";
+import { DollarSign, Wrench, ShoppingBag, Receipt, TrendingUp, Package, AlertCircle, Calendar, Loader2 } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 
 export default function DashboardPage() {
-  // State to store total data (6 cards)
+  const [isLoading, setIsLoading] = useState(true);
+
+  // State សម្រាប់ផ្ទុកទិន្នន័យសរុប (6 កាត)
   const [metrics, setMetrics] = useState({
     totalSales: 0,
     totalRepairs: 0,
@@ -15,94 +18,155 @@ export default function DashboardPage() {
     lowStockCount: 0
   });
 
-  // State to store chart data
+  // State សម្រាប់ផ្ទុកទិន្នន័យតារាង (Chart)
   const [chartData7Days, setChartData7Days] = useState<any[]>([]);
   const [chartData30Days, setChartData30Days] = useState<any[]>([]);
 
+  // អនុគមន៍សម្រាប់គណនាតម្លៃលក់ចុងក្រោយ (មានបញ្ចុះតម្លៃ)
+  const getFinalPrice = (sale: any) => {
+    const base = parseFloat(sale.amount) || 0;
+    const discount = parseFloat(sale.discount_value) || 0;
+    if (discount <= 0) return base;
+    if (sale.discount_type === 'percent') {
+      return base - (base * (discount / 100));
+    }
+    return base - discount;
+  };
+
   useEffect(() => {
-    // 1. Fetch all data from LocalStorage
-    const storedSales = JSON.parse(localStorage.getItem('icase_sales_data') || '[]');
-    const storedRepairs = JSON.parse(localStorage.getItem('icase_repairs_data') || '[]');
-    const storedPurchases = JSON.parse(localStorage.getItem('icase_purchases_data') || '[]');
-    const storedExpenses = JSON.parse(localStorage.getItem('icase_expenses_data') || '[]');
-    const storedInventory = JSON.parse(localStorage.getItem('inventoryItems') || '[]');
+    const fetchDashboardData = async () => {
+      setIsLoading(true);
+      try {
+        // 1. ទាញយកទិន្នន័យព្រមគ្នាពីគ្រប់ Table (Supabase)
+        const [
+          { data: sales },
+          { data: repairs },
+          { data: purchases },
+          { data: expenses },
+          { data: inventory }
+        ] = await Promise.all([
+          supabase.from('sales').select('date, amount, discount_value, discount_type, status'),
+          supabase.from('repairs').select('date, total_cost, status'),
+          supabase.from('purchases').select('date, total_cost, status'),
+          supabase.from('expenses').select('date, amount, status'),
+          supabase.from('inventory').select('quantity, price')
+        ]);
 
-    // 2. Calculate total amount for each section
-    const totalSales = storedSales.reduce((sum: number, item: any) => sum + (Number(item.amount) || 0), 0);
-    const totalRepairs = storedRepairs.reduce((sum: number, item: any) => sum + (Number(item.totalCost) || 0), 0);
-    const totalPurchases = storedPurchases.reduce((sum: number, item: any) => sum + (Number(item.totalCost) || 0), 0);
-    const totalExpenses = storedExpenses.reduce((sum: number, item: any) => sum + (Number(item.amount) || 0), 0);
+        // 2. គណនាទិន្នន័យសរុបសម្រាប់កាតនីមួយៗ
+        const safeSales = sales || [];
+        const safeRepairs = repairs || [];
+        const safePurchases = purchases || [];
+        const safeExpenses = expenses || [];
+        const safeInventory = inventory || [];
 
-    // Calculate the value of inventory currently in stock
-    const inventoryValue = storedInventory.reduce((sum: number, item: any) => sum + ((Number(item.quantity) || 0) * (Number(item.price) || 0)), 0);
-    const lowStockCount = storedInventory.filter((item: any) => (Number(item.quantity) || 0) < 10 && (Number(item.quantity) || 0) > 0).length;
+        // សរុបចំណូលលក់ (មិនរាប់បញ្ចូល Refunded)
+        const totalSales = safeSales
+          .filter(s => s.status !== 'Refunded')
+          .reduce((sum, s) => sum + getFinalPrice(s), 0);
 
-    // 3. Calculate net profit
-    const netProfit = (totalSales + totalRepairs) - (totalPurchases + totalExpenses);
+        // សរុបចំណូលជួសជុល
+        const totalRepairs = safeRepairs.reduce((sum, r) => sum + (Number(r.total_cost) || 0), 0);
 
-    setMetrics({
-      totalSales,
-      totalRepairs,
-      totalPurchases,
-      totalExpenses,
-      netProfit,
-      inventoryValue,
-      lowStockCount
-    });
+        // សរុបចំណាយទិញចូល
+        const totalPurchases = safePurchases.reduce((sum, p) => sum + (Number(p.total_cost) || 0), 0);
 
-    // List of month names in English
-    const englishMonths = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        // សរុបចំណាយទូទៅ
+        const totalExpenses = safeExpenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
 
-    // 4. Function to fetch data by specified number of days (7 or 30)
-    const generateChartData = (days: number) => {
-      const data = [];
-      const allIncome = [...storedSales, ...storedRepairs];
-      const allOutgo = [...storedPurchases, ...storedExpenses];
+        // សរុបតម្លៃស្តុក និងរាប់ស្តុកជិតអស់
+        const inventoryValue = safeInventory.reduce((sum, item) => sum + ((Number(item.quantity) || 0) * (Number(item.price) || 0)), 0);
+        const lowStockCount = safeInventory.filter((item) => (Number(item.quantity) || 0) < 10).length;
 
-      for (let i = days - 1; i >= 0; i--) {
-        const targetDate = new Date();
-        targetDate.setDate(targetDate.getDate() - i);
+        // ប្រាក់ចំណេញសុទ្ធ = (ចំណូល) - (ចំណាយ)
+        const netProfit = (totalSales + totalRepairs) - (totalPurchases + totalExpenses);
+
+        setMetrics({
+          totalSales,
+          totalRepairs,
+          totalPurchases,
+          totalExpenses,
+          netProfit,
+          inventoryValue,
+          lowStockCount
+        });
+
+        // 3. រៀបចំទិន្នន័យសម្រាប់តារាង (Chart)
+        const englishMonths = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
         
-        // Generate display label (e.g., "8 May")
-        const shortLabel = `${targetDate.getDate()} ${englishMonths[targetDate.getMonth()]}`;
+        // ចងក្រងទិន្នន័យចំណូល និងចំណាយតាមថ្ងៃ
+        const incomeData = [
+          ...safeSales.filter(s => s.status !== 'Refunded').map(s => ({ date: s.date, value: getFinalPrice(s) })),
+          ...safeRepairs.map(r => ({ date: r.date, value: Number(r.total_cost) || 0 }))
+        ];
 
-        // Function to check if dates match
-        const isSameDay = (dateString: string) => {
-          if (!dateString) return false;
-          const d = new Date(dateString);
-          return d.getDate() === targetDate.getDate() && 
-                 d.getMonth() === targetDate.getMonth() && 
-                 d.getFullYear() === targetDate.getFullYear();
+        const outgoData = [
+          ...safePurchases.map(p => ({ date: p.date, value: Number(p.total_cost) || 0 })),
+          ...safeExpenses.map(e => ({ date: e.date, value: Number(e.amount) || 0 }))
+        ];
+
+        // អនុគមន៍សម្រាប់បង្កើតទិន្នន័យ ៧ថ្ងៃ និង ៣០ថ្ងៃ
+        const generateChartData = (days: number) => {
+          const data = [];
+          for (let i = days - 1; i >= 0; i--) {
+            const targetDate = new Date();
+            targetDate.setDate(targetDate.getDate() - i);
+            
+            const shortLabel = `${targetDate.getDate()} ${englishMonths[targetDate.getMonth()]}`;
+
+            // Check ប្រសិនបើថ្ងៃត្រូវគ្នា
+            const isSameDay = (dateString: string) => {
+              if (!dateString) return false;
+              const d = new Date(dateString);
+              return d.getDate() === targetDate.getDate() && 
+                     d.getMonth() === targetDate.getMonth() && 
+                     d.getFullYear() === targetDate.getFullYear();
+            };
+
+            const dayRevenue = incomeData
+              .filter(x => isSameDay(x.date))
+              .reduce((sum, x) => sum + x.value, 0);
+
+            const dayExpenses = outgoData
+              .filter(x => isSameDay(x.date))
+              .reduce((sum, x) => sum + x.value, 0);
+
+            data.push({
+              label: shortLabel,
+              revenue: dayRevenue,
+              expenses: dayExpenses
+            });
+          }
+          return data;
         };
 
-        const dayRevenue = allIncome
-          .filter(x => isSameDay(x.date))
-          .reduce((sum, x) => sum + (Number(x.amount || x.totalCost) || 0), 0);
+        setChartData7Days(generateChartData(7));
+        setChartData30Days(generateChartData(30));
 
-        const dayExpenses = allOutgo
-          .filter(x => isSameDay(x.date))
-          .reduce((sum, x) => sum + (Number(x.amount || x.totalCost) || 0), 0);
-
-        data.push({
-          label: shortLabel,
-          revenue: dayRevenue,
-          expenses: dayExpenses
-        });
+      } catch (error) {
+        console.error("Error fetching dashboard data:", error);
+      } finally {
+        setIsLoading(false);
       }
-      return data;
     };
 
-    setChartData7Days(generateChartData(7));
-    setChartData30Days(generateChartData(30));
-
+    fetchDashboardData();
   }, []);
 
-  // Function to format currency
+  // មុខងារសម្រាប់ Format លុយ
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
   };
 
   const currentMonth = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[70vh] space-y-4">
+        <Loader2 className="animate-spin text-[#1a9e52]" size={48} />
+        <p className="text-gray-500 font-medium">កំពុងទាញយកទិន្នន័យ...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto space-y-8 p-4 md:p-8 animate-in fade-in duration-500 font-sans">
@@ -113,7 +177,7 @@ export default function DashboardPage() {
           <h2 className="text-3xl font-extrabold text-gray-900 tracking-tight">Dashboard Overview</h2>
           <p className="text-gray-500 mt-1.5 text-sm flex items-center gap-2">
             <Calendar size={14} className="text-gray-400" />
-            Business performance for {currentMonth}
+            ទិដ្ឋភាពអាជីវកម្មសម្រាប់ {currentMonth}
           </p>
         </div>
       </div>

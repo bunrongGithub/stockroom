@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 
 interface InventoryItem {
   id: string;
+  item_no?: string; // បន្ថែមសម្រាប់ផ្ទុកលេខរៀង 00000001
   name: string;
   category: string;
   quantity: number;
@@ -24,10 +25,11 @@ export default function InventoryPage() {
   
   // State ថ្មីសម្រាប់ផ្ទុក File រូបភាពពិតប្រាកដដែលត្រូវ Upload ទៅ ImgBB
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-
   const [purchaseHistoryNames, setPurchaseHistoryNames] = useState<string[]>([]);
+  const [purchasesList, setPurchasesList] = useState<any[]>([]);
 
   const [formData, setFormData] = useState({
+    item_no: "", // បន្ថែមក្នុង State ដើម្បីអាចបង្ហាញ និងបំពេញបាន
     name: "",
     category: "",
     quantity: 0,
@@ -50,6 +52,7 @@ export default function InventoryPage() {
       if (data) {
         const formattedData = data.map((item: any) => ({
           id: item.id,
+          item_no: item.item_no || '', // ទាញយកលេខរៀងពី Database
           name: item.name,
           category: item.category,
           quantity: item.quantity,
@@ -68,18 +71,28 @@ export default function InventoryPage() {
     }
   };
 
-  useEffect(() => {
-    fetchInventory();
+  const loadPurchases = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('purchases')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-    const loadPurchaseHistory = () => {
-      const savedPurchases = localStorage.getItem("icase_purchases_data");
-      if (savedPurchases) {
-        const parsedPurchases = JSON.parse(savedPurchases);
-        const models = Array.from(new Set(parsedPurchases.map((p: any) => p.model).filter(Boolean))) as string[];
+      if (error) throw error;
+
+      if (data) {
+        setPurchasesList(data);
+        const models = Array.from(new Set(data.map((p: any) => p.model || p.description).filter(Boolean))) as string[];
         setPurchaseHistoryNames(models);
       }
-    };
-    loadPurchaseHistory();
+    } catch (error) {
+      console.error("Error loading purchases for inventory:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchInventory();
+    loadPurchases();
 
     const handleInventoryUpdated = () => fetchInventory();
     window.addEventListener('inventory_updated', handleInventoryUpdated);
@@ -91,26 +104,45 @@ export default function InventoryPage() {
 
   const filteredItems = items.filter((item) =>
     item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    item.category.toLowerCase().includes(searchQuery.toLowerCase())
+    item.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (item.item_no && item.item_no.includes(searchQuery))
   );
 
   const handleAddNew = () => {
+    // គណនាលេខរៀងបន្ទាប់ជាមុនសិន
+    let maxNo = 0;
+    items.forEach(it => {
+      if (it.item_no) {
+        const num = parseInt(it.item_no, 10);
+        if (!isNaN(num) && num > maxNo) maxNo = num;
+      }
+    });
+    const nextItemNo = String(maxNo + 1).padStart(8, '0');
+
     setEditingItem(null);
-    setFormData({ name: "", category: "", quantity: 0, price: 0, image: "" });
-    setSelectedFile(null); // Clear file ពេលបន្ថែមថ្មី
+    setFormData({ 
+      item_no: nextItemNo, // កំណត់លេខរៀងដែលគណនារួចទៅក្នុង Form
+      name: "", 
+      category: "", 
+      quantity: 0, 
+      price: 0, 
+      image: "" 
+    });
+    setSelectedFile(null);
     setIsModalOpen(true);
   };
 
   const handleEdit = (item: InventoryItem) => {
     setEditingItem(item);
     setFormData({
+      item_no: item.item_no || "",
       name: item.name,
       category: item.category,
       quantity: item.quantity,
       price: item.price,
       image: item.image || "",
     });
-    setSelectedFile(null); // Clear file ពេលកែប្រែ
+    setSelectedFile(null);
     setIsModalOpen(true);
   };
 
@@ -138,51 +170,36 @@ export default function InventoryPage() {
     try {
       let finalImageUrl = formData.image;
 
-      // ១. ប្រសិនបើមានជ្រើសរើសរូបភាពថ្មី ត្រូវ Upload ទៅ ImgBB សិន
       if (selectedFile) {
         const imgFormData = new FormData();
         imgFormData.append("image", selectedFile);
-
-        // ទាញយក API Key ពី Environment Variables
         const imgbbApiKey = process.env.NEXT_PUBLIC_IMGBB_API_KEY;
         
-        if (!imgbbApiKey) {
-          throw new Error("រកមិនឃើញ ImgBB API Key! សូមត្រួតពិនិត្យឯកសារ .env.local របស់អ្នក។");
-        }
+        if (!imgbbApiKey) throw new Error("រកមិនឃើញ ImgBB API Key!");
 
         const response = await fetch(`https://api.imgbb.com/1/upload?key=${imgbbApiKey}`, {
           method: "POST",
           body: imgFormData,
         });
-
         const data = await response.json();
-
-        if (data.success) {
-          finalImageUrl = data.data.url; // យក URL ដែលបានពី ImgBB
-        } else {
-          throw new Error("បរាជ័យក្នុងការ Upload រូបភាពទៅកាន់ ImgBB");
-        }
+        if (data.success) finalImageUrl = data.data.url;
+        else throw new Error("បរាជ័យក្នុងការ Upload រូបភាព");
       }
 
-      // ២. រក្សាទុកទិន្នន័យ (រួមជាមួយ URL រូបភាពពី ImgBB) ទៅកាន់ Supabase
-      const payload = {
+      const payload: any = {
         name: formData.name,
         category: formData.category,
         quantity: formData.quantity,
         price: formData.price,
         image_url: finalImageUrl || null,
+        item_no: formData.item_no // យកលេខដែលនៅក្នុង Form ទៅរក្សាទុក
       };
 
       if (editingItem) {
-        const { error } = await supabase
-          .from('inventory')
-          .update(payload)
-          .eq('id', editingItem.id);
+        const { error } = await supabase.from('inventory').update(payload).eq('id', editingItem.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase
-          .from('inventory')
-          .insert([payload]);
+        const { error } = await supabase.from('inventory').insert([payload]);
         if (error) throw error;
       }
 
@@ -191,7 +208,7 @@ export default function InventoryPage() {
       fetchInventory();
     } catch (error: any) {
       console.error("Error saving item:", error);
-      alert(error.message || "មានបញ្ហាក្នុងការរក្សាទុកទិន្នន័យទៅកាន់ Database!");
+      alert(error.message || "មានបញ្ហាក្នុងការរក្សាទុកទិន្នន័យ!");
     } finally {
       setIsSaving(false);
     }
@@ -199,29 +216,30 @@ export default function InventoryPage() {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData({
-      ...formData,
-      [name]: name === "quantity" || name === "price" ? Number(value) : value,
+    setFormData((prev) => {
+      const newData = { ...prev, [name]: name === "quantity" || name === "price" ? Number(value) : value };
+
+      if (name === "name" && !editingItem) {
+        const matchedPurchase = purchasesList.find((p: any) => (p.model || p.description)?.toLowerCase() === String(value).toLowerCase());
+        if (matchedPurchase) {
+          newData.quantity = Number(matchedPurchase.quantity) || 0;
+          newData.price = Number(matchedPurchase.cost_per_unit) || 0; 
+        }
+      }
+      return newData;
     });
   };
 
-  // កែប្រែមុខងារជ្រើសរើសរូបភាព
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // ImgBB ទទួលរូបភាពទំហំរហូតដល់ 32MB
-      if (file.size > 32 * 1024 * 1024) {
-        alert("សូមជ្រើសរើសរូបភាពដែលមានទំហំតូចជាង 32MB");
-        return;
-      }
+      if (file.size > 32 * 1024 * 1024) return alert("សូមជ្រើសរើសរូបភាពដែលមានទំហំតូចជាង 32MB");
       setSelectedFile(file);
-      // បង្កើត URL បណ្ដោះអាសន្នសម្រាប់ Preview លើ UI មិនមែនបំប្លែងទៅ Base64 ទេ
       setFormData({ ...formData, image: URL.createObjectURL(file) });
     }
   };
 
   const triggerFileInput = () => { fileInputRef.current?.click(); };
-  
   const removeImage = () => {
     setFormData({ ...formData, image: "" });
     setSelectedFile(null);
@@ -237,7 +255,7 @@ export default function InventoryPage() {
             <Package className="text-[#1a9e52]" />
             ឃ្លាំងទំនិញ (Inventory Cloud)
           </h2>
-          <p className="text-slate-500 text-sm mt-1">ទិន្នន័យរបស់អ្នកឥឡូវនេះត្រូវបានរក្សាទុកលើ Supabase រីឯរូបភាពរក្សាទុកលើ ImgBB</p>
+          <p className="text-slate-500 text-sm mt-1">គ្រប់គ្រងបញ្ជីទំនិញ និងស្តុកដោយប្រើលេខរៀងសម្គាល់</p>
         </div>
         <button
           onClick={handleAddNew}
@@ -255,8 +273,8 @@ export default function InventoryPage() {
           </div>
           <input
             type="text"
-            placeholder="ស្វែងរកឈ្មោះ ឬប្រភេទទីទំនិញ..."
-            className="block w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-xl leading-5 bg-slate-50 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#1a9e52]/20 focus:border-[#1a9e52] sm:text-sm transition-all"
+            placeholder="ស្វែងរកតាមឈ្មោះ ឬលេខកូដ (0000...)"
+            className="block w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-xl leading-5 bg-slate-50 focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#1a9e52]/20 focus:border-[#1a9e52] sm:text-sm transition-all"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -303,7 +321,9 @@ export default function InventoryPage() {
                         )}
                         <div>
                           <div className="text-sm font-medium text-slate-800">{item.name}</div>
-                          <div className="text-xs text-slate-400 font-mono">ID: {item.id.slice(0, 8)}...</div>
+                          <div className="text-[10px] text-[#1a9e52] font-mono font-bold">
+                            {item.item_no ? `ID: ${item.item_no}` : `ID: ${item.id.slice(0, 8)}...`}
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -360,7 +380,7 @@ export default function InventoryPage() {
               </button>
             </div>
             
-            <form onSubmit={handleSave} className="p-6 space-y-4">
+            <form onSubmit={handleSave} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">រូបភាពទំនិញ (Image)</label>
                 <div 
@@ -387,15 +407,27 @@ export default function InventoryPage() {
                 </div>
               </div>
 
+              {/* បន្ថែមប្រឡោះបញ្ចូលលេខកូដទំនិញ */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">លេខកូដទំនិញ (Item ID)</label>
+                <input 
+                  type="text" 
+                  name="item_no" 
+                  required 
+                  value={formData.item_no} 
+                  onChange={handleChange} 
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1a9e52]/20 focus:border-[#1a9e52] text-sm font-bold text-[#1a9e52]" 
+                  placeholder="00000001" 
+                />
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">ឈ្មោះទំនិញ</label>
-                
                 <datalist id="inventory-purchase-history">
                   {purchaseHistoryNames.map((model, idx) => (
                     <option key={idx} value={model} />
                   ))}
                 </datalist>
-
                 <input 
                   type="text" 
                   name="name" 

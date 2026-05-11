@@ -2,11 +2,12 @@
 
 import React, { useState, useEffect } from 'react';
 import { Plus, Search, Edit, Trash2, X, Printer, RotateCcw, ShieldCheck, Loader2 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase'; // Changed back to correct alias
 
 export default function SalesPage() {
   const [salesData, setSalesData] = useState<any[]>([]);
   const [inventoryData, setInventoryData] = useState<any[]>([]);
+  const [storeSettings, setStoreSettings] = useState<any>(null); 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [editingSaleId, setEditingSaleId] = useState<string | null>(null);
@@ -15,6 +16,7 @@ export default function SalesPage() {
   const [isSaving, setIsSaving] = useState(false);
 
   // Form States
+  const [newSaleNo, setNewSaleNo] = useState('');
   const [newSaleCustomer, setNewSaleCustomer] = useState('');
   const [newSalePhone, setNewSalePhone] = useState(''); 
   const [newSaleDate, setNewSaleDate] = useState(new Date().toISOString().split('T')[0]); 
@@ -26,7 +28,36 @@ export default function SalesPage() {
   const [newSaleDiscountType, setNewSaleDiscountType] = useState('fixed'); 
   const [newSaleWarranty, setNewSaleWarranty] = useState('1');
 
-  // ---------------- Fetch Data from Supabase ----------------
+  // ---------------- Fetch Settings from Supabase ----------------
+  const fetchSettings = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('settings')
+        .select('*')
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+      if (data) setStoreSettings(data);
+    } catch (error) {
+      console.error('Error fetching settings:', error);
+    }
+  };
+
+  // ---------------- Fetch Inventory from Supabase directly ----------------
+  const fetchInventoryForDatalist = async () => {
+    try {
+      const { data, error } = await supabase.from('inventory').select('*');
+      if (error) throw error;
+      if (data) {
+        setInventoryData(data);
+      }
+    } catch (error) {
+      console.error('Error fetching inventory for sales:', error);
+    }
+  };
+
+  // ---------------- Fetch Sales from Supabase ----------------
   const fetchSales = async () => {
     try {
       setIsLoading(true);
@@ -34,6 +65,7 @@ export default function SalesPage() {
         .from('sales')
         .select(`
           id,
+          sale_no,
           amount,
           description,
           date,
@@ -60,11 +92,11 @@ export default function SalesPage() {
           return {
             id: sale.id,
             date: formattedDate,
-            rawDate: sale.date, // Used for editing the <input type="date">
+            rawDate: sale.date,
             customer: sale.customers?.name || 'Unknown',
             phone: sale.customers?.phone || '',
             model: sale.description,
-            // Fallback if legacy rows don't have jsonb items yet
+            saleNo: sale.sale_no || '',
             items: sale.items || [{ description: sale.description, qty: 1, price: sale.amount }],
             amount: sale.amount,
             discountValue: sale.discount_value || 0,
@@ -85,26 +117,53 @@ export default function SalesPage() {
 
   useEffect(() => {
     fetchSales();
-    // Leaving inventory on localStorage as per current logic
-    const storedInv = localStorage.getItem('inventoryItems');
-    if (storedInv) setInventoryData(JSON.parse(storedInv));
+    fetchSettings(); 
+    fetchInventoryForDatalist();
   }, []);
 
-  // ---------------- ប្រព័ន្ធគ្រប់គ្រងស្តុកស្វ័យប្រវត្តិ ----------------
-  const adjustStock = (itemsToAdjust: any[], isAdding: boolean) => {
-    const inv = JSON.parse(localStorage.getItem('inventoryItems') || '[]');
+  // ---------------- ប្រព័ន្ធគ្រប់គ្រងស្តុកស្វ័យប្រវត្តិ (Supabase Version) ----------------
+  const adjustStock = async (itemsToAdjust: any[], isAdding: boolean) => {
     let modified = false;
-    itemsToAdjust.forEach(saleItem => {
-      const idx = inv.findIndex((i: any) => i.name.toLowerCase() === saleItem.description.toLowerCase());
-      if (idx >= 0) {
-        inv[idx].quantity += (isAdding ? saleItem.qty : -saleItem.qty);
-        modified = true;
+
+    for (const saleItem of itemsToAdjust) {
+      if (!saleItem.description) continue;
+
+      try {
+        // ១. ស្វែងរកទំនិញក្នុង Database តាមឈ្មោះ
+        const { data: invItems, error: fetchErr } = await supabase
+          .from('inventory')
+          .select('id, quantity')
+          .ilike('name', saleItem.description) // ilike សម្រាប់ស្វែងរកមិនខ្វល់អក្សរធំតូច
+          .limit(1);
+
+        if (fetchErr) throw fetchErr;
+
+        if (invItems && invItems.length > 0) {
+          const invItem = invItems[0];
+          
+          // ២. គណនាចំនួនថ្មី (បូកចូល ឬ ដកចេញ)
+          const currentQty = invItem.quantity || 0;
+          const newQty = isAdding 
+            ? currentQty + (saleItem.qty || 1) 
+            : Math.max(0, currentQty - (saleItem.qty || 1)); // មិនឲ្យស្តុកធ្លាក់ក្រោមសូន្យ
+
+          // ៣. Update ទៅកាន់ Database
+          const { error: updateErr } = await supabase
+            .from('inventory')
+            .update({ quantity: newQty })
+            .eq('id', invItem.id);
+
+          if (updateErr) throw updateErr;
+          modified = true;
+        }
+      } catch (err) {
+        console.error("Error adjusting stock for item:", saleItem.description, err);
       }
-    });
+    }
+
     if (modified) {
-      localStorage.setItem('inventoryItems', JSON.stringify(inv));
-      setInventoryData(inv);
-      window.dispatchEvent(new Event('inventory_updated')); // ផ្ញើសារប្រាប់ទំព័រឃ្លាំងឲ្យ Update
+      fetchInventoryForDatalist(); // ទាញយកស្តុកថ្មីមកបង្ហាញក្នុង Form លក់
+      window.dispatchEvent(new Event('inventory_updated')); // ប្រាប់ទំព័រឃ្លាំងឲ្យ Update ដែរ
     }
   };
 
@@ -139,7 +198,20 @@ export default function SalesPage() {
     return newSaleItems.reduce((sum, item) => sum + (parseFloat(item.price) || 0) * (item.qty || 1), 0);
   };
 
-  // ---------------- មុខងាររក្សាទុកការលក់ (Save Sale to Supabase) ----------------
+  const handleAddNew = () => {
+    resetForm();
+    let maxNo = 0;
+    salesData.forEach(s => {
+      if (s.saleNo) {
+        const num = parseInt(s.saleNo, 10);
+        if (!isNaN(num) && num > maxNo) maxNo = num;
+      }
+    });
+    setNewSaleNo(String(maxNo + 1).padStart(8, '0'));
+    setIsModalOpen(true);
+  };
+
+  // ---------------- មុខងាររក្សាទុកការលក់ ----------------
   const handleSaveSale = async () => {
     if (!newSaleCustomer || newSaleItems.some(i => !i.description || !i.price)) {
       alert('សូមបំពេញព័ត៌មានអតិថិជន និងទំនិញឲ្យបានគ្រប់គ្រាន់!');
@@ -172,19 +244,20 @@ export default function SalesPage() {
         currentCustomerId = newCust.id;
       }
 
-      // 2. Adjust Stock
+      // 2. Adjust Stock in Supabase Database
       const computedAmount = calculateSubTotal();
       const oldSale = editingSaleId ? salesData.find(sale => sale.id === editingSaleId) : null;
 
       if (oldSale && oldSale.status !== 'Refunded') {
-        adjustStock(oldSale.items || [{description: oldSale.model, qty: 1}], true); // បូកស្តុកចាស់ចូលវិញសិន
+        await adjustStock(oldSale.items || [{description: oldSale.model, qty: 1}], true); // បូកស្តុកចាស់ចូលវិញសិន
       }
       if (newSaleStatus !== 'Refunded') {
-        adjustStock(newSaleItems, false); // កាត់ស្តុកថ្មី
+        await adjustStock(newSaleItems, false); // កាត់ស្តុកថ្មីចេញពី Database
       }
 
       // 3. Prepare Payload
       const salePayload = {
+        sale_no: newSaleNo,
         customer_id: currentCustomerId,
         amount: computedAmount,
         description: newSaleItems[0].description + (newSaleItems.length > 1 ? ` (+${newSaleItems.length - 1} មុខទៀត)` : ''),
@@ -215,9 +288,10 @@ export default function SalesPage() {
     }
   };
 
-  // ---------------- មុខងារកែប្រែ (Edit Sale) ----------------
+  // ---------------- មុខងារកែប្រែ ----------------
   const handleEditSale = (sale: any) => {
     setEditingSaleId(sale.id);
+    setNewSaleNo(sale.saleNo || '');
     setNewSaleCustomer(sale.customer);
     setNewSalePhone(sale.phone || '');
     setNewSaleStatus(sale.status);
@@ -231,7 +305,6 @@ export default function SalesPage() {
       setNewSaleItems([{ id: Date.now(), description: sale.model, qty: 1, price: sale.amount.toString() }]);
     }
     
-    // Convert raw ISO date string to YYYY-MM-DD for the input
     const dateObj = new Date(sale.rawDate || sale.date);
     const yyyy = dateObj.getFullYear();
     const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
@@ -240,15 +313,16 @@ export default function SalesPage() {
     setIsModalOpen(true);
   };
 
-  // ---------------- មុខងារលុប (Delete Sale) ----------------
+  // ---------------- មុខងារលុប ----------------
   const handleDeleteSale = async (id: string) => {
     if (window.confirm('តើអ្នកពិតជាចង់លុបទិន្នន័យនេះមែនទេ?')) {
       const saleToDelete = salesData.find(sale => sale.id === id);
-      if (saleToDelete && saleToDelete.status !== 'Refunded') {
-        adjustStock(saleToDelete.items || [{description: saleToDelete.model, qty: 1}], true); // បូកស្តុកចូលវិញ
-      }
       
       try {
+        if (saleToDelete && saleToDelete.status !== 'Refunded') {
+          await adjustStock(saleToDelete.items || [{description: saleToDelete.model, qty: 1}], true); // បូកស្តុកចូលវិញក្នុង Database
+        }
+        
         const { error } = await supabase.from('sales').delete().eq('id', id);
         if (error) throw error;
         await fetchSales();
@@ -276,19 +350,20 @@ export default function SalesPage() {
     const finalAmount = getFinalPrice(sale).toFixed(2);
     let confirmMsg = '';
 
-    if (warrantyMonths === 0) confirmMsg = `ទំនិញនេះគ្មានការធានាទេ! តើអ្នកពិតជាចង់ Refund ប្រាក់ $${finalAmount} មែនទេ?`;
-    else if (isUnderWarranty) confirmMsg = `ទំនិញនេះនៅមានធានាដល់ថ្ងៃទី ${expDateStr}។ តើអ្នកចង់ Refund ប្រាក់ $${finalAmount} មែនទេ?`;
+    if (warrantyMonths === 0) confirmMsg = `ទំនិញនេះគ្មានការធានាទេ! តើអ្នកពិតជាចង់ Refund ប្រាក់ $${finalAmount} មែនទេ? (ស្តុកនឹងត្រូវបានបូកចូលឃ្លាំងវិញ)`;
+    else if (isUnderWarranty) confirmMsg = `ទំនិញនេះនៅមានធានាដល់ថ្ងៃទី ${expDateStr}។ តើអ្នកចង់ Refund ប្រាក់ $${finalAmount} មែនទេ? (ស្តុកនឹងត្រូវបានបូកចូលឃ្លាំងវិញ)`;
     else confirmMsg = `⚠️ ប្រយ័ត្ន: ទំនិញនេះបានផុតកំណត់ធានាតាំងពីថ្ងៃទី ${expDateStr}! តើអ្នកនៅតែចង់អនុញ្ញាតការ Refund នេះមែនទេ?`;
 
     if (window.confirm(confirmMsg)) {
-      adjustStock(sale.items || [{description: sale.model, qty: 1}], true); // បូកស្តុកចូលវិញពេល Refund
-      
       try {
+        await adjustStock(sale.items || [{description: sale.model, qty: 1}], true); // បូកស្តុកចូលវិញពេល Refund
+        
         const { error } = await supabase.from('sales').update({ status: 'Refunded' }).eq('id', sale.id);
         if (error) throw error;
         await fetchSales();
       } catch (err) {
         console.error("Error refunding sale:", err);
+        alert('មានបញ្ហាក្នុងការ Refund');
       }
     }
   };
@@ -324,17 +399,30 @@ export default function SalesPage() {
     const printWindow = window.open('', '_blank');
     if (!printWindow) return alert('សូមអនុញ្ញាត Pop-ups សម្រាប់គេហទំព័រនេះសិន!');
 
-    // ទាញទិន្នន័យហាងពី Settings
-    const settings = JSON.parse(localStorage.getItem('icase_store_settings') || 'null') || {
-      storeName: 'iCase',
-      subTitle: 'Premium Service Center',
+    const defaultSettings = {
+      shop_name: 'iCase',
+      sub_title: 'Premium Service Center',
       phone: '(+855) 11 864 447',
       telegram: '011 864 447',
       facebook: 'Icase service center',
       address: 'Phnom Penh, Cambodia',
-      adminName: 'Chhun kakada',
-      thankYouNote: 'Thank you for support us!',
-      warrantyTerms: 'Warranty applies for manufacturer defects. Physical damages after pickup are not covered. Goods sold are not refundable.'
+      admin_name: 'Chhun kakada',
+      thank_you_note: 'Thank you for support us!',
+      warranty_terms: 'Warranty applies for manufacturer defects. Physical damages after pickup are not covered. Goods sold are not refundable.'
+    };
+
+    const finalSettings = storeSettings || defaultSettings;
+
+    const settings = {
+      storeName: finalSettings.shop_name || defaultSettings.shop_name,
+      subTitle: finalSettings.sub_title || defaultSettings.sub_title,
+      phone: finalSettings.phone || defaultSettings.phone,
+      telegram: finalSettings.telegram || defaultSettings.telegram,
+      facebook: finalSettings.facebook || defaultSettings.facebook,
+      address: finalSettings.address || defaultSettings.address,
+      adminName: finalSettings.admin_name || defaultSettings.admin_name,
+      thankYouNote: finalSettings.thank_you_note || defaultSettings.thank_you_note,
+      warrantyTerms: finalSettings.warranty_terms || defaultSettings.warranty_terms
     };
 
     const subTotal = parseFloat(sale.amount) || 0;
@@ -382,7 +470,7 @@ export default function SalesPage() {
       `;
     }).join('');
 
-    const shortId = sale.id.substring(0, 8).toUpperCase();
+    const shortId = sale.saleNo ? sale.saleNo : sale.id.substring(0, 8).toUpperCase();
 
     const htmlContent = `
       <!DOCTYPE html>
@@ -426,78 +514,14 @@ export default function SalesPage() {
             <div class="header-left-slant"></div>
             <div class="header-left-gap"></div>
             <div class="header-content">
-              <div style="width: 40%; padding-top: 20px; color: white;">
-                <h1 style="font-size: 26px; font-weight: 800; letter-spacing: 1px;">INVOICE</h1>
-                <table style="color: white; font-size: 10px; margin-top: 10px; width: auto; font-weight: 500;">
-                  <tr><td style="padding: 2px 15px 2px 0; border: none; color: #ffd6d6;">Invoice No</td><td style="padding: 2px 0; border: none;">: INV-${shortId}</td></tr>
-                  <tr><td style="padding: 2px 15px 2px 0; border: none; color: #ffd6d6;">Date</td><td style="padding: 2px 0; border: none;">: ${sale.date}</td></tr>
-                </table>
-              </div>
-              <div style="width: 60%; display: flex; align-items: center; justify-content: flex-end; color: white;">
-                <div style="text-align: right;">
-                  <div style="font-size: 42px; font-weight: 900; letter-spacing: 0.5px; line-height: 1;"><span style="color: #ef4444;">${settings.storeName.charAt(0)}</span>${settings.storeName.slice(1)}</div>
-                  <div style="font-size: 14px; font-weight: 400; letter-spacing: 0.5px; color: #d4d4d8; margin-top: 4px;">${settings.subTitle}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <div class="content-wrapper">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 25px;">
-              <div>
-                <h3 style="font-size: 10px; color: #666; font-weight: 600; text-transform: uppercase; margin-bottom: 5px; letter-spacing: 1px;">INVOICE TO.</h3>
-                <h2 style="font-size: 16px; font-weight: 800; text-transform: uppercase; color: #111;">${sale.customer}</h2>
-                ${sale.phone ? `<p style="margin: 2px 0 0 0; font-size: 11px; color: #555;">📞 ${sale.phone}</p>` : ''}
-                <p style="margin: 2px 0 0 0; font-size: 11px; color: #555;">Valued Customer</p>
-                <p style="margin: 2px 0 0 0; font-size: 11px; color: #555;">Status: <span style="color: ${statusColor}; font-weight: 600;">${sale.status}</span></p>
-              </div>
-              <div style="text-align: left;">
-                <h3 style="font-size: 10px; color: #666; font-weight: 600; text-transform: uppercase; margin-bottom: 5px; letter-spacing: 1px;">WARRANTY INFO:</h3>
-                <table style="font-size: 11px; color: #555; width: auto; margin: 0;">
-                  <tr><td style="padding: 2px 10px 2px 0; border: none;">Period</td><td style="padding: 2px 0; border: none; font-weight: 600; color: #111;">: ${warrantyMonths > 0 ? warrantyMonths + ' Months' : 'N/A'}</td></tr>
-                  <tr><td style="padding: 2px 10px 2px 0; border: none;">Valid Until</td><td style="padding: 2px 0; border: none; font-weight: 600; color: #111;">: ${warrantyExpDate}</td></tr>
-                </table>
-              </div>
-            </div>
-
-            <table>
-              <thead>
-                <tr>
-                  <th class="text-center" style="width: 10%;">NO</th>
-                  <th class="text-left">DESCRIPTION</th>
-                  <th class="text-center" style="width: 15%;">QTY</th>
-                  <th class="text-right" style="width: 20%;">PRICE</th>
-                  <th class="text-right" style="width: 20%;">TOTAL</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${rowsHtml}
-              </tbody>
-            </table>
-
-            <!-- Totals Area -->
-            <div class="totals-wrapper">
-              <table class="totals-table">
-                ${discountAmount > 0 ? `
-                <tr>
-                  <td class="text-left" style="color: #555;">Sub Total</td>
-                  <td class="text-right font-medium" style="color: #111;">$${subTotal.toFixed(2)}</td>
-                </tr>
-                <tr>
-                  <td class="text-left border-bottom" style="color: #ef4444;">${discountText}</td>
-                  <td class="text-right border-bottom font-medium" style="color: #ef4444;">-$${discountAmount.toFixed(2)}</td>
-                </tr>
-                ` : `
-                <tr><td colspan="2" class="border-bottom" style="padding:0; margin:0;"></td></tr>
-                `}
-                <tr style="background: #ef4444; color: white; font-size: 14px;">
-                  <td class="text-left" style="font-weight: 600;">Grand Total</td>
-                  <td class="text-right" style="font-weight: 800;">$${grandTotal.toFixed(2)}</td>
-                </tr>
+            <div style="width: 40%; padding-top: 20px; color: white;">
+              <h1 style="font-size: 26px; font-weight: 800; letter-spacing: 1px;">INVOICE</h1>
+              <table style="color: white; font-size: 10px; margin-top: 10px; width: auto; font-weight: 500;">
+                <tr><td style="padding: 2px 15px 2px 0; border: none; color: #ffd6d6;">Invoice No</td><td style="padding: 2px 0; border: none;">: sl-${shortId}</td></tr>
+                <tr><td style="padding: 2px 15px 2px 0; border: none; color: #ffd6d6;">Date</td><td style="padding: 2px 0; border: none;">: ${sale.date}</td></tr>
               </table>
             </div>
 
-            <!-- Footer Area -->
             <div style="display: flex; justify-content: space-between; align-items: flex-end;">
               <div style="width: 65%;">
                 <h4 style="margin: 0 0 5px 0; font-size: 12px; color: #111;">Terms & Condition</h4>
@@ -540,7 +564,6 @@ export default function SalesPage() {
             </div>
           </div>
           
-          <!-- Bottom Border Shape -->
           <div class="footer-shape">
             <div class="footer-right-bg"></div>
             <div class="footer-right-slant"></div>
@@ -560,6 +583,7 @@ export default function SalesPage() {
 
   const resetForm = () => {
     setEditingSaleId(null);
+    setNewSaleNo('');
     setNewSaleCustomer('');
     setNewSalePhone(''); 
     setNewSaleItems([{ id: Date.now(), description: '', qty: 1, price: '' }]);
@@ -585,8 +609,9 @@ export default function SalesPage() {
     const customerStr = sale.customer ? String(sale.customer).toLowerCase() : '';
     const modelStr = sale.model ? String(sale.model).toLowerCase() : '';
     const phoneStr = sale.phone ? String(sale.phone).toLowerCase() : '';
+    const saleNoStr = sale.saleNo ? String(sale.saleNo).toLowerCase() : '';
     const query = searchQuery.toLowerCase();
-    return customerStr.includes(query) || modelStr.includes(query) || phoneStr.includes(query);
+    return customerStr.includes(query) || modelStr.includes(query) || phoneStr.includes(query) || saleNoStr.includes(query) || (`sl-${saleNoStr}`).includes(query);
   });
 
   const totalRevenue = filteredSales.reduce((sum, sale) => {
@@ -605,7 +630,7 @@ export default function SalesPage() {
           <p className="text-gray-500 mt-1">Manage your phone sales records</p>
         </div>
         <button 
-          onClick={() => { resetForm(); setIsModalOpen(true); }}
+          onClick={handleAddNew}
           className="bg-[#1a9e52] hover:bg-emerald-600 text-white px-4 py-2.5 rounded-lg flex items-center justify-center gap-2 font-medium transition-colors shadow-sm"
         >
           <Plus size={18} /> Add Sale
@@ -651,8 +676,8 @@ export default function SalesPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {isLoading ? (
-                <tr>
+            {isLoading ? (
+              <tr>
                   <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
                     <Loader2 className="animate-spin mx-auto mb-2 text-[#1a9e52]" size={24} />
                     កំពុងទាញទិន្នន័យ...
@@ -663,13 +688,13 @@ export default function SalesPage() {
                   <td colSpan={7} className="px-6 py-8 text-center text-gray-500">គ្មានទិន្នន័យ (No records found).</td>
                 </tr>
               ) : (
-                filteredSales.map((sale) => (
-                  <tr key={sale.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 text-sm font-mono text-gray-500">
-                      {sale.id.length > 8 ? sale.id.substring(0, 8).toUpperCase() : sale.id}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900">{sale.date}</td>
-                    <td className="px-6 py-4">
+              filteredSales.map((sale) => (
+                <tr key={sale.id} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-6 py-4 text-sm font-mono font-bold text-[#1a9e52]">
+                    {sale.saleNo ? `sl-${sale.saleNo}` : `sl-${sale.id.length > 8 ? sale.id.substring(0, 8).toUpperCase() : sale.id}`}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-900">{sale.date}</td>
+                  <td className="px-6 py-4">
                       <div className="text-sm text-gray-900 font-medium">{sale.customer}</div>
                       {sale.phone && <div className="text-xs text-gray-500">{sale.phone}</div>}
                     </td>
@@ -719,7 +744,6 @@ export default function SalesPage() {
         </div>
       </div>
 
-      {/* --- Modal Form --- */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm overflow-y-auto">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl overflow-hidden my-auto">
@@ -729,19 +753,25 @@ export default function SalesPage() {
             </div>
             
             <div className="p-6 space-y-5">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-900 mb-1">ឈ្មោះអតិថិជន (Customer Name)</label>
-                  <input type="text" value={newSaleCustomer} onChange={(e) => setNewSaleCustomer(e.target.value)} className="w-full border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-[#1a9e52]" placeholder="e.g. Sok San" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-900 mb-1">លេខទូរស័ព្ទ (Phone Number)</label>
-                  <input type="text" value={newSalePhone} onChange={(e) => setNewSalePhone(e.target.value)} className="w-full border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-[#1a9e52]" placeholder="e.g. 012345678" />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-900 mb-1">លេខវិក្កយបត្រ (Sale ID)</label>
+                <div className="flex">
+                  <span className="inline-flex items-center px-3 rounded-l-lg border border-r-0 border-gray-200 bg-gray-50 text-gray-500 font-medium text-sm">sl-</span>
+                  <input type="text" value={newSaleNo} onChange={(e) => setNewSaleNo(e.target.value)} className="w-full border rounded-r-lg px-3 py-2 outline-none focus:ring-2 focus:ring-[#1a9e52] font-mono text-[#1a9e52] font-bold" placeholder="00000001" />
                 </div>
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-900 mb-1">ឈ្មោះអតិថិជន (Customer)</label>
+                <input type="text" value={newSaleCustomer} onChange={(e) => setNewSaleCustomer(e.target.value)} className="w-full border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-[#1a9e52]" placeholder="e.g. Sok San" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-900 mb-1">លេខទូរស័ព្ទ (Phone Number)</label>
+                <input type="text" value={newSalePhone} onChange={(e) => setNewSalePhone(e.target.value)} className="w-full border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-[#1a9e52]" placeholder="e.g. 012345678" />
+              </div>
+            </div>
 
-              {/* ---------------- ផ្នែកបញ្ចូលទំនិញច្រើនមុខ (Dynamic Items) ---------------- */}
-              <div className="border border-gray-200 rounded-lg p-4 bg-gray-50/50">
+            <div className="border border-gray-200 rounded-lg p-4 bg-gray-50/50">
                 <div className="flex justify-between items-center mb-3">
                   <label className="block text-sm font-bold text-gray-900">បញ្ជីទំនិញ (Items)</label>
                   <button type="button" onClick={addItemRow} className="text-xs text-white bg-[#1a9e52] px-3 py-1.5 rounded-md hover:bg-emerald-600 flex items-center gap-1 font-medium transition-colors">
@@ -749,7 +779,6 @@ export default function SalesPage() {
                   </button>
                 </div>
                 
-                {/* បញ្ជីទាញទិន្នន័យពីឃ្លាំង (Datalist) */}
                 <datalist id="inventory-items">
                   {inventoryData.map(inv => (
                     <option key={inv.id} value={inv.name} />
