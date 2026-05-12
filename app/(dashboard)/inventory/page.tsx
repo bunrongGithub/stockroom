@@ -23,7 +23,6 @@ interface InventoryItem {
     image?: string;
 }
 
-
 export default function InventoryPage() {
     const [items, setItems] = useState<InventoryItem[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
@@ -33,7 +32,7 @@ export default function InventoryPage() {
     // State ថ្មីសម្រាប់ផ្ទុក File រូបភាពពិតប្រាកដដែលត្រូវ Upload ទៅ ImgBB
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [purchaseHistoryNames, setPurchaseHistoryNames] = useState<string[]>(
-        []
+        [],
     );
     const [purchasesList, setPurchasesList] = useState<any[]>([]);
 
@@ -72,7 +71,7 @@ export default function InventoryPage() {
                 setItems(formattedData);
                 localStorage.setItem(
                     'inventoryItems',
-                    JSON.stringify(formattedData)
+                    JSON.stringify(formattedData),
                 );
             }
         } catch (error) {
@@ -98,8 +97,8 @@ export default function InventoryPage() {
                     new Set(
                         data
                             .map((p: any) => p.model || p.description)
-                            .filter(Boolean)
-                    )
+                            .filter(Boolean),
+                    ),
                 ) as string[];
                 setPurchaseHistoryNames(models);
             }
@@ -120,7 +119,7 @@ export default function InventoryPage() {
         return () => {
             window.removeEventListener(
                 'inventory_updated',
-                handleInventoryUpdated
+                handleInventoryUpdated,
             );
         };
     }, []);
@@ -129,7 +128,7 @@ export default function InventoryPage() {
         (item) =>
             item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
             item.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            (item.item_no && item.item_no.includes(searchQuery))
+            (item.item_no && item.item_no.includes(searchQuery)),
     );
 
     const handleAddNew = () => {
@@ -191,7 +190,7 @@ export default function InventoryPage() {
                     {
                         method: 'POST',
                         body: imgFormData,
-                    }
+                    },
                 );
                 const data = await response.json();
                 if (data.success) finalImageUrl = data.data.url;
@@ -223,7 +222,7 @@ export default function InventoryPage() {
     };
 
     const handleChange = (
-        e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+        e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
     ) => {
         const { name, value } = e.target;
         setFormData((prev) => {
@@ -239,7 +238,7 @@ export default function InventoryPage() {
                 const matchedPurchase = purchasesList.find(
                     (p: any) =>
                         (p.model || p.description)?.toLowerCase() ===
-                        String(value).toLowerCase()
+                        String(value).toLowerCase(),
                 );
                 if (matchedPurchase) {
                     newData.quantity = Number(matchedPurchase.quantity) || 0;
@@ -455,7 +454,6 @@ export default function InventoryPage() {
                     </table>
                 </div>
             </div>
-
         </div>
     );
 }
