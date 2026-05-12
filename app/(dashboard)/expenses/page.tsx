@@ -1,7 +1,13 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Edit, Trash2, X, Download, Filter } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, X, Download, Filter, Loader2, CalendarDays } from 'lucide-react';
+import { createClient } from '@supabase/supabase-js';
+
+// --- ការកំណត់ Supabase (Inline Configuration) ---
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // កំណត់ពណ៌សម្រាប់ប្រភេទចំណាយនីមួយៗ (សម្រាប់កាត និងតារាង)
 const CATEGORY_COLORS: Record<string, { bg: string, text: string }> = {
@@ -21,14 +27,23 @@ const CATEGORY_COLORS_HEX: Record<string, string> = {
   'Other': '#6b7280' 
 };
 
-export default function ExpensesPage() {
+// ឈ្មោះខែជាភាសាខ្មែរ
+const KHMER_MONTHS = [
+  "មករា", "កុម្ភៈ", "មីនា", "មេសា", "ឧសភា", "មិថុនា",
+  "កក្កដា", "សីហា", "កញ្ញា", "តុលា", "វិច្ឆិកា", "ធ្នូ"
+];
+
+export default function App() {
   const [expensesData, setExpensesData] = useState<any[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   
   // State សម្រាប់ Filter
   const [searchQuery, setSearchQuery] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [selectedMonth, setSelectedMonth] = useState<string>('all'); // 'all' ឬ '0'-'11'
 
   // ---------------- State សម្រាប់ Form ----------------
   const [category, setCategory] = useState('Other');
@@ -39,43 +54,74 @@ export default function ExpensesPage() {
 
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
 
-  // ---------------- ទាញទិន្នន័យពី LocalStorage ----------------
-  useEffect(() => {
-    const storedExpenses = localStorage.getItem('icase_expenses_data');
-    if (storedExpenses) {
-      setExpensesData(JSON.parse(storedExpenses));
+  // ---------------- ទាញទិន្នន័យពី Supabase ----------------
+  const fetchExpenses = async () => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('expenses')
+        .select('*')
+        .order('date', { ascending: false });
+
+      if (error) throw error;
+
+      if (data) {
+        const formattedData = data.map((exp: any) => ({
+          id: exp.id,
+          date: new Date(exp.date).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
+          rawDate: exp.date,
+          category: exp.category,
+          amount: parseFloat(exp.amount),
+          description: exp.title || '',
+          status: exp.status || 'Completed'
+        }));
+        setExpensesData(formattedData);
+      }
+    } catch (error) {
+      console.error('Error fetching expenses:', error);
+    } finally {
+      setIsLoading(false);
     }
+  };
+
+  useEffect(() => {
+    fetchExpenses();
   }, []);
 
   // ---------------- មុខងាររក្សាទុក (Save Expense) ----------------
-  const handleSaveExpense = () => {
+  const handleSaveExpense = async () => {
     if (!amount) {
       alert('សូមបញ្ចូលចំនួនទឹកប្រាក់ (Amount)!');
       return;
     }
 
-    const dateObj = new Date(expenseDate);
-    const formattedDate = dateObj.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
+    setIsSaving(true);
+    try {
+      const dateObj = new Date(expenseDate);
+      const payload = {
+        date: dateObj.toISOString(),
+        category: category,
+        amount: parseFloat(amount),
+        title: description,
+        status: expenseStatus
+      };
 
-    const newExpenseData = {
-      id: editingExpenseId || Math.random().toString(36).substring(2, 10),
-      date: formattedDate,
-      category: category,
-      amount: parseFloat(amount),
-      description: description,
-      status: expenseStatus
-    };
+      if (editingExpenseId) {
+        const { error } = await supabase.from('expenses').update(payload).eq('id', editingExpenseId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('expenses').insert([payload]);
+        if (error) throw error;
+      }
 
-    let updatedExpenses;
-    if (editingExpenseId) {
-      updatedExpenses = expensesData.map(exp => exp.id === editingExpenseId ? newExpenseData : exp);
-    } else {
-      updatedExpenses = [newExpenseData, ...expensesData];
+      await fetchExpenses();
+      resetForm();
+    } catch (error) {
+      console.error('Error saving expense:', error);
+      alert('មានបញ្ហាក្នុងការរក្សាទុកទិន្នន័យចំណាយ!');
+    } finally {
+      setIsSaving(false);
     }
-
-    setExpensesData(updatedExpenses);
-    localStorage.setItem('icase_expenses_data', JSON.stringify(updatedExpenses));
-    resetForm();
   };
 
   // ---------------- មុខងារកែប្រែ (Edit) ----------------
@@ -86,7 +132,7 @@ export default function ExpensesPage() {
     setDescription(expense.description || '');
     setExpenseStatus(expense.status);
     
-    const dateObj = new Date(expense.date);
+    const dateObj = new Date(expense.rawDate || expense.date);
     const yyyy = dateObj.getFullYear();
     const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
     const dd = String(dateObj.getDate()).padStart(2, '0');
@@ -96,15 +142,19 @@ export default function ExpensesPage() {
   };
 
   // ---------------- មុខងារលុប (Delete) ----------------
-  const handleDeleteExpense = (id: string) => {
+  const handleDeleteExpense = async (id: string) => {
     if (window.confirm('តើអ្នកពិតជាចង់លុបទិន្នន័យចំណាយនេះមែនទេ?')) {
-      const updatedExpenses = expensesData.filter(exp => exp.id !== id);
-      setExpensesData(updatedExpenses);
-      localStorage.setItem('icase_expenses_data', JSON.stringify(updatedExpenses));
+      try {
+        const { error } = await supabase.from('expenses').delete().eq('id', id);
+        if (error) throw error;
+        await fetchExpenses();
+      } catch (error) {
+        console.error('Error deleting expense:', error);
+        alert('មានបញ្ហាក្នុងការលុប!');
+      }
     }
   };
 
-  // មុខងារសម្អាត Form
   const resetForm = () => {
     setEditingExpenseId(null);
     setCategory('Other');
@@ -115,39 +165,40 @@ export default function ExpensesPage() {
     setIsModalOpen(false);
   };
 
-  // Helper function សម្រាប់ត្រួតពិនិត្យថ្ងៃខែ
-  const isWithinRange = (dateString: string) => {
+  // Helper សម្រាប់ឆែកកាលបរិច្ឆេទ និងខែ
+  const isMatchFilter = (dateString: string) => {
     if (!dateString) return false;
-    if (!startDate && !endDate) return true;
-    
     const recordDate = new Date(dateString);
-    recordDate.setHours(0, 0, 0, 0); // យកត្រឹមតែថ្ងៃ មិនគិតម៉ោង
+    recordDate.setHours(0, 0, 0, 0);
 
-    if (startDate && !endDate) {
-      return recordDate >= new Date(startDate);
+    // Filter តាមខែ
+    if (selectedMonth !== 'all') {
+      if (recordDate.getMonth().toString() !== selectedMonth) return false;
     }
-    if (!startDate && endDate) {
-      return recordDate <= new Date(endDate);
+
+    // Filter តាមចន្លោះថ្ងៃ
+    if (startDate || endDate) {
+      if (startDate && recordDate < new Date(startDate)) return false;
+      if (endDate && recordDate > new Date(endDate)) return false;
     }
-    return recordDate >= new Date(startDate) && recordDate <= new Date(endDate);
+
+    return true;
   };
 
-  // មុខងារស្វែងរក និង ត្រងកាលបរិច្ឆេទ
+  // មុខងារស្វែងរក និង Filter
   const filteredExpenses = expensesData.filter(exp => {
     const catStr = exp.category ? String(exp.category).toLowerCase() : '';
     const descStr = exp.description ? String(exp.description).toLowerCase() : '';
     const query = searchQuery.toLowerCase();
     
     const matchesSearch = catStr.includes(query) || descStr.includes(query);
-    const matchesDate = isWithinRange(exp.date);
+    const matchesFilter = isMatchFilter(exp.rawDate || exp.date);
     
-    return matchesSearch && matchesDate;
+    return matchesSearch && matchesFilter;
   });
 
-  // គណនាសរុបរួម (ទិន្នន័យជាក់ស្តែងតាម Filter)
   const totalExpensesCost = filteredExpenses.reduce((sum, exp) => sum + exp.amount, 0);
 
-  // គណនាសរុបតាមប្រភេទនីមួយៗ (Category Breakdown)
   const categoryBreakdown = filteredExpenses.reduce((acc: any, expense) => {
     const cat = expense.category;
     if (!acc[cat]) acc[cat] = 0;
@@ -155,9 +206,7 @@ export default function ExpensesPage() {
     return acc;
   }, {});
 
-  // ---------------- មុខងារ Export to Excel ដោយប្រើ HTML Table ----------------
   const exportToExcel = () => {
-    // បង្កើតទម្រង់ជា HTML Table ដើម្បីឲ្យ Excel ងាយស្រួលអានជា Row និង Column
     let tableHtml = `
       <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
       <head>
@@ -184,11 +233,11 @@ export default function ExpensesPage() {
     `;
 
     filteredExpenses.forEach(exp => {
-        // ការពារការដាច់បន្ទាត់ ឬ Error លើសញ្ញាពិសេស
         const safeDescription = exp.description ? exp.description.replace(/</g, "&lt;").replace(/>/g, "&gt;") : '';
+        const shortId = exp.id.substring(0, 8).toUpperCase();
         tableHtml += `
           <tr>
-            <td>${exp.id}</td>
+            <td>${shortId}</td>
             <td>${exp.date}</td>
             <td>${exp.category}</td>
             <td>${exp.amount}</td>
@@ -198,32 +247,20 @@ export default function ExpensesPage() {
         `;
     });
 
-    tableHtml += `
-          </tbody>
-        </table>
-      </body>
-      </html>
-    `;
+    tableHtml += `</tbody></table></body></html>`;
 
-    // បង្កើត Blob សម្រាប់ឯកសារ .xls
     const blob = new Blob([tableHtml], { type: 'application/vnd.ms-excel' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    
     link.href = url;
-    const fileName = `iCase_Expenses_${startDate || 'All'}_to_${endDate || 'All'}.xls`;
-    link.download = fileName;
-    
+    link.download = `iCase_Expenses_Month_${selectedMonth}.xls`;
     document.body.appendChild(link);
     link.click();
-    
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
   };
 
-  // ---------------- មុខងារគូរក្រាបផ្លឹត (Dynamic SVG Pie Chart) ----------------
   const renderPieChart = () => {
-    // ពេលដែលគ្មានទិន្នន័យចំណាយទាល់តែសោះ
     if (totalExpensesCost === 0) {
       return (
         <div className="w-56 h-56 rounded-full border-4 border-dashed border-gray-200 flex items-center justify-center mx-auto text-gray-400 text-sm font-medium">
@@ -245,18 +282,15 @@ export default function ExpensesPage() {
           const value = categoryBreakdown[cat] || 0;
           if (value === 0) return null;
 
-          // ប្រសិនបើមានតែ ១ ប្រភេទ (១០០%) ឲ្យវាគូរជារង្វង់ពេញ
           if (value === totalExpensesCost) {
             return <circle key={cat} cx="0" cy="0" r="1" fill={CATEGORY_COLORS_HEX[cat]} />;
           }
 
-          // គណនាចំណែកដឺក្រេនីមួយៗជាក់ស្តែង
           const [startX, startY] = getCoordinatesForPercent(cumulativePercent);
           cumulativePercent += value / totalExpensesCost;
           const [endX, endY] = getCoordinatesForPercent(cumulativePercent);
           const largeArcFlag = value / totalExpensesCost > 0.5 ? 1 : 0;
 
-          // គូរគំនូសតាង
           const pathData = [
             `M 0 0`,
             `L ${startX} ${startY}`,
@@ -283,13 +317,28 @@ export default function ExpensesPage() {
     <div className="max-w-7xl mx-auto p-4 md:p-8 space-y-6 animate-in fade-in duration-500">
       
       {/* ---------------- Header & Actions ---------------- */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Expenses</h1>
-          <p className="text-gray-500 mt-1">Track and manage your business expenses</p>
+          <p className="text-gray-500 mt-1">Track and manage your business expenses by month</p>
         </div>
         
-        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+        <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+            {/* ជ្រើសរើសខែ */}
+            <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2 shadow-sm">
+                <CalendarDays size={16} className="text-gray-400" />
+                <select 
+                  value={selectedMonth} 
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  className="text-sm outline-none text-gray-700 bg-transparent font-medium"
+                >
+                  <option value="all">គ្រប់ខែទាំងអស់</option>
+                  {KHMER_MONTHS.map((m, idx) => (
+                    <option key={idx} value={idx.toString()}>ខែ {m}</option>
+                  ))}
+                </select>
+            </div>
+
             {/* Filter កាលបរិច្ឆេទ */}
             <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2 shadow-sm">
                 <Filter size={16} className="text-gray-400" />
@@ -308,8 +357,8 @@ export default function ExpensesPage() {
                 />
             </div>
             
-            {(startDate || endDate) && (
-                <button onClick={() => {setStartDate(''); setEndDate('');}} className="text-sm text-red-500 hover:text-red-700 font-medium">Clear</button>
+            {(startDate || endDate || selectedMonth !== 'all') && (
+                <button onClick={() => {setStartDate(''); setEndDate(''); setSelectedMonth('all');}} className="text-sm text-red-500 hover:text-red-700 font-medium">Clear</button>
             )}
 
             <button 
@@ -331,49 +380,56 @@ export default function ExpensesPage() {
       {/* ---------------- Summary & Pie Chart Section ---------------- */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         
-        {/* កាតចំណាយសរុប (ខាងឆ្វេង) */}
-        <div className="bg-white border border-gray-200 rounded-xl p-8 flex flex-col justify-start shadow-sm hover:shadow-md transition-shadow">
-          <p className="text-gray-500 font-medium mb-1">Total Expenses {startDate || endDate ? '(Filtered)' : ''}</p>
-          <h2 className="text-5xl font-bold text-[#e11d48]">
+        {/* កាតចំណាយសរុប */}
+        <div className="bg-white border border-gray-200 rounded-2xl p-8 flex flex-col justify-center shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-4 opacity-10">
+            <CalendarDays size={120} className="text-[#e11d48]" />
+          </div>
+          <p className="text-gray-500 font-medium mb-1">
+            Total Expenses {selectedMonth !== 'all' ? `(ខែ ${KHMER_MONTHS[parseInt(selectedMonth)]})` : ''}
+          </p>
+          <h2 className="text-5xl font-extrabold text-[#e11d48]">
             ${totalExpensesCost.toLocaleString('en-US', { minimumFractionDigits: 2 })}
           </h2>
-          <p className="text-base text-gray-500 mt-3">{filteredExpenses.length} total expenses</p>
+          <div className="flex items-center gap-2 mt-4">
+             <span className="px-2.5 py-1 bg-red-50 text-[#e11d48] rounded-lg text-xs font-bold uppercase tracking-wider">
+               {filteredExpenses.length} Records
+             </span>
+          </div>
         </div>
 
-        {/* កាតក្រាបផ្លឹត (ខាងស្តាំ) */}
-        <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow">
-          <h3 className="font-semibold text-gray-900 text-lg mb-6">Expense Breakdown</h3>
+        {/* កាតក្រាបផ្លឹត */}
+        <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
+          <h3 className="font-semibold text-gray-900 text-lg mb-6 flex items-center gap-2">
+            Expense Breakdown
+          </h3>
           
           <div className="flex flex-col items-center">
-            {/* ទីតាំងបង្ហាញក្រាបផ្លឹត */}
             {renderPieChart()}
-            
-            {/* បញ្ជីចំណាំពណ៌ (Legend) */}
             <div className="flex flex-wrap justify-center gap-x-4 gap-y-2 mt-6">
               {Object.keys(categoryBreakdown).map(cat => {
                 if (!categoryBreakdown[cat]) return null;
                 return (
                   <div key={cat} className="flex items-center gap-2">
                     <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: CATEGORY_COLORS_HEX[cat] }}></div>
-                    <span className="text-sm font-medium text-gray-600" style={{ color: CATEGORY_COLORS_HEX[cat] }}>{cat}</span>
+                    <span className="text-xs font-bold text-gray-600 uppercase tracking-tighter" style={{ color: CATEGORY_COLORS_HEX[cat] }}>{cat}</span>
                   </div>
                 );
               })}
             </div>
           </div>
         </div>
-
       </div>
 
-      {/* ---------------- Category Miniature Cards (កាតតូចៗខាងក្រោម) ---------------- */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+      {/* ---------------- Category Miniature Cards ---------------- */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
         {Object.keys(CATEGORY_COLORS_HEX).map(cat => {
           const amount = categoryBreakdown[cat] || 0;
-          if (amount === 0) return null; // លាក់កាតណាដែលមិនមានចំណាយ
+          if (amount === 0) return null;
           return (
-            <div key={cat} className="bg-white border border-gray-200 p-5 rounded-xl shadow-sm transition-all hover:-translate-y-1">
-              <p className="text-sm font-medium text-gray-600 mb-1">{cat}</p>
-              <p className="text-2xl font-bold" style={{ color: CATEGORY_COLORS_HEX[cat] }}>
+            <div key={cat} className="bg-white border border-gray-200 p-5 rounded-2xl shadow-sm transition-all hover:-translate-y-1">
+              <p className="text-xs font-bold text-gray-400 mb-1 uppercase tracking-widest">{cat}</p>
+              <p className="text-2xl font-black" style={{ color: CATEGORY_COLORS_HEX[cat] }}>
                 ${amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
               </p>
             </div>
@@ -381,35 +437,29 @@ export default function ExpensesPage() {
         })}
       </div>
 
-      {/* ---------------- Search Bar ---------------- */}
-      <div className="relative max-w-md mt-8">
-        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-          <Search size={18} className="text-gray-400" />
+      {/* ---------------- Search & Data Table ---------------- */}
+      <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
+        <div className="p-4 border-b border-gray-100 flex flex-col md:flex-row gap-4 justify-between items-center bg-gray-50/50">
+            <div className="relative w-full max-w-sm">
+                <Search size={18} className="absolute inset-y-0 left-3 my-auto text-gray-400" />
+                <input
+                type="text"
+                placeholder="ស្វែងរកតាមប្រភេទ ឬការពិពណ៌នា..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="block w-full pl-10 pr-10 py-2 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#1a9e52] sm:text-sm bg-white"
+                />
+            </div>
+            <div className="text-sm font-medium text-gray-500">
+                បង្ហាញ <span className="text-gray-900 font-bold">{filteredExpenses.length}</span> លទ្ធផល
+            </div>
         </div>
-        <input
-          type="text"
-          placeholder="Search by category or description..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="block w-full pl-10 pr-10 py-2.5 border border-gray-200 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1a9e52] sm:text-sm"
-        />
-        {searchQuery && (
-          <button 
-            onClick={() => setSearchQuery('')}
-            className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
-          >
-            <X size={18} />
-          </button>
-        )}
-      </div>
 
-      {/* ---------------- Data Table ---------------- */}
-      <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden flex flex-col">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto min-h-[300px]">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-white border-b border-gray-200 text-sm font-semibold text-gray-900 whitespace-nowrap">
-                <th className="px-6 py-4">Expense ID</th>
+              <tr className="bg-white border-b border-gray-200 text-xs font-bold text-gray-500 uppercase tracking-widest whitespace-nowrap">
+                <th className="px-6 py-4">ID</th>
                 <th className="px-6 py-4">Date</th>
                 <th className="px-6 py-4">Category</th>
                 <th className="px-6 py-4">Amount</th>
@@ -419,55 +469,53 @@ export default function ExpensesPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredExpenses.map((expense) => {
-                const badgeColor = CATEGORY_COLORS[expense.category] || CATEGORY_COLORS['Other'];
-                return (
-                  <tr key={expense.id} className="hover:bg-gray-50 transition-colors whitespace-nowrap">
-                    <td className="px-6 py-4 text-sm font-mono text-gray-500">{expense.id}</td>
-                    <td className="px-6 py-4 text-sm text-gray-900">{expense.date}</td>
-                    <td className="px-6 py-4 text-sm">
-                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${badgeColor.bg} ${badgeColor.text}`}>
-                        {expense.category}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm font-bold text-gray-900">
-                      ${expense.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-700">{expense.description || '-'}</td>
-                    <td className="px-6 py-4 text-sm text-center">
-                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
-                        expense.status === 'Completed' 
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-yellow-100 text-yellow-800'
-                      }`}>
-                        {expense.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-center">
-                      <div className="flex items-center justify-center gap-3 text-gray-400">
-                        <button 
-                          onClick={() => handleEditExpense(expense)}
-                          className="hover:text-blue-600 transition-colors"
-                        >
-                          <Edit size={18} />
-                        </button>
-                        <button 
-                          onClick={() => handleDeleteExpense(expense.id)}
-                          className="hover:text-red-600 transition-colors"
-                        >
-                          <Trash2 size={18} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-              {filteredExpenses.length === 0 && (
+              {isLoading ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
-                    មិនមានទិន្នន័យចំណាយទេ (No records found).
+                  <td colSpan={7} className="px-6 py-20 text-center">
+                    <Loader2 className="animate-spin mx-auto mb-2 text-[#1a9e52]" size={32} />
+                    <span className="text-sm font-bold text-gray-400 uppercase tracking-widest">Loading...</span>
                   </td>
                 </tr>
+              ) : filteredExpenses.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-6 py-20 text-center text-gray-400 uppercase tracking-widest text-sm font-bold">
+                    No matching records found.
+                  </td>
+                </tr>
+              ) : (
+                filteredExpenses.map((expense) => {
+                  const badgeColor = CATEGORY_COLORS[expense.category] || CATEGORY_COLORS['Other'];
+                  const shortId = expense.id.substring(0, 8).toUpperCase();
+                  
+                  return (
+                    <tr key={expense.id} className="hover:bg-gray-50/80 transition-colors whitespace-nowrap group">
+                      <td className="px-6 py-4 text-xs font-mono font-bold text-gray-400 group-hover:text-[#1a9e52]">#{shortId}</td>
+                      <td className="px-6 py-4 text-sm font-medium text-gray-900">{expense.date}</td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex items-center px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider ${badgeColor.bg} ${badgeColor.text}`}>
+                          {expense.category}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm font-black text-gray-900">
+                        ${expense.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate">{expense.description || '-'}</td>
+                      <td className="px-6 py-4 text-center">
+                        <span className={`inline-flex items-center px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider ${
+                          expense.status === 'Completed' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+                        }`}>
+                          {expense.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => handleEditExpense(expense)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"><Edit size={16} /></button>
+                          <button onClick={() => handleDeleteExpense(expense.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"><Trash2 size={16} /></button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -477,24 +525,24 @@ export default function ExpensesPage() {
       {/* ---------------- Add/Edit Modal ---------------- */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
             
-            <div className="flex justify-between items-center px-6 py-4 border-b border-gray-100 bg-gray-50/50">
-              <h2 className="text-xl font-bold text-gray-900">
-                {editingExpenseId ? 'កែប្រែចំណាយ (Edit Expense)' : 'បន្ថែមចំណាយថ្មី (Add Expense)'}
+            <div className="flex justify-between items-center px-8 py-6 border-b border-gray-100 bg-gray-50/80">
+              <h2 className="text-2xl font-black text-gray-900 tracking-tighter">
+                {editingExpenseId ? 'Edit Expense' : 'Add New Expense'}
               </h2>
-              <button onClick={() => resetForm()} className="text-gray-400 hover:text-gray-600">
+              <button onClick={() => resetForm()} className="text-gray-400 hover:text-gray-600 p-2 hover:bg-white rounded-xl transition-all" disabled={isSaving}>
                 <X size={24} />
               </button>
             </div>
 
-            <div className="p-6 space-y-4">
+            <div className="p-8 space-y-5">
               <div>
-                <label className="block text-sm font-medium text-gray-900 mb-1">ប្រភេទ (Category)</label>
+                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Category</label>
                 <select 
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a9e52] bg-white"
+                  className="w-full border-2 border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:border-[#1a9e52] bg-gray-50 transition-all appearance-none"
                 >
                   <option value="Rent">Rent (ថ្លៃឈ្នួល)</option>
                   <option value="Utilities">Utilities (ទឹកភ្លើង)</option>
@@ -505,43 +553,43 @@ export default function ExpensesPage() {
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-900 mb-1">ចំនួនទឹកប្រាក់ (Amount)</label>
+                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Amount ($)</label>
                 <input 
                   type="number" 
                   placeholder="0.00"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a9e52]"
+                  className="w-full border-2 border-gray-100 rounded-2xl px-4 py-3 text-lg font-black focus:outline-none focus:border-[#1a9e52] bg-gray-50 transition-all"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-900 mb-1">ការពិពណ៌នា (Description)</label>
+                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Description</label>
                 <input 
                   type="text" 
-                  placeholder="e.g., ទិញសាប៊ូ និងក្រដាសអនាម័យ"
+                  placeholder="ឧ. ថ្លៃទឹកភ្លើងប្រចាំខែមីនា..."
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a9e52]"
+                  className="w-full border-2 border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:border-[#1a9e52] bg-gray-50 transition-all"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-900 mb-1">ថ្ងៃខែ (Date)</label>
+                  <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Date</label>
                   <input 
                     type="date" 
                     value={expenseDate}
                     onChange={(e) => setExpenseDate(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a9e52]"
+                    className="w-full border-2 border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:border-[#1a9e52] bg-gray-50 transition-all"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-900 mb-1">ស្ថានភាព (Status)</label>
+                  <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Status</label>
                   <select 
                     value={expenseStatus}
                     onChange={(e) => setExpenseStatus(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a9e52] bg-white"
+                    className="w-full border-2 border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:border-[#1a9e52] bg-gray-50 transition-all appearance-none"
                   >
                     <option value="Completed">Completed</option>
                     <option value="Pending">Pending</option>
@@ -550,25 +598,20 @@ export default function ExpensesPage() {
               </div>
             </div>
 
-            <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 bg-gray-50">
-              <button 
-                onClick={() => resetForm()}
-                className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100"
-              >
-                Cancel
-              </button>
+            <div className="px-8 py-6 border-t border-gray-100 flex justify-end gap-3 bg-gray-50/80">
+              <button onClick={() => resetForm()} disabled={isSaving} className="px-6 py-3 text-sm font-bold text-gray-500 hover:text-gray-900 transition-colors">Cancel</button>
               <button 
                 onClick={handleSaveExpense}
-                className="px-4 py-2 bg-[#1a9e52] hover:bg-emerald-600 rounded-lg text-sm font-medium text-white shadow-sm"
+                disabled={isSaving}
+                className="px-8 py-3 bg-[#1a9e52] hover:bg-emerald-600 rounded-2xl text-sm font-black text-white shadow-xl shadow-emerald-100 transition-all flex items-center gap-2"
               >
-                {editingExpenseId ? 'Update' : 'Save'}
+                {isSaving ? <Loader2 size={18} className="animate-spin" /> : null}
+                {editingExpenseId ? 'UPDATE' : 'SAVE'}
               </button>
             </div>
-
           </div>
         </div>
       )}
-
     </div>
   );
 }
