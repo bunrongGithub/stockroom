@@ -23,7 +23,7 @@ import {
 const mainMenuItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/sales', label: 'Sales', icon: ShoppingCart },
-  { href: '/repair', label: 'Repair', icon: Wrench },
+  { href: '/repairs', label: 'Repair', icon: Wrench },
   { href: '/customers', label: 'Customers', icon: User },
   { href: '/purchases', label: 'Purchases', icon: Package },
   { href: '/expenses', label: 'Expenses', icon: ReceiptText },
@@ -70,21 +70,35 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   // ---------------- ទាញយក និងស្តាប់ការផ្លាស់ប្តូរ Logo/ឈ្មោះហាង ----------------
   useEffect(() => {
-    const loadStoreConfig = () => {
-      const savedSettings = localStorage.getItem('icase_store_settings');
-      if (savedSettings) {
-        const parsed = JSON.parse(savedSettings);
-        setAppConfig({
-          name: parsed.storeName || 'iCase Service',
-          logo: parsed.logo || '/icase.jpg'
-        });
+    const loadStoreConfig = async () => {
+      try {
+        // ទាញយកទិន្នន័យពី table settings នៅក្នុង Supabase
+        const { data, error } = await supabase
+          .from('settings')
+          .select('shop_name, logo')
+          .limit(1)
+          .single();
+
+        if (error) {
+          console.error("Error fetching store config:", error);
+          return;
+        }
+
+        if (data) {
+          setAppConfig({
+            name: data.shop_name || 'iCase Service',
+            logo: data.logo || '/icase.jpg'
+          });
+        }
+      } catch (err) {
+        console.error("Failed to load store settings:", err);
       }
     };
 
     // ដំណើរការពេលបើក Layout ដំបូង
     loadStoreConfig();
 
-    // ចាំស្តាប់ Event ពេលមានការចុច Save ពីទំព័រ Settings
+    // ចាំស្តាប់ Event ពេលមានការចុច Save ពីទំព័រ Settings ដើម្បីទាញយកថ្មី
     window.addEventListener('settingsUpdated', loadStoreConfig);
     
     // Cleanup ពេលបិទ Layout
@@ -117,7 +131,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {/* Brand & Logo Section */}
         <div className="h-20 flex items-center gap-3.5 px-6 border-b border-gray-800/60">
           <div className="bg-white p-1 rounded-xl flex items-center justify-center shadow-lg w-10 h-10 shrink-0 overflow-hidden">
-            {/* ប្រើ <img> ធម្មតាជំនួស next/image ដើម្បីងាយស្រួលបង្ហាញ Base64 Image */}
+            {/* ប្រើ <img> ធម្មតាជំនួស next/image ដើម្បីងាយស្រួលបង្ហាញ Base64 Image ឬ URL ពី Imgbb */}
             <img 
               src={appConfig.logo} 
               alt="Store Logo" 

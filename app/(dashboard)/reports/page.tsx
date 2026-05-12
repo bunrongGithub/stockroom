@@ -1,20 +1,25 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { DollarSign, TrendingUp, Calendar, CreditCard, Download, Filter } from 'lucide-react';
+import { DollarSign, TrendingUp, Calendar, CreditCard, Download, Filter, Loader2 } from 'lucide-react';
+// Import matching your existing files
+import { supabase } from '@/lib/supabase';
 
 export default function IncomeSummaryPage() {
-  // State សម្រាប់ទិន្នន័យដើមទាំងអស់
+  // States for all raw data
   const [allSales, setAllSales] = useState<any[]>([]);
   const [allRepairs, setAllRepairs] = useState<any[]>([]);
   const [allExpenses, setAllExpenses] = useState<any[]>([]);
   const [allPurchases, setAllPurchases] = useState<any[]>([]);
 
-  // State សម្រាប់ Filter
+  // State for loading status
+  const [isLoading, setIsLoading] = useState(true);
+
+  // States for filters
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
-  // State សម្រាប់បង្ហាញនៅលើ UI
+  // States for UI display
   const [summary, setSummary] = useState({
     totalIncome: 0,
     salesRevenue: 0,
@@ -27,51 +32,88 @@ export default function IncomeSummaryPage() {
   const [monthlyData, setMonthlyData] = useState<any[]>([]);
   const [incomeBreakdown, setIncomeBreakdown] = useState<any[]>([]);
 
-  // 1. ទាញទិន្នន័យពី LocalStorage ពេលទំព័របើកដំបូង
-  useEffect(() => {
-    const storedSales = JSON.parse(localStorage.getItem('icase_sales_data') || '[]');
-    const storedRepairs = JSON.parse(localStorage.getItem('icase_repairs_data') || '[]'); 
-    const storedExpenses = JSON.parse(localStorage.getItem('icase_expenses_data') || '[]');
-    const storedPurchases = JSON.parse(localStorage.getItem('icase_purchases_data') || '[]');
+  // 1. Fetch data from Supabase
+  const fetchAllData = async () => {
+    setIsLoading(true);
+    try {
+      // Fetch all data concurrently to save time
+      const [salesRes, repairsRes, expensesRes, purchasesRes] = await Promise.all([
+        supabase.from('sales').select('id, amount, date, status, discount_value, customers(name)'),
+        supabase.from('repairs').select('id, total_cost, date, status, customer_name, device_name'),
+        supabase.from('expenses').select('id, amount, date, status, category, title'),
+        supabase.from('purchases').select('id, total_cost, date, status, supplier_name, model')
+      ]);
 
-    setAllSales(storedSales);
-    setAllRepairs(storedRepairs);
-    setAllExpenses(storedExpenses);
-    setAllPurchases(storedPurchases);
+      // Transform and store in respective states
+      if (salesRes.data) {
+        setAllSales(salesRes.data.map(d => {
+          let cName = 'N/A';
+          if (d.customers) {
+            cName = Array.isArray(d.customers) ? d.customers[0]?.name : (d.customers as any).name;
+          }
+          return {
+            ...d, 
+            amount: Number(d.amount) || 0, 
+            discountValue: Number(d.discount_value) || 0,
+            customer_name: cName || 'N/A'
+          };
+        }));
+      }
+      if (repairsRes.data) {
+        setAllRepairs(repairsRes.data.map(d => ({
+           ...d, totalCost: Number(d.total_cost) || 0, customerName: d.customer_name, deviceModel: d.device_name
+        })));
+      }
+      if (expensesRes.data) {
+        setAllExpenses(expensesRes.data.map(d => ({
+          ...d, amount: Number(d.amount) || 0, description: d.title
+        })));
+      }
+      if (purchasesRes.data) {
+        setAllPurchases(purchasesRes.data.map(d => ({
+          ...d, totalCost: Number(d.total_cost) || 0, supplierName: d.supplier_name
+        })));
+      }
+
+    } catch (error) {
+      console.error("Error fetching data for report:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAllData();
   }, []);
 
-  // 2. គណនាទិន្នន័យឡើងវិញរាល់ពេលមានការផ្លាស់ប្តូរ Filter
+  // 2. Recalculate data whenever filters or data change
   useEffect(() => {
-    // Helper function ដើម្បីត្រួតពិនិត្យថ្ងៃខែ
+    // Helper function to check date range
     const isWithinRange = (dateString: string) => {
       if (!dateString) return false;
       if (!startDate && !endDate) return true;
       
       const recordDate = new Date(dateString);
-      recordDate.setHours(0, 0, 0, 0); // យកត្រឹមតែថ្ងៃ មិនគិតម៉ោង
+      recordDate.setHours(0, 0, 0, 0);
 
-      if (startDate && !endDate) {
-        return recordDate >= new Date(startDate);
-      }
-      if (!startDate && endDate) {
-        return recordDate <= new Date(endDate);
-      }
+      if (startDate && !endDate) return recordDate >= new Date(startDate);
+      if (!startDate && endDate) return recordDate <= new Date(endDate);
       return recordDate >= new Date(startDate) && recordDate <= new Date(endDate);
     };
 
-    // ត្រងយកតែទិន្នន័យដែលស្ថិតក្នុងចន្លោះថ្ងៃខែដែលបានរើស
+    // Filter data within selected date range
     const filteredSales = allSales.filter(s => isWithinRange(s.date) && s.status !== 'Refunded');
     const filteredRepairs = allRepairs.filter(r => isWithinRange(r.date));
     const filteredExpenses = allExpenses.filter(e => isWithinRange(e.date));
     const filteredPurchases = allPurchases.filter(p => isWithinRange(p.date));
 
-    // គណនាសរុបរួម
-    const salesRevenue = filteredSales.reduce((sum: number, sale: any) => sum + (Number(sale.amount) || 0) - (Number(sale.discountValue) || 0), 0); // គិតបញ្ចូលការបញ្ចុះតម្លៃ
-    const repairsRevenue = filteredRepairs.reduce((sum: number, repair: any) => sum + (Number(repair.totalCost) || 0), 0);
+    // Calculate totals
+    const salesRevenue = filteredSales.reduce((sum: number, sale: any) => sum + (sale.amount || 0) - (sale.discountValue || 0), 0);
+    const repairsRevenue = filteredRepairs.reduce((sum: number, repair: any) => sum + (repair.totalCost || 0), 0);
     const totalIncome = salesRevenue + repairsRevenue;
     
-    const baseExpenses = filteredExpenses.reduce((sum: number, exp: any) => sum + (Number(exp.amount) || 0), 0);
-    const purchasesCost = filteredPurchases.reduce((sum: number, pur: any) => sum + (Number(pur.totalCost) || 0), 0);
+    const baseExpenses = filteredExpenses.reduce((sum: number, exp: any) => sum + (exp.amount || 0), 0);
+    const purchasesCost = filteredPurchases.reduce((sum: number, pur: any) => sum + (pur.totalCost || 0), 0);
     const totalExpenses = baseExpenses + purchasesCost;
 
     const netProfit = totalIncome - totalExpenses;
@@ -79,24 +121,31 @@ export default function IncomeSummaryPage() {
     const totalTransactionsCount = filteredSales.length + filteredRepairs.length;
     const averageTransaction = totalTransactionsCount > 0 ? totalIncome / totalTransactionsCount : 0;
 
-    // រៀបចំទិន្នន័យ ៦ ខែចុងក្រោយ (សម្រាប់ក្រាបរបារ) 
-    // បើអត់មាន Filter ទេ បង្ហាញ ៦ខែចុងក្រោយ, បើមាន Filter បង្ហាញខែដែលពាក់ព័ន្ធ
+    // Prepare data (for bar chart)
     const monthsMap = new Map();
+    
+    // Ensure at least 6 months are displayed to avoid single-bar charts
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date();
+      d.setMonth(d.getMonth() - i);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const label = d.toLocaleString('en-US', { month: 'short', year: '2-digit' });
+      monthsMap.set(key, { label, monthKey: key, income: 0, expenses: 0, profit: 0 });
+    }
     
     const processRecordToMap = (record: any, type: 'income' | 'expense', amountKey: string) => {
       if (!record.date || record.status === 'Refunded') return;
       const d = new Date(record.date);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      const label = d.toLocaleString('en-US', { month: 'short', year: '2-digit' });
       
       if (!monthsMap.has(key)) {
+        const label = d.toLocaleString('en-US', { month: 'short', year: '2-digit' });
         monthsMap.set(key, { label, monthKey: key, income: 0, expenses: 0, profit: 0 });
       }
       
       const monthObj = monthsMap.get(key);
       let amount = Number(record[amountKey] || 0);
       
-      // ដក discount បើជា sale
       if (type === 'income' && record.discountValue) {
           amount -= Number(record.discountValue);
       }
@@ -111,22 +160,9 @@ export default function IncomeSummaryPage() {
     filteredExpenses.forEach((r: any) => processRecordToMap(r, 'expense', 'amount'));
     filteredPurchases.forEach((r: any) => processRecordToMap(r, 'expense', 'totalCost'));
 
-    // តម្រៀបខែពីចាស់ទៅថ្មី
     const sortedMonths = Array.from(monthsMap.values()).sort((a, b) => a.monthKey.localeCompare(b.monthKey));
     
-    // បើអត់មានទិន្នន័យសោះ បង្ហាញ ៦ខែចុងក្រោយទទេរៗ
     let chartData = sortedMonths;
-    if (chartData.length === 0 && (!startDate && !endDate)) {
-        chartData = Array.from({ length: 6 }, (_, i) => {
-            const d = new Date();
-            d.setMonth(d.getMonth() - (5 - i));
-            return {
-                label: d.toLocaleString('en-US', { month: 'short', year: '2-digit' }),
-                monthKey: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
-                income: 0, expenses: 0, profit: 0
-            };
-        });
-    }
 
     let highestMonth = { month: '-', amount: 0 };
     chartData.forEach(m => {
@@ -135,10 +171,10 @@ export default function IncomeSummaryPage() {
       }
     });
 
-    setMonthlyData(chartData.slice(-12)); // បង្ហាញយ៉ាងច្រើន ១២ ខែចុងក្រោយលើក្រាប
+    setMonthlyData(chartData.slice(-12)); 
     setIncomeBreakdown([
-      { name: 'ការលក់ (Sales)', value: salesRevenue, color: '#3b82f6' }, 
-      { name: 'ជួសជុល (Repairs)', value: repairsRevenue, color: '#10b981' } 
+      { name: 'Sales', value: salesRevenue, color: '#3b82f6' }, 
+      { name: 'Repairs', value: repairsRevenue, color: '#10b981' } 
     ]);
 
     setSummary({
@@ -162,9 +198,8 @@ export default function IncomeSummaryPage() {
     }).format(value);
   };
 
-  // ---------------- មុខងារ Export to CSV (Excel) ----------------
+  // ---------------- Export to CSV (Excel) Function ----------------
   const exportToCSV = () => {
-    // ត្រងយកតែទិន្នន័យក្នុង Filter
     const isWithinRange = (dateString: string) => {
         if (!dateString) return false;
         if (!startDate && !endDate) return true;
@@ -176,28 +211,24 @@ export default function IncomeSummaryPage() {
     };
 
     let csvContent = "data:text/csv;charset=utf-8,";
-    csvContent += "Type,Date,Description/Customer,Amount,Status\n"; // Header
+    csvContent += "Type,Date,Description/Customer,Amount,Status\n";
 
-    // Sales
     allSales.filter(s => isWithinRange(s.date)).forEach(sale => {
         const finalPrice = sale.amount - (sale.discountValue || 0);
-        const desc = `Sale: ${sale.customer} - ${sale.model}`;
+        const desc = `Sale: ${sale.customer_name || 'N/A'}`;
         csvContent += `Income,${sale.date},"${desc}",${finalPrice},${sale.status}\n`;
     });
 
-    // Repairs
     allRepairs.filter(r => isWithinRange(r.date)).forEach(repair => {
         const desc = `Repair: ${repair.customerName} - ${repair.deviceModel}`;
         csvContent += `Income,${repair.date},"${desc}",${repair.totalCost},${repair.status}\n`;
     });
 
-    // Expenses
     allExpenses.filter(e => isWithinRange(e.date)).forEach(expense => {
         const desc = `Expense: ${expense.category} - ${expense.description}`;
         csvContent += `Expense,${expense.date},"${desc}",${expense.amount},${expense.status}\n`;
     });
 
-    // Purchases
     allPurchases.filter(p => isWithinRange(p.date)).forEach(purchase => {
         const desc = `Purchase: ${purchase.supplierName} - ${purchase.model}`;
         csvContent += `Expense,${purchase.date},"${desc}",${purchase.totalCost},${purchase.status}\n`;
@@ -207,18 +238,18 @@ export default function IncomeSummaryPage() {
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
     link.setAttribute("download", `iCase_Report_${startDate || 'All'}_to_${endDate || 'All'}.csv`);
-    document.body.appendChild(link); // Required for FF
+    document.body.appendChild(link); 
     link.click();
     document.body.removeChild(link);
   };
 
 
-  // ---------------- មុខងារគូរក្រាបផ្លឹតចំណូល (Revenue Pie Chart) ----------------
+  // ---------------- Render Revenue Pie Chart ----------------
   const renderPieChart = () => {
     if (summary.totalIncome === 0) {
       return (
         <div className="w-48 h-48 rounded-full border-4 border-dashed border-gray-200 flex items-center justify-center mx-auto text-gray-400 text-sm font-medium">
-          គ្មានទិន្នន័យ
+          No data
         </div>
       );
     }
@@ -251,9 +282,9 @@ export default function IncomeSummaryPage() {
     );
   };
 
-  // ---------------- មុខងារគូរក្រាបរបារ (Bar Chart - Income vs Expense) ----------------
+  // ---------------- Render Bar Chart (Income vs Expense) ----------------
   const renderBarChart = () => {
-    if (monthlyData.length === 0) return <div className="flex h-64 items-center justify-center text-gray-400">គ្មានទិន្នន័យក្នុងចន្លោះពេលនេះទេ</div>;
+    if (monthlyData.length === 0) return <div className="flex h-64 items-center justify-center text-gray-400">No data in this period</div>;
 
     const maxVal = Math.max(...monthlyData.map(m => Math.max(m.income, m.expenses)), 100); 
 
@@ -264,26 +295,26 @@ export default function IncomeSummaryPage() {
           const expenseHeight = (data.expenses / maxVal) * 100;
           
           return (
-            <div key={idx} className="flex-1 flex flex-col items-center group">
-              <div className="w-full flex items-end justify-center gap-1 h-full bg-gray-50/50 rounded-t-lg relative pt-2">
+            // Added h-full to the column wrapper so it spans the entire 64px height context minus the gap
+            <div key={idx} className="flex-1 flex flex-col items-center group h-full">
+              {/* Changed h-full to flex-1 to occupy the remaining space dynamically above the text */}
+              <div className="w-full flex items-end justify-center gap-1 flex-1 bg-gray-50/50 rounded-t-lg relative pt-2">
                 
-                {/* របារចំណូល (Income) */}
                 <div 
                   className="w-full max-w-[20px] sm:max-w-[30px] bg-blue-500 rounded-t-md transition-all duration-500 hover:opacity-80 relative"
                   style={{ height: `${incomeHeight}%` }}
                 >
                   <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
-                    ចំណូល: {formatCurrency(data.income)}
+                    Income: {formatCurrency(data.income)}
                   </div>
                 </div>
 
-                {/* របារចំណាយ (Expense) */}
                 <div 
                   className="w-full max-w-[20px] sm:max-w-[30px] bg-red-400 rounded-t-md transition-all duration-500 hover:opacity-80 relative"
                   style={{ height: `${expenseHeight}%` }}
                 >
                   <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
-                    ចំណាយ: {formatCurrency(data.expenses)}
+                    Expense: {formatCurrency(data.expenses)}
                   </div>
                 </div>
 
@@ -302,8 +333,11 @@ export default function IncomeSummaryPage() {
       {/* ---------------- Header & Actions ---------------- */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-gray-900">Reports & Analytics</h1>
-          <p className="text-gray-500 mt-1">របាយការណ៍សង្ខេបអំពីចំណូល និងចំណាយលម្អិត</p>
+          <h1 className="text-3xl font-bold tracking-tight text-gray-900 flex items-center gap-3">
+            Reports & Analytics
+            {isLoading && <Loader2 className="animate-spin text-[#1a9e52]" size={24} />}
+          </h1>
+          <p className="text-gray-500 mt-1">Detailed income and expense summary report</p>
         </div>
         
         <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
@@ -330,7 +364,8 @@ export default function IncomeSummaryPage() {
 
             <button 
                 onClick={exportToCSV}
-                className="bg-[#1a9e52] hover:bg-emerald-600 text-white px-4 py-2.5 rounded-lg flex items-center justify-center gap-2 font-medium transition-colors shadow-sm"
+                disabled={isLoading}
+                className="bg-[#1a9e52] hover:bg-emerald-600 text-white px-4 py-2.5 rounded-lg flex items-center justify-center gap-2 font-medium transition-colors shadow-sm disabled:opacity-50"
             >
                 <Download size={18} /> Export Excel
             </button>
@@ -340,57 +375,62 @@ export default function IncomeSummaryPage() {
       {/* ---------------- Key Metrics Cards ---------------- */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         
-        <div className="bg-white border border-gray-100 p-6 rounded-2xl shadow-sm flex items-start justify-between hover:shadow-md transition-shadow">
-          <div>
-            <p className="text-sm font-medium text-gray-500 mb-1">ចំណូលសរុប (Total Income)</p>
+        <div className="bg-white border border-gray-100 p-6 rounded-2xl shadow-sm flex items-start justify-between hover:shadow-md transition-shadow relative overflow-hidden">
+          <div className="z-10">
+            <p className="text-sm font-medium text-gray-500 mb-1">Total Income</p>
             <p className="text-2xl font-bold text-blue-600">{formatCurrency(summary.totalIncome)}</p>
           </div>
-          <div className="p-3 bg-blue-50 rounded-xl text-blue-600">
+          <div className="p-3 bg-blue-50 rounded-xl text-blue-600 z-10">
             <DollarSign size={24} />
           </div>
+          {isLoading && <div className="absolute inset-0 bg-white/50 backdrop-blur-sm z-20"></div>}
         </div>
 
-        <div className="bg-white border border-gray-100 p-6 rounded-2xl shadow-sm flex items-start justify-between hover:shadow-md transition-shadow">
-          <div>
-            <p className="text-sm font-medium text-gray-500 mb-1">ចំណាយសរុប (Total Expenses)</p>
+        <div className="bg-white border border-gray-100 p-6 rounded-2xl shadow-sm flex items-start justify-between hover:shadow-md transition-shadow relative overflow-hidden">
+          <div className="z-10">
+            <p className="text-sm font-medium text-gray-500 mb-1">Total Expenses</p>
             <p className="text-2xl font-bold text-red-500">{formatCurrency(summary.totalExpenses)}</p>
           </div>
-          <div className="p-3 bg-red-50 rounded-xl text-red-500">
+          <div className="p-3 bg-red-50 rounded-xl text-red-500 z-10">
             <CreditCard size={24} />
           </div>
+          {isLoading && <div className="absolute inset-0 bg-white/50 backdrop-blur-sm z-20"></div>}
         </div>
 
-        <div className="bg-white border border-gray-100 p-6 rounded-2xl shadow-sm flex items-start justify-between hover:shadow-md transition-shadow">
-          <div>
-            <p className="text-sm font-medium text-gray-500 mb-1">ប្រាក់ចំណេញ (Net Profit)</p>
+        <div className="bg-white border border-gray-100 p-6 rounded-2xl shadow-sm flex items-start justify-between hover:shadow-md transition-shadow relative overflow-hidden">
+          <div className="z-10">
+            <p className="text-sm font-medium text-gray-500 mb-1">Net Profit</p>
             <p className={`text-2xl font-bold ${summary.netProfit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
               {formatCurrency(summary.netProfit)}
             </p>
           </div>
-          <div className={`p-3 rounded-xl ${summary.netProfit >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500'}`}>
+          <div className={`p-3 rounded-xl z-10 ${summary.netProfit >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500'}`}>
             <TrendingUp size={24} />
           </div>
+          {isLoading && <div className="absolute inset-0 bg-white/50 backdrop-blur-sm z-20"></div>}
         </div>
 
-        <div className="bg-white border border-gray-100 p-6 rounded-2xl shadow-sm flex items-start justify-between hover:shadow-md transition-shadow">
-          <div>
-            <p className="text-sm font-medium text-gray-500 mb-1">ខែចំណូលខ្ពស់បំផុត</p>
+        <div className="bg-white border border-gray-100 p-6 rounded-2xl shadow-sm flex items-start justify-between hover:shadow-md transition-shadow relative overflow-hidden">
+          <div className="z-10">
+            <p className="text-sm font-medium text-gray-500 mb-1">Highest Income Month</p>
             <p className="text-lg font-bold text-gray-900">{summary.highestMonth.month}</p>
             <p className="text-sm font-medium text-blue-600">{formatCurrency(summary.highestMonth.amount)}</p>
           </div>
-          <div className="p-3 bg-indigo-50 rounded-xl text-indigo-600">
+          <div className="p-3 bg-indigo-50 rounded-xl text-indigo-600 z-10">
             <Calendar size={24} />
           </div>
+          {isLoading && <div className="absolute inset-0 bg-white/50 backdrop-blur-sm z-20"></div>}
         </div>
 
       </div>
 
       {/* ---------------- Revenue Breakdown & Bar Chart ---------------- */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 relative">
+        {isLoading && <div className="absolute inset-0 bg-white/50 backdrop-blur-sm z-20 rounded-2xl"></div>}
         
         {/* Pie Chart Section */}
         <div className="bg-white border border-gray-100 p-6 rounded-2xl shadow-sm lg:col-span-1 flex flex-col">
-          <h3 className="font-semibold text-gray-900 text-lg mb-6">ការបែងចែកចំណូល (Revenue)</h3>
+          <h3 className="font-semibold text-gray-900 text-lg mb-6">Revenue Breakdown</h3>
           
           <div className="flex-1 flex flex-col items-center justify-center">
             {renderPieChart()}
@@ -403,7 +443,7 @@ export default function IncomeSummaryPage() {
                     <div>
                       <p className="text-sm font-medium text-gray-700">{item.name}</p>
                       <p className="text-xs text-gray-500">
-                        {summary.totalIncome > 0 ? ((item.value / summary.totalIncome) * 100).toFixed(1) : 0}% នៃចំណូលសរុប
+                        {summary.totalIncome > 0 ? ((item.value / summary.totalIncome) * 100).toFixed(1) : 0}% of Total Income
                       </p>
                     </div>
                   </div>
@@ -417,15 +457,15 @@ export default function IncomeSummaryPage() {
         {/* Bar Chart Section */}
         <div className="bg-white border border-gray-100 p-6 rounded-2xl shadow-sm lg:col-span-2">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
-            <h3 className="font-semibold text-gray-900 text-lg">និន្នាការ ចំណូល និង ចំណាយ</h3>
+            <h3 className="font-semibold text-gray-900 text-lg">Income & Expense Trends</h3>
             <div className="flex items-center gap-4 text-sm font-medium">
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 bg-blue-500 rounded-sm"></div>
-                <span className="text-gray-600">ចំណូល (Income)</span>
+                <span className="text-gray-600">Income</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 bg-red-400 rounded-sm"></div>
-                <span className="text-gray-600">ចំណាយ (Expenses)</span>
+                <span className="text-gray-600">Expenses</span>
               </div>
             </div>
           </div>
@@ -435,48 +475,49 @@ export default function IncomeSummaryPage() {
       </div>
 
       {/* ---------------- Detail Overview Table ---------------- */}
-      <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+      <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden relative">
+        {isLoading && <div className="absolute inset-0 bg-white/50 backdrop-blur-sm z-20"></div>}
         <div className="px-6 py-4 border-b border-gray-100 bg-gray-50">
-            <h3 className="font-semibold text-gray-900">ទិដ្ឋភាពទូទៅលម្អិត (Detailed Overview)</h3>
+            <h3 className="font-semibold text-gray-900">Detailed Overview</h3>
         </div>
         <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
-            {/* ផ្នែកចំណូល */}
+            {/* Income Streams */}
             <div>
                 <h4 className="font-bold text-blue-600 mb-4 flex items-center gap-2">
-                    <div className="w-2 h-2 bg-blue-600 rounded-full"></div> ចំណូល (Income Streams)
+                    <div className="w-2 h-2 bg-blue-600 rounded-full"></div> Income Streams
                 </h4>
                 <div className="space-y-3">
                     <div className="flex justify-between items-center py-2 border-b border-gray-100 text-sm">
-                        <span className="text-gray-600">ការលក់ទូរស័ព្ទ និងគ្រឿងបន្លាស់</span>
+                        <span className="text-gray-600">Sales (Phones & Accessories)</span>
                         <span className="font-semibold text-gray-900">{formatCurrency(summary.salesRevenue)}</span>
                     </div>
                     <div className="flex justify-between items-center py-2 border-b border-gray-100 text-sm">
-                        <span className="text-gray-600">សេវាកម្មជួសជុល</span>
+                        <span className="text-gray-600">Repair Services</span>
                         <span className="font-semibold text-gray-900">{formatCurrency(summary.repairsRevenue)}</span>
                     </div>
                     <div className="flex justify-between items-center py-2 bg-blue-50 px-3 rounded-lg text-sm mt-4">
-                        <span className="font-bold text-blue-800">សរុប (Total)</span>
+                        <span className="font-bold text-blue-800">Total</span>
                         <span className="font-bold text-blue-800">{formatCurrency(summary.totalIncome)}</span>
                     </div>
                 </div>
             </div>
 
-            {/* ផ្នែកចំណាយ */}
+            {/* Expense Streams */}
             <div>
                 <h4 className="font-bold text-red-500 mb-4 flex items-center gap-2">
-                    <div className="w-2 h-2 bg-red-500 rounded-full"></div> ចំណាយ (Expense Streams)
+                    <div className="w-2 h-2 bg-red-500 rounded-full"></div> Expense Streams
                 </h4>
                 <div className="space-y-3">
                     <div className="flex justify-between items-center py-2 border-b border-gray-100 text-sm">
-                        <span className="text-gray-600">ការទិញចូល (Purchases / Restock)</span>
+                        <span className="text-gray-600">Purchases (Restock)</span>
                         <span className="font-semibold text-gray-900">{formatCurrency(allPurchases.reduce((s, p) => s + (Number(p.totalCost)||0), 0))}</span>
                     </div>
                     <div className="flex justify-between items-center py-2 border-b border-gray-100 text-sm">
-                        <span className="text-gray-600">ចំណាយទូទៅក្នុងហាង (Expenses)</span>
+                        <span className="text-gray-600">General Store Expenses</span>
                         <span className="font-semibold text-gray-900">{formatCurrency(allExpenses.reduce((s, e) => s + (Number(e.amount)||0), 0))}</span>
                     </div>
                     <div className="flex justify-between items-center py-2 bg-red-50 px-3 rounded-lg text-sm mt-4">
-                        <span className="font-bold text-red-800">សរុប (Total)</span>
+                        <span className="font-bold text-red-800">Total</span>
                         <span className="font-bold text-red-800">{formatCurrency(summary.totalExpenses)}</span>
                     </div>
                 </div>
