@@ -1,17 +1,18 @@
 'use client';
 
-import Link from 'next/link';
-import { useState, useEffect, useRef } from 'react';
+import { supabase } from '@/lib/supabase/client';
+import { generateSequenNumbering } from '@/lib/utils/sequenumbering';
 import {
+    AlertCircle,
+    Edit,
+    Loader2,
+    Package,
     Plus,
     Search,
-    Edit,
     Trash2,
-    Package,
-    AlertCircle,
-    Loader2,
 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import Link from 'next/link';
+import { useEffect, useRef, useState } from 'react';
 
 interface InventoryItem {
     id: string;
@@ -23,13 +24,12 @@ interface InventoryItem {
     image?: string;
 }
 
-export default function InventoryPage() {
+export default function page() {
     const [items, setItems] = useState<InventoryItem[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
 
-    // State ថ្មីសម្រាប់ផ្ទុក File រូបភាពពិតប្រាកដដែលត្រូវ Upload ទៅ ImgBB
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [purchaseHistoryNames, setPurchaseHistoryNames] = useState<string[]>(
         [],
@@ -274,7 +274,7 @@ export default function InventoryPage() {
                 <div>
                     <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
                         <Package className="text-[#1a9e52]" />
-                        ឃ្លាំងទំនិញ (Inventory Cloud)
+                        ឃ្លាំងទំនិញ
                     </h2>
                     <p className="text-slate-500 text-sm mt-1">
                         គ្រប់គ្រងបញ្ជីទំនិញ និងស្តុកដោយប្រើលេខរៀងសម្គាល់
@@ -289,25 +289,18 @@ export default function InventoryPage() {
                 </Link>
             </div>
 
-            <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-3">
+            <div className="flex items-center gap-3">
                 <div className="relative flex-1 max-w-md">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                         <Search size={18} className="text-slate-400" />
                     </div>
                     <input
                         type="text"
-                        placeholder="ស្វែងរកតាមឈ្មោះ ឬលេខកូដ (0000...)"
+                        placeholder="ស្វែងរកតាមឈ្មោះ ឬលេខកូដ"
                         className="block w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-xl leading-5 bg-slate-50 focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#1a9e52]/20 focus:border-[#1a9e52] sm:text-sm transition-all"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                     />
-                </div>
-                <div className="text-sm text-slate-500 font-medium">
-                    សរុប:{' '}
-                    <span className="text-[#1a9e52] font-bold">
-                        {filteredItems.length}
-                    </span>{' '}
-                    មុខ
                 </div>
             </div>
 
@@ -325,6 +318,12 @@ export default function InventoryPage() {
                     <table className="min-w-full divide-y divide-slate-200">
                         <thead className="bg-slate-50">
                             <tr>
+                                <th
+                                    scope="col"
+                                    className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider"
+                                >
+                                    Reference
+                                </th>
                                 <th
                                     scope="col"
                                     className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider"
@@ -371,6 +370,13 @@ export default function InventoryPage() {
                                         className="hover:bg-slate-50/80 transition-colors"
                                     >
                                         <td className="px-6 py-4 whitespace-nowrap">
+                                            <span className="inline-flex items-center text-xs font-medium text-slate-700">
+                                                {generateSequenNumbering(
+                                                    'INVS',
+                                                )}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="flex items-center gap-3">
                                                 {item.image ? (
                                                     <div className="w-10 h-10 rounded-lg overflow-hidden border border-slate-200 flex-shrink-0">
@@ -399,12 +405,12 @@ export default function InventoryPage() {
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
-                                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
+                                            <span className="text-xs font-medium text-slate-700">
                                                 ប្រភេទ Stock
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
-                                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
+                                            <span className="text-xs font-medium text-slate-700">
                                                 {item.category}
                                             </span>
                                         </td>
@@ -429,7 +435,7 @@ export default function InventoryPage() {
                                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                             <div className="flex justify-end gap-2">
                                                 <Link
-                                                    href={`/inventory/${item.id}/edit`}
+                                                    href={`/inventory/stock/${item.id}/edit`}
                                                     className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                                                     title="កែប្រែ"
                                                 >

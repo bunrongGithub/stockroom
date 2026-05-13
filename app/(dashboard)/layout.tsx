@@ -1,86 +1,12 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import { supabase } from '@/lib/supabase/client';
+import { modulesList } from '@/lib/utils/system-menu';
+import { ChevronDown, Loader2, LogOut } from 'lucide-react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
-import {
-    Boxes,
-    ChevronDown,
-    type LucideIcon,
-    Settings,
-    LogOut,
-    Loader2,
-} from 'lucide-react';
-type TMenuType = 'module' | 'menu' | 'submenu';
-type TModule = Array<{
-    ordering: number;
-    icon: LucideIcon | null;
-    label: string;
-    parent: TModule | null;
-    href: string;
-    menu: Array<TMenuItem> | null;
-    type: TMenuType;
-}>;
-type TMenuItem = {
-    ordering: number;
-    icon: LucideIcon | null;
-    label: string;
-    href: string;
-    type: TMenuType;
-    action?: Array<string>;
-    children?: Array<TMenuItem>;
-};
-const inventoryMenuItem: TMenuItem[] = [
-    {
-        ordering: 1,
-        icon: null,
-        label: 'None Stock Item',
-        href: '/inventory/none_stock',
-        children: [],
-        type: 'menu',
-    },
-    {
-        ordering: 2,
-        icon: null,
-        label: 'Stock Item',
-        href: '/inventory/stock',
-        type: 'menu',
-        action: ['create', 'update', 'delete', 'get'],
-        children: [
-            {
-                ordering: 1,
-                icon: null,
-                label: 'Create',
-                type: 'submenu',
-                href: '/inventory/stock/create',
-            },
-        ],
-    },
-    {
-        ordering: 3,
-        icon: null,
-        label: 'Stock Addjustment',
-        href: '/inventory/stock_adjust',
-        type: 'menu',
-    },
-];
-const modulesList: TModule = [
-    {
-        ordering: 1,
-        icon: Boxes,
-        label: 'Inventory',
-        parent: null,
-        href: '/inventory',
-        menu: inventoryMenuItem,
-        type: 'module',
-    },
-];
-
-// System Navigation
-const systemMenuItems = [
-    { href: '/settings', label: 'Settings', icon: Settings },
-];
+import React, { useEffect, useState } from 'react';
 
 export default function DashboardLayout({
     children,
@@ -194,10 +120,11 @@ export default function DashboardLayout({
                 {/* Brand & Logo Section */}
                 <div className="h-20 flex items-center gap-3.5 px-6 border-b border-gray-800/60">
                     <div className="bg-white p-1 rounded-xl flex items-center justify-center shadow-lg w-10 h-10 shrink-0 overflow-hidden">
-                        {/* ប្រើ <img> ធម្មតាជំនួស next/image ដើម្បីងាយស្រួលបង្ហាញ Base64 Image ឬ URL ពី Imgbb */}
-                        <img
+                        <Image
                             src={appConfig.logo}
                             alt="Store Logo"
+                            width={500}
+                            height={500}
                             className="w-full h-full object-contain"
                         />
                     </div>
@@ -338,43 +265,6 @@ export default function DashboardLayout({
                         <p className="px-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-3">
                             System
                         </p>
-                        <nav>
-                            <ul className="space-y-1">
-                                {systemMenuItems.map((item) => {
-                                    const Icon = item.icon;
-                                    const isActive = isRouteActive(item.href);
-
-                                    return (
-                                        <li key={item.href}>
-                                            <Link
-                                                key={item.href}
-                                                href={item.href}
-                                                className={`w-full flex items-center gap-3.5 px-3 py-2.5 rounded-xl transition-all duration-200 group ${
-                                                    isActive
-                                                        ? 'bg-emerald-500/10 text-emerald-400 font-medium'
-                                                        : 'text-gray-400 hover:bg-gray-800/50 hover:text-gray-100'
-                                                }`}
-                                            >
-                                                <Icon
-                                                    size={18}
-                                                    className={
-                                                        isActive
-                                                            ? 'text-emerald-400'
-                                                            : 'text-gray-500 group-hover:text-gray-300 transition-colors'
-                                                    }
-                                                    strokeWidth={
-                                                        isActive ? 2.5 : 2
-                                                    }
-                                                />
-                                                <span className="text-sm">
-                                                    {item.label}
-                                                </span>
-                                            </Link>
-                                        </li>
-                                    );
-                                })}
-                            </ul>
-                        </nav>
                     </div>
                 </div>
 

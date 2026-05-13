@@ -1,9 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import Image from 'next/image';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabase/client';
 import {
     ArrowLeft,
     Loader2,
@@ -13,7 +10,10 @@ import {
     Upload,
     X,
 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import Image from 'next/image';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useEffect, useRef, useState } from 'react';
 
 interface InventoryFormProps {
     itemId?: string;
