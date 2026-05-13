@@ -1,4 +1,3 @@
-// ប្តូរមកប្រើ @supabase/ssr វិញ ដើម្បីឲ្យវា Sync ជាមួយ Cookies ដោយស្វ័យប្រវត្តិ
 import { createBrowserClient } from '@supabase/ssr';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
