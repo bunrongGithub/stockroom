@@ -189,15 +189,6 @@ export default function ItemsPage() {
                 </div>
 
                 <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden relative">
-                    {/* {isLoading && (
-                        <div className="absolute inset-0 bg-white/60 backdrop-blur-[2px] z-10 flex items-center justify-center">
-                            <div className="flex items-center gap-2 text-[#1a9e52] font-semibold">
-                                <Loader2 className="animate-spin" size={24} />{' '}
-                                កំពុងទាញយកទិន្នន័យ...
-                            </div>
-                        </div>
-                    )} */}
-
                     <div className="overflow-x-auto min-h-75">
                         <table className="min-w-full divide-y divide-slate-200">
                             <thead className="bg-slate-50">

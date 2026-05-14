@@ -221,53 +221,6 @@ export default function page() {
         }
     };
 
-    const handleChange = (
-        e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
-    ) => {
-        const { name, value } = e.target;
-        setFormData((prev) => {
-            const newData = {
-                ...prev,
-                [name]:
-                    name === 'quantity' || name === 'price'
-                        ? Number(value)
-                        : value,
-            };
-
-            if (name === 'name') {
-                const matchedPurchase = purchasesList.find(
-                    (p: any) =>
-                        (p.model || p.description)?.toLowerCase() ===
-                        String(value).toLowerCase(),
-                );
-                if (matchedPurchase) {
-                    newData.quantity = Number(matchedPurchase.quantity) || 0;
-                    newData.price = Number(matchedPurchase.cost_per_unit) || 0;
-                }
-            }
-            return newData;
-        });
-    };
-
-    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            if (file.size > 32 * 1024 * 1024)
-                return alert('សូមជ្រើសរើសរូបភាពដែលមានទំហំតូចជាង 32MB');
-            setSelectedFile(file);
-            setFormData({ ...formData, image: URL.createObjectURL(file) });
-        }
-    };
-
-    const triggerFileInput = () => {
-        fileInputRef.current?.click();
-    };
-    const removeImage = () => {
-        setFormData({ ...formData, image: '' });
-        setSelectedFile(null);
-        if (fileInputRef.current) fileInputRef.current.value = '';
-    };
-
     return (
         <div className="max-w-full mx-auto space-y-8 animate-in fade-in duration-500 p-4 md:p-8">
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
@@ -314,7 +267,7 @@ export default function page() {
                     </div>
                 )}
 
-                <div className="overflow-x-auto min-h-[300px]">
+                <div className="overflow-x-auto min-h-75">
                     <table className="min-w-full divide-y divide-slate-200">
                         <thead className="bg-slate-50">
                             <tr>
@@ -379,7 +332,7 @@ export default function page() {
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="flex items-center gap-3">
                                                 {item.image ? (
-                                                    <div className="w-10 h-10 rounded-lg overflow-hidden border border-slate-200 flex-shrink-0">
+                                                    <div className="w-10 h-10 rounded-lg overflow-hidden border border-slate-200 shrink-0">
                                                         <img
                                                             src={item.image}
                                                             alt={item.name}
@@ -387,7 +340,7 @@ export default function page() {
                                                         />
                                                     </div>
                                                 ) : (
-                                                    <div className="w-10 h-10 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 flex-shrink-0">
+                                                    <div className="w-10 h-10 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 shrink-0">
                                                         <Package size={20} />
                                                     </div>
                                                 )}
