@@ -1,8 +1,11 @@
-// lib/supabase/server.ts
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { cache } from 'react';
 
-export async function createClient() {
+// React.cache() memoizes the result per request lifecycle.
+// The factory runs once per request; every caller in the same
+// request tree receives the same SupabaseClient instance.
+export const createClient = cache(async () => {
     const cookieStore = await cookies();
 
     return createServerClient(
@@ -19,11 +22,11 @@ export async function createClient() {
                             cookieStore.set(name, value, options),
                         );
                     } catch {
-                        // setAll called from a Server Component — safe to ignore
-                        // Session refresh is handled by middleware instead
+                        // Called from a Server Component — safe to ignore.
+                        // Session refresh is handled by middleware instead.
                     }
                 },
             },
         },
     );
-}
+});

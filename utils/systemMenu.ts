@@ -1,6 +1,6 @@
 import { Boxes, type LucideIcon } from 'lucide-react';
-type TMenuType = 'module' | 'menu' | 'submenu';
-type TModule = Array<{
+export type TMenuType = 'module' | 'menu' | 'submenu' | 'configuration';
+export type TModule = Array<{
     ordering: number;
     icon: LucideIcon | null;
     label: string;
@@ -9,7 +9,7 @@ type TModule = Array<{
     menu: Array<TMenuItem> | null;
     type: TMenuType;
 }>;
-type TMenuItem = {
+export type TMenuItem = {
     ordering: number;
     icon: LucideIcon | null;
     label: string;
@@ -50,6 +50,22 @@ export const inventoryMenuItem: TMenuItem[] = [
         label: 'Stock Addjustment',
         href: '/inventory/stock_adjust',
         type: 'menu',
+    },
+    {
+        ordering: 1,
+        icon: null,
+        label: 'Category',
+        href: '/inventory/configurations/category',
+        children: [],
+        type: 'configuration',
+    },
+    {
+        ordering: 2,
+        icon: null,
+        label: 'Item Class',
+        href: '/inventory/configurations/item-class',
+        children: [],
+        type: 'configuration',
     },
 ];
 export const modulesList: TModule = [

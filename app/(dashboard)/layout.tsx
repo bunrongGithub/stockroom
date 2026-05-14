@@ -1,7 +1,7 @@
 'use client';
 
 import { supabase } from '@/lib/supabase/client';
-import { modulesList } from '@/lib/utils/system-menu';
+import { modulesList } from '@/utils/systemMenu';
 import { ChevronDown, Loader2, LogOut } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -21,17 +21,19 @@ export default function DashboardLayout({
     const [userEmail, setUserEmail] = useState<string | null>(null);
     const [isLoggingOut, setIsLoggingOut] = useState(false);
     const [openModules, setOpenModules] = useState<Record<string, boolean>>({});
+    const [openConfigModule, setOpenConfigModule] = useState<string | null>(
+        null,
+    );
 
     // ---------------- State សម្រាប់បង្ហាញ Logo និងឈ្មោះហាង ----------------
     const [appConfig, setAppConfig] = useState({
-        name: 'iCase Service',
+        name: 'iCase',
         logo: '/icase.jpg',
     });
 
     useEffect(() => {
         const fetchUser = async () => {
             try {
-                // ប្រើប្រាស់ getUser() ដើម្បីទាញយកទិន្នន័យជាក់លាក់ពី Server
                 const {
                     data: { user },
                 } = await supabase.auth.getUser();
@@ -113,10 +115,15 @@ export default function DashboardLayout({
         }));
     };
 
+    const toggleConfigModule = (href: string) => {
+        setOpenConfigModule((prev) => (prev === href ? null : href));
+    };
+
     return (
-        <div className="flex h-screen bg-gray-50 font-sans overflow-hidden">
+        <div className="flex h-screen w-full overflow-hidden bg-gray-50 font-sans">
             {/* ---------------- SIDEBAR ---------------- */}
-            <aside className="w-[280px] bg-gray-950 border-r border-gray-800 flex flex-col flex-shrink-0 transition-all">
+
+            <aside className="w-70 bg-gray-950 border-r border-gray-800 flex flex-col shrink-0 transition-all">
                 {/* Brand & Logo Section */}
                 <div className="h-20 flex items-center gap-3.5 px-6 border-b border-gray-800/60">
                     <div className="bg-white p-1 rounded-xl flex items-center justify-center shadow-lg w-10 h-10 shrink-0 overflow-hidden">
@@ -129,7 +136,7 @@ export default function DashboardLayout({
                         />
                     </div>
                     <div className="flex flex-col">
-                        <h1 className="text-white font-bold text-base tracking-wide leading-tight truncate max-w-[150px]">
+                        <h1 className="text-white font-bold text-base tracking-wide leading-tight truncate max-w-37.5">
                             {appConfig.name}
                         </h1>
                         <p className="text-[10px] text-emerald-400/80 font-bold tracking-widest uppercase mt-0.5">
@@ -149,10 +156,16 @@ export default function DashboardLayout({
                             <ul className="space-y-2">
                                 {modulesList.map((item) => {
                                     const Icon = item.icon;
+                                    const moduleMenuItems =
+                                        item.menu?.filter(
+                                            (menuItem) =>
+                                                menuItem.type !==
+                                                'configuration',
+                                        ) ?? [];
                                     const moduleIsActive =
                                         isRouteActive(item.href) ||
                                         Boolean(
-                                            item.menu?.some((menuItem) =>
+                                            moduleMenuItems.some((menuItem) =>
                                                 isRouteActive(menuItem.href),
                                             ),
                                         );
@@ -211,10 +224,9 @@ export default function DashboardLayout({
                                             </button>
 
                                             {isOpen &&
-                                                item.menu &&
-                                                item.menu.length > 0 && (
+                                                moduleMenuItems.length > 0 && (
                                                     <ul className="list-disc p-2 pl-8 marker:text-gray-500">
-                                                        {item.menu
+                                                        {moduleMenuItems
                                                             .slice()
                                                             .sort(
                                                                 (a, b) =>
@@ -259,13 +271,6 @@ export default function DashboardLayout({
                             </ul>
                         </nav>
                     </div>
-
-                    {/* System Group */}
-                    <div>
-                        <p className="px-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-3">
-                            System
-                        </p>
-                    </div>
                 </div>
 
                 {/* Bottom Profile Section (User Profile & Logout) */}
@@ -273,7 +278,7 @@ export default function DashboardLayout({
                     <div className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-gray-800/60 transition-colors group">
                         {/* User Info */}
                         <div className="flex items-center gap-3 overflow-hidden">
-                            <div className="bg-gradient-to-tr from-emerald-600 to-emerald-400 text-white w-9 h-9 shrink-0 rounded-full flex items-center justify-center font-bold text-sm shadow-md uppercase">
+                            <div className="bg-linear-to-r from-emerald-600 to-emerald-400 text-white w-9 h-9 shrink-0 rounded-full flex items-center justify-center font-bold text-sm shadow-md uppercase">
                                 {initials}
                             </div>
                             <div className="text-left overflow-hidden">
@@ -305,10 +310,105 @@ export default function DashboardLayout({
                     </div>
                 </div>
             </aside>
-            {/* ---------------- MAIN CONTENT ---------------- */}
-            <main className="flex-1 overflow-y-auto bg-gray-50">
-                {children}
-            </main>
+            <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+                <nav className="w-full shrink-0 bg-gray-950">
+                    <div className="flex min-h-20 w-full items-center justify-between gap-6 px-6 sm:px-8">
+                        <div className="flex min-w-0 items-center gap-6">
+                            <div className="hidden items-center gap-3 lg:flex">
+                                {modulesList.map((module) => {
+                                    const configurationItems =
+                                        module.menu?.filter(
+                                            (item) =>
+                                                item.type === 'configuration',
+                                        ) ?? [];
+
+                                    if (configurationItems.length === 0) {
+                                        return null;
+                                    }
+
+                                    const hasActiveConfiguration =
+                                        configurationItems.some((item) =>
+                                            isRouteActive(item.href),
+                                        );
+                                    const isConfigOpen =
+                                        openConfigModule === module.href;
+
+                                    return (
+                                        <div
+                                            key={`${module.href}-configuration`}
+                                            className="flex"
+                                        >
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    toggleConfigModule(
+                                                        module.href,
+                                                    )
+                                                }
+                                                className={`inline-flex text-gray-400 items-center gap-2 rounded-sm px-10 py-2 text-sm font-medium transition `}
+                                            >
+                                                <span className='uppercase'>{ module.label} Configuration</span>
+                                            </button>
+                                            <div className="p-2 flex items-center justify-center">
+                                                {configurationItems
+                                                    .slice()
+                                                    .sort(
+                                                        (a, b) =>
+                                                            a.ordering -
+                                                            b.ordering,
+                                                    )
+                                                    .map((item) => {
+                                                        const active =
+                                                            isRouteActive(
+                                                                item.href,
+                                                            );
+
+                                                        return (
+                                                            <Link
+                                                                key={item.href}
+                                                                href={item.href}
+                                                                onClick={() =>
+                                                                    setOpenConfigModule(
+                                                                        null,
+                                                                    )
+                                                                }
+                                                                className={`flex items-center rounded-xl px-4 py-3 text-sm transition ${
+                                                                    active
+                                                                        ? 'bg-emerald-50 text-emerald-700'
+                                                                        : 'text-gray-400 hover:text-gray-300'
+                                                                }`}
+                                                            >
+                                                                {item.label}
+                                                            </Link>
+                                                        );
+                                                    })}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                            <div className="hidden text-right sm:block">
+                                <p className="text-sm font-medium text-gray-900">
+                                    {userEmail || 'កំពុងផ្ទុក...'}
+                                </p>
+                                <p className="text-xs text-gray-500">
+                                    Active session
+                                </p>
+                            </div>
+                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 font-semibold uppercase text-emerald-700">
+                                {initials}
+                            </div>
+                        </div>
+                    </div>
+                </nav>
+
+                <main className="min-h-0 flex-1 overflow-y-auto bg-gray-50">
+                    {children}
+                </main>
+            </div>
         </div>
     );
 }

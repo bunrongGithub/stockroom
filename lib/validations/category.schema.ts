@@ -6,11 +6,7 @@ export const createCategorySchema = z.object({
         .min(1, 'Name is required')
         .max(100, 'Name must be 100 characters or less')
         .trim(),
-    reference_no: z
-        .string()
-        .min(1, 'Reference number is required')
-        .max(500, 'Reference number must be 500 characters or less')
-        .trim(),
+    reference_no: z.string().optional(),
 });
 
 export const updateCategorySchema = z.object({
@@ -20,12 +16,7 @@ export const updateCategorySchema = z.object({
         .max(100, 'Name must be 100 characters or less')
         .trim()
         .optional(),
-    reference_no: z
-        .string()
-        .min(1, 'Reference number is required')
-        .max(500, 'Reference number must be 500 characters or less')
-        .trim()
-        .optional(),
+    reference_no: z.string().optional(),
 });
 
 export const itemIdSchema = z.object({

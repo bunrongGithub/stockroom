@@ -1,13 +1,10 @@
+import { createCategorySchema } from '@/lib/validations/category.schema';
 import { NextRequest, NextResponse } from 'next/server';
-import { createCategorySchema } from '@/lib/validations/inventory-item-category.schema';
-import {
-    getAllItems,
-    createItem,
-} from '@/lib/services/inventory-item-category.service';
+import { service } from '.';
 
 export async function GET() {
     try {
-        const items = await getAllItems();
+        const items = await service.getAll();
         return NextResponse.json({ data: items }, { status: 200 });
     } catch (error) {
         const message =
@@ -28,7 +25,7 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        const item = await createItem(parsed.data);
+        const item = await service.create(parsed.data);
         return NextResponse.json({ data: item }, { status: 201 });
     } catch (error) {
         const message =
