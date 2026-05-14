@@ -15,7 +15,7 @@ type Mode = 'idle' | 'create' | 'edit';
 
 const EMPTY_FORM: FormState = { name: '', reference_no: '' };
 
-export default function ItemsPage() {
+export default function page() {
     const [items, setItems] = useState<Item[]>([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -215,7 +215,6 @@ export default function ItemsPage() {
                                         Name
                                     </th>
 
-
                                     <th
                                         scope="col"
                                         className="px-6 py-4 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider"
@@ -264,7 +263,6 @@ export default function ItemsPage() {
                                                     </div>
                                                 </div>
                                             </td>
-
 
                                             <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                                 <div className="flex justify-end gap-2">

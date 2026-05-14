@@ -338,17 +338,10 @@ export default function DashboardLayout({
                                             key={`${module.href}-configuration`}
                                             className="flex"
                                         >
-                                            <button
-                                                type="button"
-                                                onClick={() =>
-                                                    toggleConfigModule(
-                                                        module.href,
-                                                    )
-                                                }
-                                                className={`inline-flex text-gray-400 items-center gap-2 rounded-sm px-10 py-2 text-sm font-medium transition `}
-                                            >
-                                                <span className='uppercase'>{ module.label} Configuration</span>
-                                            </button>
+                                            <span className="uppercase inline-flex text-gray-400 items-center gap-2 rounded-sm px-10 py-2 text-sm font-medium">
+                                                {module.label} Configuration
+                                            </span>
+
                                             <div className="p-2 flex items-center justify-center">
                                                 {configurationItems
                                                     .slice()
@@ -362,7 +355,7 @@ export default function DashboardLayout({
                                                             isRouteActive(
                                                                 item.href,
                                                             );
-
+                                                        const Icon = item.icon;
                                                         return (
                                                             <Link
                                                                 key={item.href}
@@ -372,12 +365,30 @@ export default function DashboardLayout({
                                                                         null,
                                                                     )
                                                                 }
-                                                                className={`flex items-center rounded-xl px-4 py-3 text-sm transition ${
+                                                                className={`flex items-center gap-1 rounded-xl px-4 py-3 text-sm transition ${
                                                                     active
-                                                                        ? 'bg-emerald-50 text-emerald-700'
+                                                                        ? ' text-gray-300'
                                                                         : 'text-gray-400 hover:text-gray-300'
                                                                 }`}
                                                             >
+                                                                {Icon && (
+                                                                    <Icon
+                                                                        size={
+                                                                            18
+                                                                        }
+                                                                        className={
+                                                                            active
+                                                                                ? 'text-emerald-400'
+                                                                                : 'text-gray-500'
+                                                                        }
+                                                                        strokeWidth={
+                                                                            active
+                                                                                ? 2.5
+                                                                                : 2
+                                                                        }
+                                                                    />
+                                                                )}
+                                                                
                                                                 {item.label}
                                                             </Link>
                                                         );
