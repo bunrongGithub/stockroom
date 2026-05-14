@@ -119,6 +119,14 @@ export default function DashboardLayout({
         setOpenConfigModule((prev) => (prev === href ? null : href));
     };
 
+    const activeModule =
+        modulesList.find((module) => isRouteActive(module.href)) ?? null;
+    const activeConfigurationItems =
+        activeModule?.menu
+            ?.filter((item) => item.type === 'configuration')
+            .slice()
+            .sort((a, b) => a.ordering - b.ordering) ?? [];
+
     return (
         <div className="flex h-screen w-full overflow-hidden bg-gray-50 font-sans">
             {/* ---------------- SIDEBAR ---------------- */}
@@ -315,102 +323,42 @@ export default function DashboardLayout({
                     <div className="flex min-h-20 w-full items-center justify-between gap-6 px-6 sm:px-8">
                         <div className="flex min-w-0 items-center gap-6">
                             <div className="hidden items-center gap-3 lg:flex">
-                                {modulesList.map((module) => {
-                                    const configurationItems =
-                                        module.menu?.filter(
-                                            (item) =>
-                                                item.type === 'configuration',
-                                        ) ?? [];
+                                <div className="relative flex items-center gap-3">
+                                    {activeConfigurationItems.map((item) => {
+                                        const active = isRouteActive(item.href);
+                                        const Icon = item.icon;
 
-                                    if (configurationItems.length === 0) {
-                                        return null;
-                                    }
-
-                                    const hasActiveConfiguration =
-                                        configurationItems.some((item) =>
-                                            isRouteActive(item.href),
+                                        return (
+                                            <Link
+                                                key={item.href}
+                                                href={item.href}
+                                                onClick={() =>
+                                                    setOpenConfigModule(null)
+                                                }
+                                                className={`flex items-center gap-2 rounded-xl px-4 py-3 text-sm transition ${
+                                                    active
+                                                        ? 'bg-emerald-500/10 text-emerald-300'
+                                                        : 'text-gray-400 hover:bg-gray-900 hover:text-gray-200'
+                                                }`}
+                                            >
+                                                {Icon && (
+                                                    <Icon
+                                                        size={18}
+                                                        className={
+                                                            active
+                                                                ? 'text-emerald-400'
+                                                                : 'text-gray-500'
+                                                        }
+                                                        strokeWidth={
+                                                            active ? 2.5 : 2
+                                                        }
+                                                    />
+                                                )}
+                                                {item.label}
+                                            </Link>
                                         );
-                                    const isConfigOpen =
-                                        openConfigModule === module.href;
-
-                                    return (
-                                        <div
-                                            key={`${module.href}-configuration`}
-                                            className="flex"
-                                        >
-                                            <span className="uppercase inline-flex text-gray-400 items-center gap-2 rounded-sm px-10 py-2 text-sm font-medium">
-                                                {module.label} Configuration
-                                            </span>
-
-                                            <div className="p-2 flex items-center justify-center">
-                                                {configurationItems
-                                                    .slice()
-                                                    .sort(
-                                                        (a, b) =>
-                                                            a.ordering -
-                                                            b.ordering,
-                                                    )
-                                                    .map((item) => {
-                                                        const active =
-                                                            isRouteActive(
-                                                                item.href,
-                                                            );
-                                                        const Icon = item.icon;
-                                                        return (
-                                                            <Link
-                                                                key={item.href}
-                                                                href={item.href}
-                                                                onClick={() =>
-                                                                    setOpenConfigModule(
-                                                                        null,
-                                                                    )
-                                                                }
-                                                                className={`flex items-center gap-1 rounded-xl px-4 py-3 text-sm transition ${
-                                                                    active
-                                                                        ? ' text-gray-300'
-                                                                        : 'text-gray-400 hover:text-gray-300'
-                                                                }`}
-                                                            >
-                                                                {Icon && (
-                                                                    <Icon
-                                                                        size={
-                                                                            18
-                                                                        }
-                                                                        className={
-                                                                            active
-                                                                                ? 'text-emerald-400'
-                                                                                : 'text-gray-500'
-                                                                        }
-                                                                        strokeWidth={
-                                                                            active
-                                                                                ? 2.5
-                                                                                : 2
-                                                                        }
-                                                                    />
-                                                                )}
-                                                                
-                                                                {item.label}
-                                                            </Link>
-                                                        );
-                                                    })}
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-
-                        <div className="flex items-center gap-3">
-                            <div className="hidden text-right sm:block">
-                                <p className="text-sm font-medium text-gray-900">
-                                    {userEmail || 'កំពុងផ្ទុក...'}
-                                </p>
-                                <p className="text-xs text-gray-500">
-                                    Active session
-                                </p>
-                            </div>
-                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 font-semibold uppercase text-emerald-700">
-                                {initials}
+                                    })}
+                                </div>
                             </div>
                         </div>
                     </div>
