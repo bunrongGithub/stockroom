@@ -1,66 +1,40 @@
 'use client';
 
-import PopUpDeleteTransactionModal from '@/components/ui/PopUpDeleteModal';
 import { usePageActions } from '@/hook/usePageAction';
+import { DateTimeFormat } from '@/lib/utils/dateformat';
 import { resolveHref } from '@/utils/utils';
-import { LayoutList, Search } from 'lucide-react';
+import { LayoutList, Package, Search } from 'lucide-react';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
-type TCategoryProp = {
+type TUomProp = {
     id: number;
     name: string;
     reference_no: string | null;
+    writed_at: string | null;
+    created_at: string | null;
 };
 
-export default function CategoryListForm({
-    categories,
-}: {
-    categories: Array<TCategoryProp>;
-}) {
+export default function UomListForm({ uoms }: { uoms: Array<TUomProp> }) {
     const pageAction = usePageActions();
     const [deletingId, setDeletingId] = useState<number | null>(null);
-    const [isDeleting, setIsDeleting] = useState(false);
-
     const [toast, setToast] = useState<{
         msg: string;
         type: 'success' | 'error';
     } | null>(null);
 
+    // ─── Derive action slices from dataset ────────────────────────────────────
+    // static: dynamic === false  → used in the page header (no id needed)
+    // dynamic: dynamic === true  → used per row (id injected at render time)
     const staticActions = pageAction?.actions.filter((a) => !a.dynamic) ?? [];
     const dynamicActions = pageAction?.actions.filter((a) => a.dynamic) ?? [];
 
-    const onConfirm = async () => {
-        if (!deletingId) return;
+    function showToast(msg: string, type: 'success' | 'error') {
+        setToast({ msg, type });
+        setTimeout(() => setToast(null), 3000);
+    }
 
-        try {
-            setIsDeleting(true);
-
-            const res = await fetch(`/api/category/${deletingId}`, {
-                method: 'DELETE',
-            });
-
-            if (!res.ok) {
-                throw new Error('Delete failed');
-            }
-
-            setToast({
-                msg: 'Delete successful',
-                type: 'success',
-            });
-
-            // Optional refresh
-            window.location.reload();
-        } catch (error) {
-            setToast({
-                msg: 'Delete failed',
-                type: 'error',
-            });
-        } finally {
-            setIsDeleting(false);
-            setDeletingId(null);
-        }
-    };
+    // ─── Render ───────────────────────────────────────────────────────────────
     return (
         <main>
             {/* Toast */}
@@ -76,22 +50,17 @@ export default function CategoryListForm({
                     {toast.msg}
                 </div>
             )}
-            <PopUpDeleteTransactionModal
-                open={!!deletingId}
-                loading={isDeleting}
-                onClose={() => setDeletingId(null)}
-                onConfirm={onConfirm}
-            />
+
             <div className="max-w-full mx-auto space-y-6 animate-in fade-in duration-500 p-4 md:p-8">
                 {/* ── Page header ── */}
                 <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
                     <div>
                         <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-                            <LayoutList className="text-emerald-600" />
-                            Category
+                            <Package className="text-emerald-600" />
+                            UOM
                         </h2>
                         <p className="text-slate-500 text-sm mt-1">
-                            គ្រប់គ្រងប្រភេទទំនិញ
+                            គ្រប់គ្រងខ្នាតទំនិញ
                         </p>
                     </div>
 
@@ -128,7 +97,7 @@ export default function CategoryListForm({
                 {/* ── Table ── */}
                 <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
                     <div className="overflow-x-auto min-h-64">
-                        <table className="min-w-full divide-y divide-slate-100">
+                        <table className="min-w-full divide-slate-100">
                             <thead className="bg-slate-50">
                                 <tr>
                                     <th className="px-6 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
@@ -137,14 +106,20 @@ export default function CategoryListForm({
                                     <th className="px-6 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
                                         Name
                                     </th>
+                                    <th className="px-6 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                                        Created At
+                                    </th>
+                                    <th className="px-6 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                                        Updated At
+                                    </th>
                                     <th className="px-6 py-3.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">
                                         Actions
                                     </th>
                                 </tr>
                             </thead>
 
-                            <tbody className="bg-white divide-y divide-slate-100">
-                                {categories.length === 0 ? (
+                            <tbody className="bg-white divide-slate-100">
+                                {uoms.length === 0 ? (
                                     <tr>
                                         <td
                                             colSpan={3}
@@ -154,7 +129,7 @@ export default function CategoryListForm({
                                         </td>
                                     </tr>
                                 ) : (
-                                    categories.map((item: TCategoryProp) => (
+                                    uoms.map((item) => (
                                         <tr
                                             key={item.id}
                                             className="hover:bg-slate-50/70 transition-colors"
@@ -162,11 +137,19 @@ export default function CategoryListForm({
                                             <td className="px-6 py-4 whitespace-nowrap text-xs font-medium text-slate-500">
                                                 {item.reference_no ?? '—'}
                                             </td>
-
                                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-800">
                                                 {item.name}
                                             </td>
-
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-800">
+                                                {DateTimeFormat(
+                                                    item.created_at as string,
+                                                )}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-800">
+                                                {DateTimeFormat(
+                                                    item.writed_at as string,
+                                                )}
+                                            </td>
                                             {/* ── Dynamic actions per row ── */}
                                             <td className="px-6 py-4 whitespace-nowrap text-right">
                                                 <div className="inline-flex items-center gap-2 justify-end">
@@ -195,11 +178,11 @@ export default function CategoryListForm({
                                                                             action.label
                                                                         }
                                                                         type="button"
-                                                                        onClick={() =>
-                                                                            setDeletingId(
-                                                                                item.id,
-                                                                            )
-                                                                        }
+                                                                        // onClick={() =>
+                                                                        //     handleDelete(
+                                                                        //         item.id,
+                                                                        //     )
+                                                                        // }
                                                                         disabled={
                                                                             deletingId ===
                                                                             item.id
@@ -213,9 +196,10 @@ export default function CategoryListForm({
                                                                                 }
                                                                             />
                                                                         )}
-                                                                        {
-                                                                            action.label
-                                                                        }
+                                                                        {deletingId ===
+                                                                        item.id
+                                                                            ? 'កំពុងលុប...'
+                                                                            : action.label}
                                                                     </button>
                                                                 );
                                                             }

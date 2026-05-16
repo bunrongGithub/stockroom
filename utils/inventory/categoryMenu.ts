@@ -1,5 +1,5 @@
 import { Action } from '@/types';
-import { Edit2, Plus, Trash2 } from 'lucide-react';
+import { Edit, Edit2, Plus, Trash2 } from 'lucide-react';
 
 export const categoryActions: Action = [
     {
@@ -28,9 +28,16 @@ export const categoryActions: Action = [
 export const uomAction: Action = [
     {
         label: 'Create',
-        href: '/inventory/configurations/category/create',
+        href: '/inventory/configurations/uom/create',
         type: 'user_action',
         dynamic: false,
         icon: Plus,
+    },
+    {
+        label: 'Update',
+        href: '/inventory/configurations/uom/:id/update',
+        type: 'user_action',
+        dynamic: true,
+        icon: Edit,
     },
 ];
