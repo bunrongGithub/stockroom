@@ -52,10 +52,13 @@ export class CategoryService {
     }
 
     async update(id: number, input: UpdateCategoryInput): Promise<Category> {
+
+
+        // qwertyuxcvbnm,zxcv
         // Ensure the record exists before attempting an update
         await this.getById(id);
-
-        return await this.categoryRepo.updateOne(id, input);
+        const data = input
+        return await this.categoryRepo.updateOne(id, data);
     }
 
     async delete(id: number): Promise<void> {

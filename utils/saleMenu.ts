@@ -7,6 +7,7 @@ export const saleMenu: TMenuItem[] = [
         label: 'Sale Order',
         href: '/sales/order',
         type: 'menu',
+        action: null,
     },
     {
         ordering: 2,
@@ -14,5 +15,6 @@ export const saleMenu: TMenuItem[] = [
         label: 'Delivery Note',
         href: '/sales/shipment',
         type: 'menu',
+        action: null,
     },
 ];

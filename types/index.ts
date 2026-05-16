@@ -1,9 +1,10 @@
 import { LucideIcon } from 'lucide-react';
 export type Action = Array<{
     label: string;
-    icon: LucideIcon | null;
     href: string | null;
     type: 'user_action';
+    dynamic: boolean;
+    icon: LucideIcon | null;
 }>;
 export type TMenuType =
     | 'module'
@@ -26,6 +27,6 @@ export type TMenuItem = {
     label: string;
     href: string;
     type: TMenuType;
-    action?: Action;
+    action: Action | null;
     children?: Array<TMenuItem>;
 };

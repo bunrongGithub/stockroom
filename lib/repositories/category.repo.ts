@@ -86,7 +86,7 @@ export class CategoryRepository {
         const supabase = await this.getClient();
         const { data, error } = await supabase
             .from(TABLE)
-            .update({ ...input, updated_at: new Date().toISOString() })
+            .update({ ...input })
             .eq('id', id)
             .select()
             .single();

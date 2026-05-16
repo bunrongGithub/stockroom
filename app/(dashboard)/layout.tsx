@@ -1,13 +1,10 @@
 'use client';
+
+import { PageActionContext } from '@/context/PageActionContext';
 import { supabase } from '@/lib/supabase/client';
+import { Action, TMenuItem } from '@/types';
 import { modulesList } from '@/utils/systemMenu';
-import { TMenuItem } from '@/types';
-import {
-    ChevronDown,
-    ChevronRight,
-    Loader2,
-    LogOut,
-} from 'lucide-react';
+import { ChevronDown, ChevronRight, Loader2, LogOut } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -23,7 +20,7 @@ export default function DashboardLayout({
     const isActive = (href: string) =>
         pathname === href || (pathname.startsWith(href) && href !== '/');
 
-    // ── user / auth ──────────────────────────────────────────────────────────
+    // ── auth ──────────────────────────────────────────────────────────────────
     const [userEmail, setUserEmail] = useState<string | null>(null);
     const [isLoggingOut, setIsLoggingOut] = useState(false);
 
@@ -36,7 +33,7 @@ export default function DashboardLayout({
             .catch(() => setUserEmail('Error'));
     }, []);
 
-    // ── store config ─────────────────────────────────────────────────────────
+    // ── store config ──────────────────────────────────────────────────────────
     const [appConfig, setAppConfig] = useState({
         name: 'iCase',
         logo: '/icase.jpg',
@@ -60,45 +57,53 @@ export default function DashboardLayout({
         return () => window.removeEventListener('settingsUpdated', load);
     }, []);
 
-    // ── sidebar open/close state ──────────────────────────────────────────────
+    // ── sidebar open/close ────────────────────────────────────────────────────
     const [openModules, setOpenModules] = useState<Record<string, boolean>>({});
 
     const toggleModule = (href: string) =>
         setOpenModules((p) => ({ ...p, [href]: !(p[href] ?? false) }));
 
-    // ── derive active module + slices ─────────────────────────────────────────
+    // ── active module ─────────────────────────────────────────────────────────
     const activeModule =
         modulesList.find(
             (m) =>
                 isActive(m.href) ||
-                m.menu?.some((item) => isActive(item.href)) ||
-                m.menu?.some((item) =>
-                    item.children?.some((c) => isActive(c.href)),
-                ),
+                m.menu?.some((i) => isActive(i.href)) ||
+                m.menu?.some((i) => i.children?.some((c) => isActive(c.href))),
         ) ?? null;
 
-    // items that go in the sidebar (menu + submenu, sorted)
     const sidebarItems: TMenuItem[] =
         activeModule?.menu
             ?.filter((i) => i.type === 'menu')
             .slice()
             .sort((a, b) => a.ordering - b.ordering) ?? [];
 
-    // items that go in the top config navbar
     const configItems: TMenuItem[] =
         activeModule?.menu
             ?.filter((i) => i.type === 'configuration')
             .slice()
             .sort((a, b) => a.ordering - b.ordering) ?? [];
 
-    // find the currently active menu item to surface its actions
-    const activeMenuItem: TMenuItem | null =
-        sidebarItems.find(
+    const allItems: TMenuItem[] = activeModule?.menu ?? [];
+
+    const activeItem: TMenuItem | null =
+        allItems.find((i) => pathname === i.href) ??
+        allItems.find(
             (i) =>
                 isActive(i.href) || i.children?.some((c) => isActive(c.href)),
-        ) ?? null;
+        ) ??
+        null;
 
-    const actionList = activeMenuItem?.action ?? [];
+    // actionList lives in state so child pages can call setActionList to
+    // override or extend actions dynamically (e.g. when a row is selected).
+    const [actionList, setActionList] = useState<Action>(
+        activeItem?.action ?? [],
+    );
+
+    // Keep actions in sync whenever the route changes.
+    useEffect(() => {
+        setActionList(activeItem?.action ?? []);
+    }, [pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // ── logout ────────────────────────────────────────────────────────────────
     const handleLogout = async () => {
@@ -142,7 +147,7 @@ export default function DashboardLayout({
                     </div>
                 </div>
 
-                {/* ── Module list (all modules, always visible) ── */}
+                {/* Module list */}
                 <div className="flex-1 overflow-y-auto py-4 px-3 space-y-1 scrollbar-hide">
                     <p className="px-2 text-[10px] font-bold text-gray-600 uppercase tracking-widest mb-2">
                         Modules
@@ -158,7 +163,6 @@ export default function DashboardLayout({
                             ) ||
                             false;
 
-                        // sidebar items for this module
                         const menuItems =
                             module.menu
                                 ?.filter((i) => i.type === 'menu')
@@ -169,7 +173,6 @@ export default function DashboardLayout({
 
                         return (
                             <div key={module.href}>
-                                {/* Module row */}
                                 <button
                                     type="button"
                                     onClick={() => toggleModule(module.href)}
@@ -202,7 +205,6 @@ export default function DashboardLayout({
                                     )}
                                 </button>
 
-                                {/* Menu items */}
                                 {isOpen && menuItems.length > 0 && (
                                     <div className="ml-4 mt-0.5 space-y-0.5 border-l border-gray-800 pl-3">
                                         {menuItems.map((item) => {
@@ -230,7 +232,6 @@ export default function DashboardLayout({
 
                                             return (
                                                 <div key={item.href}>
-                                                    {/* Menu item row */}
                                                     <div className="flex items-center">
                                                         <Link
                                                             href={item.href}
@@ -265,7 +266,6 @@ export default function DashboardLayout({
                                                         )}
                                                     </div>
 
-                                                    {/* Sub-menu items */}
                                                     {subOpen &&
                                                         subItems.length > 0 && (
                                                             <div className="ml-3 mt-0.5 space-y-0.5 border-l border-gray-800/60 pl-3">
@@ -342,23 +342,20 @@ export default function DashboardLayout({
 
             {/* ═══════════════════ MAIN AREA ═══════════════════ */}
             <div className="flex flex-1 min-w-0 flex-col overflow-hidden">
-                {/* ── Top Navbar: Configuration items + breadcrumb ── */}
+                {/* ── Top Navbar: configuration tabs ── */}
                 <nav className="shrink-0 bg-gray-950 border-b border-gray-800/60">
                     <div className="flex h-14 items-center justify-between gap-4 px-6">
-                        {/* Left: active module label + config tabs */}
                         <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide">
                             {activeModule && (
                                 <span className="text-xs font-bold text-gray-500 uppercase tracking-widest pr-3 border-r border-gray-800 mr-2 shrink-0">
                                     {activeModule.label}
                                 </span>
                             )}
-
                             {configItems.length === 0 && (
                                 <span className="text-xs text-gray-700 italic">
                                     No configurations
                                 </span>
                             )}
-
                             {configItems.map((item) => {
                                 const CfgIcon = item.icon;
                                 const active = isActive(item.href);
@@ -389,58 +386,19 @@ export default function DashboardLayout({
                                 );
                             })}
                         </div>
-
-                        {/* {actionList.length > 0 && (
-                            <div className="flex items-center gap-2 shrink-0">
-                                {actionList.map((action) => {
-                                    const meta = ACTION_META[action];
-                                    if (!meta) return null;
-                                    const ActionIcon = meta.icon;
-
-                                    // For "create" we link to the first matching child href if available
-                                    const createHref =
-                                        action === 'create'
-                                            ? (activeMenuItem?.children?.find(
-                                                  (c) =>
-                                                      c.label.toLowerCase() ===
-                                                      'create',
-                                              )?.href ??
-                                              `${activeMenuItem?.href}/create`)
-                                            : undefined;
-
-                                    const content = (
-                                        <span className="flex items-center gap-1.5">
-                                            <ActionIcon size={13} />
-                                            {meta.label}
-                                        </span>
-                                    );
-
-                                    return createHref ? (
-                                        <Link
-                                            key={action}
-                                            href={createHref}
-                                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold shadow transition-all ${meta.variant}`}
-                                        >
-                                            {content}
-                                        </Link>
-                                    ) : (
-                                        <button
-                                            key={action}
-                                            type="button"
-                                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold shadow transition-all ${meta.variant}`}
-                                        >
-                                            {content}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        )} */}
                     </div>
                 </nav>
 
                 {/* ── Page Content ── */}
                 <main className="flex-1 min-h-0 overflow-y-auto bg-gray-50">
-                    {children}
+                    <PageActionContext.Provider
+                        value={{
+                            actions: actionList,
+                            setActions: setActionList,
+                        }}
+                    >
+                        {children}
+                    </PageActionContext.Provider>
                 </main>
             </div>
         </div>

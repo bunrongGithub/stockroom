@@ -1,88 +1,66 @@
 'use client';
 
+import PopUpDeleteTransactionModal from '@/components/ui/PopUpDeleteModal';
 import { usePageActions } from '@/hook/usePageAction';
 import { resolveHref } from '@/utils/utils';
 import { LayoutList, Search } from 'lucide-react';
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 
-type Item = {
+type TCategoryProp = {
     id: number;
     name: string;
     reference_no: string | null;
 };
 
-export default function Page() {
+export default function CategoryListForm({
+    categories,
+}: {
+    categories: Array<TCategoryProp>;
+}) {
     const pageAction = usePageActions();
-
-    const [items, setItems] = useState<Item[]>([]);
-    const [loading, setLoading] = useState(true);
     const [deletingId, setDeletingId] = useState<number | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
+
     const [toast, setToast] = useState<{
         msg: string;
         type: 'success' | 'error';
     } | null>(null);
 
-    // ─── Derive action slices from dataset ────────────────────────────────────
-    // static: dynamic === false  → used in the page header (no id needed)
-    // dynamic: dynamic === true  → used per row (id injected at render time)
     const staticActions = pageAction?.actions.filter((a) => !a.dynamic) ?? [];
     const dynamicActions = pageAction?.actions.filter((a) => a.dynamic) ?? [];
 
-    // ─── Data fetching ────────────────────────────────────────────────────────
-    const fetchItems = useCallback(async () => {
-        setLoading(true);
-        try {
-            const res = await fetch('/api/category');
-            const json = await res.json();
-            if (!res.ok)
-                throw new Error(
-                    typeof json.error === 'string'
-                        ? json.error
-                        : 'Failed to fetch categories',
-                );
-            setItems(json.data ?? []);
-        } catch (err) {
-            showToast(
-                err instanceof Error ? err.message : 'Failed to load items',
-                'error',
-            );
-        } finally {
-            setLoading(false);
-        }
-    }, []);
+    const onConfirm = async () => {
+        if (!deletingId) return;
 
-    useEffect(() => {
-        fetchItems();
-    }, [fetchItems]);
-
-    // ─── Delete handler ───────────────────────────────────────────────────────
-    async function handleDelete(id: number) {
-        if (!confirm('តើអ្នកពិតជាចង់លុបមែនទេ?')) return;
-        setDeletingId(id);
         try {
-            const res = await fetch(`/api/category/${id}`, {
+            setIsDeleting(true);
+
+            const res = await fetch(`/api/category/${deletingId}`, {
                 method: 'DELETE',
             });
-            if (!res.ok) throw new Error('Failed to delete');
-            showToast('លុបដោយជោគជ័យ', 'success');
-            fetchItems();
-        } catch (err) {
-            showToast(
-                err instanceof Error ? err.message : 'Failed to delete',
-                'error',
-            );
+
+            if (!res.ok) {
+                throw new Error('Delete failed');
+            }
+
+            setToast({
+                msg: 'Delete successful',
+                type: 'success',
+            });
+
+            // Optional refresh
+            window.location.reload();
+        } catch (error) {
+            setToast({
+                msg: 'Delete failed',
+                type: 'error',
+            });
         } finally {
+            setIsDeleting(false);
             setDeletingId(null);
         }
-    }
-
-    function showToast(msg: string, type: 'success' | 'error') {
-        setToast({ msg, type });
-        setTimeout(() => setToast(null), 3000);
-    }
-
-    // ─── Render ───────────────────────────────────────────────────────────────
+    };
     return (
         <main>
             {/* Toast */}
@@ -98,7 +76,12 @@ export default function Page() {
                     {toast.msg}
                 </div>
             )}
-
+            <PopUpDeleteTransactionModal
+                open={!!deletingId}
+                loading={isDeleting}
+                onClose={() => setDeletingId(null)}
+                onConfirm={onConfirm}
+            />
             <div className="max-w-full mx-auto space-y-6 animate-in fade-in duration-500 p-4 md:p-8">
                 {/* ── Page header ── */}
                 <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
@@ -161,16 +144,7 @@ export default function Page() {
                             </thead>
 
                             <tbody className="bg-white divide-y divide-slate-100">
-                                {loading ? (
-                                    <tr>
-                                        <td
-                                            colSpan={3}
-                                            className="text-center py-12 text-slate-400 text-sm"
-                                        >
-                                            កំពុងទាញយកទិន្នន័យ...
-                                        </td>
-                                    </tr>
-                                ) : items.length === 0 ? (
+                                {categories.length === 0 ? (
                                     <tr>
                                         <td
                                             colSpan={3}
@@ -180,7 +154,7 @@ export default function Page() {
                                         </td>
                                     </tr>
                                 ) : (
-                                    items.map((item) => (
+                                    categories.map((item: TCategoryProp) => (
                                         <tr
                                             key={item.id}
                                             className="hover:bg-slate-50/70 transition-colors"
@@ -222,7 +196,7 @@ export default function Page() {
                                                                         }
                                                                         type="button"
                                                                         onClick={() =>
-                                                                            handleDelete(
+                                                                            setDeletingId(
                                                                                 item.id,
                                                                             )
                                                                         }
@@ -239,10 +213,9 @@ export default function Page() {
                                                                                 }
                                                                             />
                                                                         )}
-                                                                        {deletingId ===
-                                                                        item.id
-                                                                            ? 'កំពុងលុប...'
-                                                                            : action.label}
+                                                                        {
+                                                                            action.label
+                                                                        }
                                                                     </button>
                                                                 );
                                                             }

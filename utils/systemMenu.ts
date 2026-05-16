@@ -1,6 +1,6 @@
-import { Boxes } from 'lucide-react';
-import { inventoryMenuItem } from './inventoryMenu';
 import { TModule } from '@/types';
+import { Boxes } from 'lucide-react';
+import { inventoryMenuItem } from './inventory/inventoryMenu';
 import { saleMenu } from './saleMenu';
 
 export const modulesList: TModule = [
