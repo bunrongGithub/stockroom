@@ -1,10 +1,10 @@
 'use client';
 
-import { supabase } from '@/supabase/supabase';
 import { AlertCircle, Loader2, Lock, Mail } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 // ប្រើប្រាស់ useRouter របស់ Next.js ដើម្បីប្តូរទំព័រឱ្យមានប្រសិទ្ធភាព
 import { useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabase/client';
 
 export default function LoginPage() {
     const [email, setEmail] = useState('');

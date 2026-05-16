@@ -51,7 +51,7 @@ export default function page() {
         setIsLoading(true);
         try {
             const { data, error } = await supabase
-                .from('inventory')
+                .from('inventory_item')
                 .select('*')
                 .order('created_at', { ascending: false });
 

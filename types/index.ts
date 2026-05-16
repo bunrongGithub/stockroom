@@ -1,6 +1,16 @@
-import { LucideIcon } from "lucide-react";
-
-export type TMenuType = 'module' | 'menu' | 'submenu' | 'configuration';
+import { LucideIcon } from 'lucide-react';
+export type Action = Array<{
+    label: string;
+    icon: LucideIcon | null;
+    href: string | null;
+    type: 'user_action';
+}>;
+export type TMenuType =
+    | 'module'
+    | 'menu'
+    | 'submenu'
+    | 'configuration'
+    | 'button';
 export type TModule = Array<{
     ordering: number;
     icon: LucideIcon | null;
@@ -16,6 +26,6 @@ export type TMenuItem = {
     label: string;
     href: string;
     type: TMenuType;
-    action?: Array<string>;
+    action?: Action;
     children?: Array<TMenuItem>;
 };

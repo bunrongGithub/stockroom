@@ -1,6 +1,6 @@
 'use client';
 
-import { Edit, Package, Plus, Search, Trash2 } from 'lucide-react';
+import { Edit, LayoutList, Package, Plus, Search, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 
@@ -157,19 +157,19 @@ export default function ItemsPage() {
                 <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
                     <div>
                         <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-                            <Package className="text-[#1a9e52]" />
-                            ឃ្លាំងទំនិញ
+                            <LayoutList className="text-[#1a9e52]" />
+                            Category
                         </h2>
                         <p className="text-slate-500 text-sm mt-1">
-                            គ្រប់គ្រងបញ្ជីទំនិញ និងស្តុកដោយប្រើលេខរៀងសម្គាល់
+                            គ្រប់គ្រងប្រភេទទំនិញ
                         </p>
                     </div>
                     <Link
                         href="/inventory/stock/create"
-                        className="bg-[#1a9e52] hover:bg-[#158042] text-white px-5 py-2.5 rounded-xl font-medium shadow-sm transition-colors duration-200 flex items-center gap-2"
+                        className="bg-[#1a9e51ee] hover:bg-[#158042] text-white px-5 py-2.5 rounded-xl font-medium shadow-sm transition-colors duration-200 flex items-center gap-2"
                     >
                         <Plus size={20} />
-                        <span>បន្ថែមទំនិញថ្មី</span>
+                        <span>Create</span>
                     </Link>
                 </div>
 
@@ -205,7 +205,6 @@ export default function ItemsPage() {
                                     >
                                         Name
                                     </th>
-
 
                                     <th
                                         scope="col"
@@ -255,7 +254,6 @@ export default function ItemsPage() {
                                                     </div>
                                                 </div>
                                             </td>
-
 
                                             <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                                 <div className="flex justify-end gap-2">

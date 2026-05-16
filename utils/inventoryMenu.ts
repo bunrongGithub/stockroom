@@ -1,6 +1,25 @@
-import { TMenuItem } from '@/types';
-import { LayoutList, Package } from 'lucide-react';
-
+import { Action, TMenuItem } from '@/types';
+import { LayoutList, Package, Plus } from 'lucide-react';
+const actions: Action = [
+    {
+        label: 'Create',
+        icon: Plus,
+        href: '/inventory/configurations/category/create',
+        type: 'user_action',
+    },
+    {
+        label: 'Update',
+        icon: Plus,
+        href: '/inventory/configurations/category/update',
+        type: 'user_action',
+    },
+    {
+        label: 'Delete',
+        icon: Plus,
+        href: '/inventory/configurations/category/update',
+        type: 'user_action',
+    },
+];
 export const inventoryMenuItem: TMenuItem[] = [
     {
         ordering: 1,
@@ -16,16 +35,8 @@ export const inventoryMenuItem: TMenuItem[] = [
         label: 'Stock Item',
         href: '/inventory/stock',
         type: 'menu',
-        action: ['create', 'update', 'delete', 'get'],
-        children: [
-            {
-                ordering: 1,
-                icon: null,
-                label: 'Create',
-                type: 'submenu',
-                href: '/inventory/stock/create',
-            },
-        ],
+        action: [],
+        children: [],
     },
     {
         ordering: 3,
@@ -40,6 +51,7 @@ export const inventoryMenuItem: TMenuItem[] = [
         label: 'Category',
         href: '/inventory/configurations/category',
         children: [],
+        action: actions,
         type: 'configuration',
     },
     {
