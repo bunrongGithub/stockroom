@@ -33,12 +33,23 @@ export class InventoryProductRepository {
         }
         return this.clientPromise;
     }
-
     async findAll(): Promise<InventoryProduct[]> {
         const supabase = await this.getClient();
-        const { data, error } = await supabase.from(TABLE).select('*');
+
+        const { data, error } = await supabase.from(TABLE).select(`
+            *,
+            category:category_id (
+                id,
+                name
+            ),
+            uom:uom_id (
+                id,
+                name
+            )
+        `);
 
         if (error) throw new Error(error.message);
+
         return data ?? [];
     }
 

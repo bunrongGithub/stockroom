@@ -1,5 +1,5 @@
-import InventoryForm from '@/components/forms/inventory/InventoryForm';
+import StockCreateForm from '@/components/forms/inventory/stock/StockCreateForm';
 
 export default function page() {
-    return <InventoryForm />;
+    return <StockCreateForm />;
 }

@@ -1,6 +1,7 @@
 import { TMenuItem } from '@/types';
 import { LayoutList, Package } from 'lucide-react';
 import { categoryActions, uomAction } from './categoryMenu';
+import { stockMenuAction } from './stockMenu';
 
 export const inventoryMenuItem: TMenuItem[] = [
     {
@@ -18,7 +19,7 @@ export const inventoryMenuItem: TMenuItem[] = [
         label: 'Stock Item',
         href: '/inventory/stock',
         type: 'menu',
-        action: [],
+        action: stockMenuAction,
         children: [],
     },
     {

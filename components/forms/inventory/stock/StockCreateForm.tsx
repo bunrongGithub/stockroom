@@ -1,5 +1,6 @@
 'use client';
 
+import AsyncSearchSelect from '@/components/ui/AsyncSearchSelect';
 import { supabase } from '@/lib/supabase/client';
 import {
     ArrowLeft,
@@ -45,26 +46,8 @@ const initialFormData = {
     image: '',
     isItemVariant: false,
     variantOptions: [initialVariantOption()],
+    description: '',
 };
-
-const uomOptions = [
-    { value: 'pcs', label: 'PCS' },
-    { value: 'box', label: 'BOX' },
-    { value: 'set', label: 'SET' },
-    { value: 'pack', label: 'PACK' },
-    { value: 'unit', label: 'UNIT' },
-    { value: 'kg', label: 'KG' },
-    { value: 'g', label: 'G' },
-    { value: 'm', label: 'M' },
-];
-
-const categoryOptions = [
-    { value: 'Phone', label: 'Phone (ទូរស័ព្ទ)' },
-    { value: 'Cases', label: 'Cases (សំបកទូរស័ព្ទ)' },
-    { value: 'Accessories', label: 'Accessories (គ្រឿងបន្លាស់)' },
-    { value: 'Chargers', label: 'Chargers (ឆ្នាំងសាក)' },
-    { value: 'Screens', label: 'Screen Protectors (ស្គ្រីនការពារ)' },
-];
 
 const parseVariantOptions = (value: unknown): VariantOption[] => {
     if (!Array.isArray(value)) return [initialVariantOption()];
@@ -85,7 +68,7 @@ const parseVariantOptions = (value: unknown): VariantOption[] => {
     return parsed.length > 0 ? parsed : [initialVariantOption()];
 };
 
-export default function InventoryForm({ itemId }: InventoryFormProps) {
+export default function StockCreateForm({ itemId }: InventoryFormProps) {
     const router = useRouter();
     const isEditMode = Boolean(itemId);
 
@@ -145,6 +128,7 @@ export default function InventoryForm({ itemId }: InventoryFormProps) {
                     image: data.image_url || '',
                     isItemVariant: Boolean(data.is_item_variant),
                     variantOptions: parseVariantOptions(data.variant_options),
+                    description: data.description,
                 });
             } catch (error) {
                 console.error('Error fetching inventory item:', error);
@@ -307,6 +291,7 @@ export default function InventoryForm({ itemId }: InventoryFormProps) {
                 is_item_variant: formData.isItemVariant,
                 variant_options: cleanedVariantOptions,
                 image_url: finalImageUrl || null,
+                description: formData.description,
             };
 
             if (itemId) {
@@ -412,50 +397,45 @@ export default function InventoryForm({ itemId }: InventoryFormProps) {
                             </div>
 
                             <div>
-                                <label className="mb-1 block text-sm font-medium text-slate-700">
-                                    ប្រភេទ
-                                </label>
-                                <select
-                                    name="category"
-                                    required
+                                <AsyncSearchSelect
+                                    label="ប្រភេទ"
+                                    placeholder="ជ្រើសរើសប្រភេទ..."
+                                    apiUrl="/api/category"
                                     value={formData.category}
-                                    onChange={handleChange}
-                                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm focus:border-[#1a9e52] focus:outline-none focus:ring-2 focus:ring-[#1a9e52]/20"
-                                >
-                                    <option value="" disabled>
-                                        ជ្រើសរើសប្រភេទ...
-                                    </option>
-                                    {categoryOptions.map((option) => (
-                                        <option
-                                            key={option.value}
-                                            value={option.value}
-                                        >
-                                            {option.label}
-                                        </option>
-                                    ))}
-                                </select>
+                                    onChange={(value) =>
+                                        setFormData((prev) => ({
+                                            ...prev,
+                                            category:
+                                                typeof value === 'string'
+                                                    ? value
+                                                    : value == null
+                                                      ? ''
+                                                      : String(value),
+                                        }))
+                                    }
+                                    required
+                                />
                             </div>
 
                             <div>
-                                <label className="mb-1 block text-sm font-medium text-slate-700">
-                                    UOM
-                                </label>
-                                <select
-                                    name="uom"
-                                    required
+                                <AsyncSearchSelect
+                                    label="Unit of Measurement"
+                                    placeholder="ជ្រើសរើសប្រភេទ..."
+                                    apiUrl="/api/uom"
                                     value={formData.uom}
-                                    onChange={handleChange}
-                                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm uppercase focus:border-[#1a9e52] focus:outline-none focus:ring-2 focus:ring-[#1a9e52]/20"
-                                >
-                                    {uomOptions.map((option) => (
-                                        <option
-                                            key={option.value}
-                                            value={option.value}
-                                        >
-                                            {option.label}
-                                        </option>
-                                    ))}
-                                </select>
+                                    onChange={(value) =>
+                                        setFormData((prev) => ({
+                                            ...prev,
+                                            uom:
+                                                typeof value === 'string'
+                                                    ? value
+                                                    : value == null
+                                                      ? ''
+                                                      : String(value),
+                                        }))
+                                    }
+                                    required
+                                />
                             </div>
 
                             <div>
@@ -502,6 +482,18 @@ export default function InventoryForm({ itemId }: InventoryFormProps) {
                                     min="0"
                                     value={formData.quantity}
                                     onChange={handleChange}
+                                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm focus:border-[#1a9e52] focus:outline-none focus:ring-2 focus:ring-[#1a9e52]/20"
+                                />
+                            </div>
+                            <div className="lg:col-span-2">
+                                <label className="mb-1 block text-sm font-medium text-slate-700">
+                                    Additional Notes
+                                </label>
+                                <textarea
+                                    name="description"
+                                    required
+                                    value={formData.description}
+                                    // onChange={handleChange}
                                     className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm focus:border-[#1a9e52] focus:outline-none focus:ring-2 focus:ring-[#1a9e52]/20"
                                 />
                             </div>
