@@ -57,7 +57,19 @@ export class InventoryProductRepository {
         const supabase = await this.getClient();
         const { data, error } = await supabase
             .from(TABLE)
-            .select('*')
+            .select(
+                `
+            *,
+            category:category_id (
+                id,
+                name
+            ),
+            uom:uom_id (
+                id,
+                name
+            )
+        `,
+            )
             .eq('id', id)
             .single();
 

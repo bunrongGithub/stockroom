@@ -1,5 +1,5 @@
 import { Action } from '@/types';
-import { Edit2, Plus, Trash2 } from 'lucide-react';
+import { Edit2, Eye, Plus, Trash2 } from 'lucide-react';
 
 export const stockMenuAction: Action = [
     {
@@ -22,5 +22,12 @@ export const stockMenuAction: Action = [
         type: 'user_action',
         dynamic: true,
         icon: Trash2,
+    },
+    {
+        label: 'View',
+        href: '/inventory/stock/:id/view', // :id resolved per row
+        type: 'user_action',
+        dynamic: true,
+        icon: Eye,
     },
 ];

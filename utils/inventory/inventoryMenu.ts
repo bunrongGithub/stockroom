@@ -7,7 +7,7 @@ export const inventoryMenuItem: TMenuItem[] = [
     {
         ordering: 1,
         icon: null,
-        label: 'None Stock Item',
+        label: 'None Stock',
         href: '/inventory/none_stock',
         children: [],
         action: null,
@@ -16,7 +16,7 @@ export const inventoryMenuItem: TMenuItem[] = [
     {
         ordering: 2,
         icon: null,
-        label: 'Stock Item',
+        label: 'Stock',
         href: '/inventory/stock',
         type: 'menu',
         action: stockMenuAction,

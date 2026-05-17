@@ -2,6 +2,7 @@
 
 import { Search, ChevronDown, Loader2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { FieldLabel } from './FieldLabel';
 
 type Option = {
     value: string | number;
@@ -13,8 +14,12 @@ type AsyncSearchSelectProps = {
     placeholder?: string;
     apiUrl: string;
 
-    value: string | number;
-    onChange: (value: string | number) => void;
+    /** Pass the selected item's ID here (not the name). */
+    value: string | number | null;
+    /** Returns the full selected option so callers can grab both id and name. */
+    onChange: (
+        selected: { id: string | number | null; name: string } | null,
+    ) => void;
 
     required?: boolean;
 };
@@ -31,28 +36,21 @@ export default function AsyncSearchSelect({
 
     const [open, setOpen] = useState(false);
     const [loading, setLoading] = useState(false);
-
     const [search, setSearch] = useState('');
     const [options, setOptions] = useState<Option[]>([]);
-
-    const selectedOption = options.find(
-        (item) => String(item.value) === String(value),
-    );
+    // Keep the display label separately so it survives options list changes
+    const [selectedLabel, setSelectedLabel] = useState<string>('');
 
     // ───────────────── Fetch Data ─────────────────
     const fetchOptions = async (keyword = '') => {
         try {
             setLoading(true);
-
             const res = await fetch(
                 `${apiUrl}?search=${encodeURIComponent(keyword)}`,
             );
+            if (!res.ok) throw new Error('Failed to fetch');
 
-            if (!res.ok) {
-                throw new Error('Failed to fetch');
-            }
             const data = await res.json();
-
             const items = Array.isArray(data)
                 ? data
                 : Array.isArray(data.results)
@@ -61,12 +59,12 @@ export default function AsyncSearchSelect({
                     ? data.data
                     : [];
 
-            const mapped = items.map((item: any) => ({
-                value: item.id,
-                label: item.name,
-            }));
-
-            setOptions(mapped);
+            setOptions(
+                items.map((item: any) => ({
+                    value: item.id,
+                    label: item.name,
+                })),
+            );
         } catch (error) {
             console.error(error);
         } finally {
@@ -75,89 +73,69 @@ export default function AsyncSearchSelect({
     };
 
     // ───────────────── Open Dropdown ─────────────────
-    const handleOpen = async () => {
+    const handleOpen = () => {
         setOpen(true);
-
-        if (options.length === 0) {
-            await fetchOptions();
-        }
+        if (options.length === 0) fetchOptions();
     };
 
-    // ───────────────── Search ─────────────────
+    // ───────────────── Debounced Search ─────────────────
     useEffect(() => {
         if (!open) return;
-
-        const timeout = setTimeout(() => {
-            fetchOptions(search);
-        }, 300);
-
+        const timeout = setTimeout(() => fetchOptions(search), 300);
         return () => clearTimeout(timeout);
-    }, [search]);
+    }, [search, open]);
 
-    // ───────────────── Close Outside ─────────────────
+    // ───────────────── Close on Outside Click ─────────────────
     useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
+        const handleClickOutside = (e: MouseEvent) => {
             if (
                 containerRef.current &&
-                !containerRef.current.contains(event.target as Node)
+                !containerRef.current.contains(e.target as Node)
             ) {
                 setOpen(false);
             }
         };
-
         document.addEventListener('mousedown', handleClickOutside);
-
-        return () => {
+        return () =>
             document.removeEventListener('mousedown', handleClickOutside);
-        };
     }, []);
+
+    const handleSelect = (option: Option) => {
+        setSelectedLabel(option.label);
+        onChange({ id: option.value, name: option.label });
+        setOpen(false);
+        setSearch('');
+    };
 
     return (
         <div className="relative" ref={containerRef}>
-            {/* Label */}
-            <label className="mb-1 block text-sm font-medium text-slate-700">
-                {label}
-            </label>
+            <FieldLabel>{label}</FieldLabel>
 
-            {/* Input */}
+            {/* Trigger button */}
             <button
                 type="button"
                 onClick={handleOpen}
-                className="
-                    flex w-full items-center justify-between
-                    rounded-xl border border-slate-200 bg-white
-                    px-4 py-3 text-sm
-                    focus:border-[#1a9e52]
-                    focus:outline-none
-                    focus:ring-2
-                    focus:ring-[#1a9e52]/20
-                "
+                className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
             >
                 <span
                     className={
-                        selectedOption ? 'text-slate-700' : 'text-slate-400'
+                        selectedLabel ? 'text-slate-700' : 'text-slate-400'
                     }
                 >
-                    {selectedOption?.label || placeholder}
+                    {selectedLabel || placeholder}
                 </span>
-
                 <ChevronDown size={18} className="text-slate-400" />
             </button>
 
             {/* Dropdown */}
             <div
-                className={`
-                    absolute z-50 mt-2 w-full overflow-hidden
-                    rounded-xl border border-slate-200 bg-white shadow-lg
-                    transition-all duration-200
-                    ${
-                        open
-                            ? 'visible opacity-100 translate-y-0'
-                            : 'invisible opacity-0 -translate-y-1'
-                    }
-                `}
+                className={`absolute z-50 mt-2 w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg transition-all duration-200 ${
+                    open
+                        ? 'visible translate-y-0 opacity-100'
+                        : 'invisible -translate-y-1 opacity-0'
+                }`}
             >
-                {/* Search */}
+                {/* Search input */}
                 <div className="border-b border-slate-100 p-2">
                     <div className="relative">
                         <input
@@ -166,28 +144,16 @@ export default function AsyncSearchSelect({
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                             placeholder="Search..."
-                            className="
-                                w-full rounded-lg border border-slate-200
-                                py-2 pl-3 pr-10 text-sm
-                                focus:border-[#1a9e52]
-                                focus:outline-none
-                                focus:ring-2
-                                focus:ring-[#1a9e52]/20
-                            "
+                            className="w-full rounded-lg border border-slate-200 py-2 pl-3 pr-10 text-sm focus:border-[#1a9e52] focus:outline-none focus:ring-2 focus:ring-[#1a9e52]/20"
                         />
-
-                        {/* Search Icon */}
                         <Search
                             size={16}
-                            className="
-                                absolute right-3 top-1/2
-                                -translate-y-1/2 text-slate-400
-                            "
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
                         />
                     </div>
                 </div>
 
-                {/* Options */}
+                {/* Options list */}
                 <div className="max-h-60 overflow-y-auto">
                     {loading ? (
                         <div className="flex items-center justify-center py-6">
@@ -205,15 +171,12 @@ export default function AsyncSearchSelect({
                             <button
                                 key={option.value}
                                 type="button"
-                                onClick={() => {
-                                    onChange(option.value);
-                                    setOpen(false);
-                                }}
-                                className="
-                                    flex w-full items-center px-4 py-3
-                                    text-left text-sm text-slate-700
-                                    hover:bg-slate-50
-                                "
+                                onClick={() => handleSelect(option)}
+                                className={`flex w-full items-center px-4 py-3 text-left text-sm transition-colors hover:bg-slate-50 ${
+                                    String(option.value) === String(value ?? '')
+                                        ? 'bg-[#1a9e52]/5 font-medium text-[#1a9e52]'
+                                        : 'text-slate-700'
+                                }`}
                             >
                                 {option.label}
                             </button>
@@ -222,9 +185,15 @@ export default function AsyncSearchSelect({
                 </div>
             </div>
 
-            {/* Hidden Input */}
+            {/* Hidden input for native form required validation */}
             {required && (
-                <input type="hidden" value={value} required readOnly />
+                <input
+                    type="hidden"
+                    value={value ?? ''}
+                    required
+                    readOnly
+                    aria-hidden="true"
+                />
             )}
         </div>
     );
