@@ -1,246 +1,406 @@
-"use client";
+'use client';
 
-import React, { useEffect, useState } from "react";
-import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-// ទាញយក supabase ពីឯកសារ lib ដែលបានកែថ្មី ដើម្បីធានាថាវាប្រើប្រាស់ Cookies
-import { supabase } from "@/lib/supabase"; 
-import { 
-  LayoutDashboard, 
-  ShoppingCart, 
-  Package, 
-  ReceiptText, 
-  LineChart,
-  Wrench,
-  Boxes,
-  User,
-  Settings,
-  LogOut,
-  Loader2
-} from "lucide-react";
+import { PageActionContext } from '@/context/PageActionContext';
+import { supabase } from '@/lib/supabase/client';
+import { Action, TMenuItem } from '@/types';
+import { modulesList } from '@/utils/systemMenu';
+import { ChevronDown, ChevronRight, Loader2, LogOut } from 'lucide-react';
+import Image from 'next/image';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import React, { useEffect, useState } from 'react';
 
-// Main Overview Navigation
-const mainMenuItems = [
-  { href: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/sales', label: 'Sales', icon: ShoppingCart },
-  { href: '/repairs', label: 'Repair', icon: Wrench },
-  { href: '/customers', label: 'Customers', icon: User },
-  { href: '/purchases', label: 'Purchases', icon: Package },
-  { href: '/expenses', label: 'Expenses', icon: ReceiptText },
-  { href: '/reports', label: 'Reports', icon: LineChart },
-  { href: '/inventory', label: 'Inventory', icon: Boxes },
-];
+export default function DashboardLayout({
+    children,
+}: {
+    children: React.ReactNode;
+}) {
+    const pathname = usePathname();
 
-// System Navigation
-const systemMenuItems = [
-  { href: '/settings', label: 'Settings', icon: Settings }
-];
+    const isActive = (href: string) =>
+        pathname === href || (pathname.startsWith(href) && href !== '/');
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
-  const router = useRouter();
-  
-  const [userEmail, setUserEmail] = useState<string | null>(null);
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
+    // ── auth ──────────────────────────────────────────────────────────────────
+    const [userEmail, setUserEmail] = useState<string | null>(null);
+    const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  // ---------------- State សម្រាប់បង្ហាញ Logo និងឈ្មោះហាង ----------------
-  const [appConfig, setAppConfig] = useState({
-    name: 'iCase Service',
-    logo: '/icase.jpg'
-  });
+    useEffect(() => {
+        supabase.auth
+            .getUser()
+            .then(({ data: { user } }) =>
+                setUserEmail(user?.email ?? 'មិនមានគណនី'),
+            )
+            .catch(() => setUserEmail('Error'));
+    }, []);
 
-  useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        // ប្រើប្រាស់ getUser() ដើម្បីទាញយកទិន្នន័យជាក់លាក់ពី Server
-        const { data: { user }, error } = await supabase.auth.getUser();
-        
-        if (user?.email) {
-          setUserEmail(user.email);
-        } else {
-          setUserEmail('មិនមានគណនី');
+    // ── store config ──────────────────────────────────────────────────────────
+    const [appConfig, setAppConfig] = useState({
+        name: 'iCase',
+        logo: '/icase.jpg',
+    });
+
+    useEffect(() => {
+        const load = async () => {
+            const { data } = await supabase
+                .from('settings')
+                .select('shop_name, logo')
+                .limit(1)
+                .single();
+            if (data)
+                setAppConfig({
+                    name: data.shop_name || 'iCase Service',
+                    logo: data.logo || '/icase.jpg',
+                });
+        };
+        load();
+        window.addEventListener('settingsUpdated', load);
+        return () => window.removeEventListener('settingsUpdated', load);
+    }, []);
+
+    // ── sidebar open/close ────────────────────────────────────────────────────
+    const [openModules, setOpenModules] = useState<Record<string, boolean>>({});
+
+    const toggleModule = (href: string) =>
+        setOpenModules((p) => ({ ...p, [href]: !(p[href] ?? false) }));
+
+    // ── active module ─────────────────────────────────────────────────────────
+    const activeModule =
+        modulesList.find(
+            (m) =>
+                isActive(m.href) ||
+                m.menu?.some((i) => isActive(i.href)) ||
+                m.menu?.some((i) => i.children?.some((c) => isActive(c.href))),
+        ) ?? null;
+
+    const sidebarItems: TMenuItem[] =
+        activeModule?.menu
+            ?.filter((i) => i.type === 'menu')
+            .slice()
+            .sort((a, b) => a.ordering - b.ordering) ?? [];
+
+    const configItems: TMenuItem[] =
+        activeModule?.menu
+            ?.filter((i) => i.type === 'configuration')
+            .slice()
+            .sort((a, b) => a.ordering - b.ordering) ?? [];
+
+    const allItems: TMenuItem[] = activeModule?.menu ?? [];
+
+    const activeItem: TMenuItem | null =
+        allItems.find((i) => pathname === i.href) ??
+        allItems.find(
+            (i) =>
+                isActive(i.href) || i.children?.some((c) => isActive(c.href)),
+        ) ??
+        null;
+
+    // actionList lives in state so child pages can call setActionList to
+    // override or extend actions dynamically (e.g. when a row is selected).
+    const [actionList, setActionList] = useState<Action>(
+        activeItem?.action ?? [],
+    );
+
+    // Keep actions in sync whenever the route changes.
+    useEffect(() => {
+        setActionList(activeItem?.action ?? []);
+    }, [pathname]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // ── logout ────────────────────────────────────────────────────────────────
+    const handleLogout = async () => {
+        setIsLoggingOut(true);
+        try {
+            await supabase.auth.signOut();
+            window.location.href = '/login';
+        } catch {
+            setIsLoggingOut(false);
         }
-      } catch (e) {
-        console.error("Error fetching user:", e);
-        setUserEmail('កំហុស (Error)');
-      }
-    };
-    fetchUser();
-  }, []);
-
-  // ---------------- ទាញយក និងស្តាប់ការផ្លាស់ប្តូរ Logo/ឈ្មោះហាង ----------------
-  useEffect(() => {
-    const loadStoreConfig = async () => {
-      try {
-        // ទាញយកទិន្នន័យពី table settings នៅក្នុង Supabase
-        const { data, error } = await supabase
-          .from('settings')
-          .select('shop_name, logo')
-          .limit(1)
-          .single();
-
-        if (error) {
-          console.error("Error fetching store config:", error);
-          return;
-        }
-
-        if (data) {
-          setAppConfig({
-            name: data.shop_name || 'iCase Service',
-            logo: data.logo || '/icase.jpg'
-          });
-        }
-      } catch (err) {
-        console.error("Failed to load store settings:", err);
-      }
     };
 
-    // ដំណើរការពេលបើក Layout ដំបូង
-    loadStoreConfig();
+    const initials =
+        userEmail && !['មិនមានគណនី', 'Error'].includes(userEmail)
+            ? userEmail.substring(0, 2).toUpperCase()
+            : 'AD';
 
-    // ចាំស្តាប់ Event ពេលមានការចុច Save ពីទំព័រ Settings ដើម្បីទាញយកថ្មី
-    window.addEventListener('settingsUpdated', loadStoreConfig);
-    
-    // Cleanup ពេលបិទ Layout
-    return () => {
-      window.removeEventListener('settingsUpdated', loadStoreConfig);
-    };
-  }, []);
+    // ── render ────────────────────────────────────────────────────────────────
+    return (
+        <div className="flex h-screen w-full overflow-hidden bg-gray-50 font-sans">
+            {/* ═══════════════════ SIDEBAR ═══════════════════ */}
+            <aside className="w-64 bg-gray-950 border-r border-gray-800 flex flex-col shrink-0">
+                {/* Brand */}
+                <div className="h-16 flex items-center gap-3 px-5 border-b border-gray-800/60 shrink-0">
+                    <div className="bg-white p-0.5 rounded-lg w-9 h-9 shrink-0 overflow-hidden shadow">
+                        <Image
+                            src={appConfig.logo}
+                            alt="Logo"
+                            width={36}
+                            height={36}
+                            className="w-full h-full object-contain"
+                        />
+                    </div>
+                    <div>
+                        <h1 className="text-white font-bold text-sm leading-tight truncate max-w-36">
+                            {appConfig.name}
+                        </h1>
+                        <p className="text-[9px] text-emerald-400/70 font-bold tracking-widest uppercase">
+                            Management
+                        </p>
+                    </div>
+                </div>
 
-  // មុខងារសម្រាប់ Logout ពេញលេញ
-  const handleLogout = async () => {
-    setIsLoggingOut(true);
-    try {
-      await supabase.auth.signOut(); // លុប Session ចេញពី Supabase និង Cookies
-      window.location.href = '/login'; // បង្ខំឲ្យ Browser ប្តូរទំព័រនិង Refresh ដើម្បីសម្អាត State ចាស់
-    } catch (e) {
-      console.error("Logout error:", e);
-      setIsLoggingOut(false);
-    }
-  };
+                {/* Module list */}
+                <div className="flex-1 overflow-y-auto py-4 px-3 space-y-1 scrollbar-hide">
+                    <p className="px-2 text-[10px] font-bold text-gray-600 uppercase tracking-widest mb-2">
+                        Modules
+                    </p>
 
-  // យកអក្សរ ២ ខ្ទង់ដំបូងនៃ Email ធ្វើជា Profile 
-  const initials = userEmail && userEmail !== 'មិនមានគណនី' ? userEmail.substring(0, 2).toUpperCase() : 'AD';
+                    {modulesList.map((module) => {
+                        const ModIcon = module.icon;
+                        const moduleActive =
+                            isActive(module.href) ||
+                            module.menu?.some((i) => isActive(i.href)) ||
+                            module.menu?.some((i) =>
+                                i.children?.some((c) => isActive(c.href)),
+                            ) ||
+                            false;
 
-  return (
-    <div className="flex h-screen bg-gray-50 font-sans overflow-hidden">
-      
-      {/* ---------------- SIDEBAR ---------------- */}
-      <aside className="w-[280px] bg-gray-950 border-r border-gray-800 flex flex-col flex-shrink-0 transition-all">
-        
-        {/* Brand & Logo Section */}
-        <div className="h-20 flex items-center gap-3.5 px-6 border-b border-gray-800/60">
-          <div className="bg-white p-1 rounded-xl flex items-center justify-center shadow-lg w-10 h-10 shrink-0 overflow-hidden">
-            {/* ប្រើ <img> ធម្មតាជំនួស next/image ដើម្បីងាយស្រួលបង្ហាញ Base64 Image ឬ URL ពី Imgbb */}
-            <img 
-              src={appConfig.logo} 
-              alt="Store Logo" 
-              className="w-full h-full object-contain"
-            />
-          </div>
-          <div className="flex flex-col">
-            <h1 className="text-white font-bold text-base tracking-wide leading-tight truncate max-w-[150px]">
-              {appConfig.name}
-            </h1>
-            <p className="text-[10px] text-emerald-400/80 font-bold tracking-widest uppercase mt-0.5">Management</p>
-          </div>
-        </div>
+                        const menuItems =
+                            module.menu
+                                ?.filter((i) => i.type === 'menu')
+                                .slice()
+                                .sort((a, b) => a.ordering - b.ordering) ?? [];
 
-        {/* Menu List Section (Navigation) */}
-        <div className="flex-1 overflow-y-auto py-6 px-4 space-y-8 scrollbar-hide">
-          
-          {/* Overview Group */}
-          <div>
-            <p className="px-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-3">Overview</p>
-            <nav className="space-y-1">
-              {mainMenuItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = pathname === item.href || (pathname.startsWith(item.href) && item.href !== '/');
-                
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={`w-full flex items-center gap-3.5 px-3 py-2.5 rounded-xl transition-all duration-200 group ${
-                      isActive 
-                        ? 'bg-emerald-500/10 text-emerald-400 font-medium' 
-                        : 'text-gray-400 hover:bg-gray-800/50 hover:text-gray-100'
-                    }`}
-                  >
-                    <Icon size={18} className={isActive ? "text-emerald-400" : "text-gray-500 group-hover:text-gray-300 transition-colors"} strokeWidth={isActive ? 2.5 : 2} />
-                    <span className="text-sm">{item.label}</span>
-                  </Link>
-                );
-              })}
-            </nav>
-          </div>
-          
-          {/* System Group */}
-          <div>
-            <p className="px-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-3">System</p>
-            <nav className="space-y-1">
-              {systemMenuItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = pathname === item.href || (pathname.startsWith(item.href) && item.href !== '/');
-                
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={`w-full flex items-center gap-3.5 px-3 py-2.5 rounded-xl transition-all duration-200 group ${
-                      isActive 
-                        ? 'bg-emerald-500/10 text-emerald-400 font-medium' 
-                        : 'text-gray-400 hover:bg-gray-800/50 hover:text-gray-100'
-                    }`}
-                  >
-                    <Icon size={18} className={isActive ? "text-emerald-400" : "text-gray-500 group-hover:text-gray-300 transition-colors"} strokeWidth={isActive ? 2.5 : 2} />
-                    <span className="text-sm">{item.label}</span>
-                  </Link>
-                );
-              })}
-            </nav>
-          </div>
-        </div>
+                        const isOpen = openModules[module.href] ?? moduleActive;
 
-        {/* Bottom Profile Section (User Profile & Logout) */}
-        <div className="p-4 border-t border-gray-800/60 bg-gray-950/50">
-          <div className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-gray-800/60 transition-colors group">
-            
-            {/* User Info */}
-            <div className="flex items-center gap-3 overflow-hidden">
-              <div className="bg-gradient-to-tr from-emerald-600 to-emerald-400 text-white w-9 h-9 shrink-0 rounded-full flex items-center justify-center font-bold text-sm shadow-md uppercase">
-                {initials}
-              </div>
-              <div className="text-left overflow-hidden">
-                <p className="text-gray-200 text-sm font-semibold leading-tight truncate group-hover:text-white transition-colors" title={userEmail || 'Loading...'}>
-                  {userEmail || 'កំពុងផ្ទុក...'}
-                </p>
-                <p className="text-[11px] text-gray-500 font-medium mt-0.5">Shop Manager</p>
-              </div>
+                        return (
+                            <div key={module.href}>
+                                <button
+                                    type="button"
+                                    onClick={() => toggleModule(module.href)}
+                                    className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
+                                        ${
+                                            moduleActive
+                                                ? 'bg-emerald-500/10 text-emerald-300'
+                                                : 'text-gray-400 hover:bg-gray-800/50 hover:text-gray-200'
+                                        }`}
+                                >
+                                    {ModIcon && (
+                                        <ModIcon
+                                            size={16}
+                                            className={
+                                                moduleActive
+                                                    ? 'text-emerald-400'
+                                                    : 'text-gray-500'
+                                            }
+                                            strokeWidth={moduleActive ? 2.5 : 2}
+                                        />
+                                    )}
+                                    <span className="flex-1 text-left">
+                                        {module.label}
+                                    </span>
+                                    {menuItems.length > 0 && (
+                                        <ChevronDown
+                                            size={14}
+                                            className={`transition-transform ${isOpen ? 'rotate-180' : ''} ${moduleActive ? 'text-emerald-400' : 'text-gray-600'}`}
+                                        />
+                                    )}
+                                </button>
+
+                                {isOpen && menuItems.length > 0 && (
+                                    <div className="ml-4 mt-0.5 space-y-0.5 border-l border-gray-800 pl-3">
+                                        {menuItems.map((item) => {
+                                            const menuActive =
+                                                isActive(item.href) ||
+                                                item.children?.some((c) =>
+                                                    isActive(c.href),
+                                                );
+                                            const subItems =
+                                                item.children
+                                                    ?.filter(
+                                                        (c) =>
+                                                            c.type ===
+                                                            'submenu',
+                                                    )
+                                                    .slice()
+                                                    .sort(
+                                                        (a, b) =>
+                                                            a.ordering -
+                                                            b.ordering,
+                                                    ) ?? [];
+                                            const subOpen =
+                                                openModules[item.href] ??
+                                                !!menuActive;
+
+                                            return (
+                                                <div key={item.href}>
+                                                    <div className="flex items-center">
+                                                        <Link
+                                                            href={item.href}
+                                                            className={`flex-1 flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all
+                                                                ${
+                                                                    menuActive
+                                                                        ? 'bg-emerald-500/10 text-emerald-300 font-medium'
+                                                                        : 'text-gray-500 hover:bg-gray-800/40 hover:text-gray-200'
+                                                                }`}
+                                                        >
+                                                            <span
+                                                                className={`w-1.5 h-1.5 rounded-full shrink-0 ${menuActive ? 'bg-emerald-400' : 'bg-gray-700'}`}
+                                                            />
+                                                            {item.label}
+                                                        </Link>
+                                                        {subItems.length >
+                                                            0 && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() =>
+                                                                    toggleModule(
+                                                                        item.href,
+                                                                    )
+                                                                }
+                                                                className="p-1 text-gray-600 hover:text-gray-400"
+                                                            >
+                                                                <ChevronRight
+                                                                    size={12}
+                                                                    className={`transition-transform ${subOpen ? 'rotate-90' : ''}`}
+                                                                />
+                                                            </button>
+                                                        )}
+                                                    </div>
+
+                                                    {subOpen &&
+                                                        subItems.length > 0 && (
+                                                            <div className="ml-3 mt-0.5 space-y-0.5 border-l border-gray-800/60 pl-3">
+                                                                {subItems.map(
+                                                                    (sub) => {
+                                                                        const subActive =
+                                                                            isActive(
+                                                                                sub.href,
+                                                                            );
+                                                                        return (
+                                                                            <Link
+                                                                                key={
+                                                                                    sub.href
+                                                                                }
+                                                                                href={
+                                                                                    sub.href
+                                                                                }
+                                                                                className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md text-xs transition-all
+                                                                            ${
+                                                                                subActive
+                                                                                    ? 'text-emerald-300 font-medium'
+                                                                                    : 'text-gray-600 hover:text-gray-300'
+                                                                            }`}
+                                                                            >
+                                                                                <span className="w-1 h-1 rounded-full bg-current opacity-50" />
+                                                                                {
+                                                                                    sub.label
+                                                                                }
+                                                                            </Link>
+                                                                        );
+                                                                    },
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+
+                {/* Profile & Logout */}
+                <div className="p-3 border-t border-gray-800/60 shrink-0">
+                    <div className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-gray-800/50 transition group">
+                        <div className="bg-gradient-to-br from-emerald-600 to-emerald-400 text-white w-8 h-8 shrink-0 rounded-full flex items-center justify-center font-bold text-xs shadow">
+                            {initials}
+                        </div>
+                        <div className="flex-1 overflow-hidden">
+                            <p className="text-gray-200 text-xs font-semibold truncate group-hover:text-white">
+                                {userEmail ?? 'កំពុងផ្ទុក...'}
+                            </p>
+                            <p className="text-[10px] text-gray-600">
+                                Shop Manager
+                            </p>
+                        </div>
+                        <button
+                            onClick={handleLogout}
+                            disabled={isLoggingOut}
+                            title="Logout"
+                            className="p-1.5 text-gray-600 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition disabled:opacity-40"
+                        >
+                            {isLoggingOut ? (
+                                <Loader2 size={15} className="animate-spin" />
+                            ) : (
+                                <LogOut size={15} />
+                            )}
+                        </button>
+                    </div>
+                </div>
+            </aside>
+
+            {/* ═══════════════════ MAIN AREA ═══════════════════ */}
+            <div className="flex flex-1 min-w-0 flex-col overflow-hidden">
+                {/* ── Top Navbar: configuration tabs ── */}
+                <nav className="shrink-0 bg-gray-950 border-b border-gray-800/60">
+                    <div className="flex h-14 items-center justify-between gap-4 px-6">
+                        <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide">
+                            {activeModule && (
+                                <span className="text-xs font-bold text-gray-500 uppercase tracking-widest pr-3 border-r border-gray-800 mr-2 shrink-0">
+                                    {activeModule.label}
+                                </span>
+                            )}
+                            {configItems.length === 0 && (
+                                <span className="text-xs text-gray-700 italic">
+                                    No configurations
+                                </span>
+                            )}
+                            {configItems.map((item) => {
+                                const CfgIcon = item.icon;
+                                const active = isActive(item.href);
+                                return (
+                                    <Link
+                                        key={item.href}
+                                        href={item.href}
+                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all shrink-0
+                                            ${
+                                                active
+                                                    ? 'bg-emerald-500/10 text-emerald-300 ring-1 ring-emerald-500/30'
+                                                    : 'text-gray-500 hover:bg-gray-800/60 hover:text-gray-200'
+                                            }`}
+                                    >
+                                        {CfgIcon && (
+                                            <CfgIcon
+                                                size={13}
+                                                className={
+                                                    active
+                                                        ? 'text-emerald-400'
+                                                        : 'text-gray-600'
+                                                }
+                                                strokeWidth={active ? 2.5 : 2}
+                                            />
+                                        )}
+                                        {item.label}
+                                    </Link>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </nav>
+
+                {/* ── Page Content ── */}
+                <main className="flex-1 min-h-0 overflow-y-auto bg-gray-50">
+                    <PageActionContext.Provider
+                        value={{
+                            actions: actionList,
+                            setActions: setActionList,
+                        }}
+                    >
+                        {children}
+                    </PageActionContext.Provider>
+                </main>
             </div>
-
-            {/* Logout Button */}
-            <button 
-              onClick={handleLogout}
-              disabled={isLoggingOut}
-              title="ចាកចេញ (Logout)"
-              className="shrink-0 p-2 text-gray-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-all disabled:opacity-50"
-            >
-              {isLoggingOut ? (
-                <Loader2 size={18} className="animate-spin" />
-              ) : (
-                <LogOut size={18} />
-              )}
-            </button>
-
-          </div>
         </div>
-      </aside>
-      {/* ---------------- MAIN CONTENT ---------------- */}
-      <main className="flex-1 overflow-y-auto bg-gray-50">
-        {children}
-      </main>
-      
-    </div>
-  );
+    );
 }
