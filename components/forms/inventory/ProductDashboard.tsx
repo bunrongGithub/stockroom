@@ -15,28 +15,25 @@ import {
 import {
     AlertCircle,
     ArrowUpCircle,
-    BarChart3,
     Box,
     CheckCircle2,
     ClipboardList,
     DollarSign,
     FileText,
     Hash,
-    Package,
+    Loader2,
     Plus,
     RefreshCw,
-    Tag,
     Warehouse,
 } from 'lucide-react';
-import { useState } from 'react';
-import StockAdjustmentModal from './StockAdjustmentModal';
+import { useCallback, useEffect, useState } from 'react';
+import StockAdjustmentModal, { StockAdjustmentData } from './StockAdjustmentModal';
 
 type TabId = 'details' | 'history' | 'variant';
 
-const REASON_META: Record<
-    string,
-    { label: string; color: string; bg: string; icon: React.ReactNode }
-> = {
+// ─── Reason meta ──────────────────────────────────────────────────────────────
+
+const REASON_META: Record<string, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
     'Opening Warehouse Inventory Balance Setup': {
         label: 'Opening Balance',
         color: 'text-blue-700',
@@ -85,9 +82,7 @@ function SectionHeading({
                 {icon}
             </div>
             <div>
-                <h3 className="text-sm font-semibold text-slate-800">
-                    {title}
-                </h3>
+                <h3 className="text-sm font-semibold text-slate-800">{title}</h3>
                 {subtitle && (
                     <p className="mt-0.5 text-xs text-slate-400">{subtitle}</p>
                 )}
@@ -103,28 +98,22 @@ function StockBanner({
     onOpenStockModal,
 }: {
     stock: TStockQuantity;
-    onOpenStockModal?: () => void;
+    onOpenStockModal: () => void; // required — not optional
 }) {
-    const available = 10;
+    const available = Math.max(
+        0,
+        (stock?.stock_onhand ?? 0) - (stock?.stock_reserved ?? 0),
+    );
 
     const counts = [
-        {
-            label: 'Physical on hand',
-            value: stock?.stock_onhand ?? 0,
-            highlight: true,
-        },
-        {
-            label: 'Reserved (sold)',
-            value: stock?.stock_reserved ?? 0,
-            highlight: true,
-        },
-        { label: 'Available to sell', value: available, highlight: true },
+        { label: 'Physical on hand',  value: stock?.stock_onhand   ?? 0 },
+        { label: 'Reserved (sold)',   value: stock?.stock_reserved ?? 0 },
+        { label: 'Available to sell', value: available },
     ];
 
     return (
         <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
             <div className="flex flex-wrap items-stretch">
-                {/* ── Left: counts ── */}
                 <div className="flex-1 min-w-65 border-r border-gray-100 px-6 py-5">
                     <div className="flex justify-between items-center gap-2">
                         <div>
@@ -134,6 +123,7 @@ function StockBanner({
                             </p>
                         </div>
 
+                        {/* ── Button now calls onOpenStockModal ── */}
                         <div className="flex items-center justify-center px-6 py-5">
                             <button
                                 type="button"
@@ -147,14 +137,9 @@ function StockBanner({
                     </div>
 
                     <div className="grid grid-cols-3 divide-x divide-gray-200 overflow-hidden rounded-lg">
-                        {counts.map(({ label, value, highlight }) => (
-                            <div
-                                key={label}
-                                className={`px-3 py-3.5 text-center ${highlight ? 'bg-gray-50' : 'bg-white'}`}
-                            >
-                                <p
-                                    className={`text-2xl font-medium leading-none ${highlight ? 'text-green-700' : 'text-gray-900'}`}
-                                >
+                        {counts.map(({ label, value }) => (
+                            <div key={label} className="px-3 py-3.5 text-center bg-gray-50">
+                                <p className="text-2xl font-medium leading-none text-green-700">
                                     {value}
                                 </p>
                                 <p className="mt-1.5 text-[11px] leading-snug text-gray-500">
@@ -174,8 +159,7 @@ function NonStockBanner() {
         <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-5 py-4">
             <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-slate-400" />
             <p className="text-sm text-slate-500 leading-relaxed">
-                Inventory tracking is completely disabled for non-stock entries
-                and services.
+                Inventory tracking is completely disabled for non-stock entries and services.
             </p>
         </div>
     );
@@ -186,18 +170,14 @@ function NonStockBanner() {
 function DetailsTab({
     item,
     isStock,
-    onSave,
 }: {
     item: InventoryItemProps;
     isStock: boolean;
-    onSave?: (item: InventoryItemProps) => void;
 }) {
     return (
         <div className="p-6 md:p-8">
             <div className="grid gap-8">
-                {/* Left */}
                 <div className="space-y-8">
-                    {/* Product Information */}
                     <section>
                         <SectionHeading
                             icon={<Box size={15} />}
@@ -223,43 +203,34 @@ function DetailsTab({
                                     placeholder="e.g. iPhone Case, Premium Headphones…"
                                 />
                             </div>
-
                             <div>
                                 <FieldLabel>Category</FieldLabel>
                                 <EditableInput
                                     type="text"
                                     name="category.name"
                                     defaultValue={item.category?.name}
-                                    placeholder="SKU-000000"
+                                    placeholder="e.g. Electronics"
                                 />
                             </div>
                             <div>
                                 <FieldLabel>Base UOM</FieldLabel>
                                 <EditableInput
                                     type="text"
-                                    name="category.name"
+                                    name="uom.name"
                                     defaultValue={item.uom?.name}
-                                    placeholder="SKU-000000"
+                                    placeholder="e.g. Piece, Box"
                                 />
                             </div>
                             <div>
                                 <FieldLabel>Tracking Class</FieldLabel>
                                 <ReadonlyInput
-                                    value={
-                                        isStock
-                                            ? 'Stocked Physical Good'
-                                            : 'Non-Stock / Service'
-                                    }
+                                    value={isStock ? 'Stocked Physical Good' : 'Non-Stock / Service'}
                                 />
                             </div>
                             <div>
                                 <FieldLabel>Stock Location</FieldLabel>
                                 <ReadonlyInput
-                                    value={
-                                        isStock
-                                            ? 'Stocked Physical Good'
-                                            : 'Non-Stock / Service'
-                                    }
+                                    value={isStock ? 'Stocked Physical Good' : 'Non-Stock / Service'}
                                 />
                             </div>
                             <div className="sm:col-span-2">
@@ -275,7 +246,6 @@ function DetailsTab({
 
                     <div className="border-t border-dashed border-slate-100" />
 
-                    {/* Pricing */}
                     <section>
                         <SectionHeading
                             icon={<DollarSign size={15} />}
@@ -284,9 +254,7 @@ function DetailsTab({
                         />
                         <div className="grid gap-4 sm:grid-cols-2">
                             <div>
-                                <FieldLabel required>
-                                    Purchase Price ($)
-                                </FieldLabel>
+                                <FieldLabel required>Purchase Price ($)</FieldLabel>
                                 <EditableInput
                                     type="number"
                                     name="purchase_price"
@@ -295,9 +263,7 @@ function DetailsTab({
                                     defaultValue={item.purchase_price}
                                     placeholder="0.00"
                                 />
-                                <p className="mt-1 text-[10px] text-slate-400">
-                                    Cost basis / landed cost
-                                </p>
+                                <p className="mt-1 text-[10px] text-slate-400">Cost basis / landed cost</p>
                             </div>
                             <div>
                                 <FieldLabel required>Sale Price ($)</FieldLabel>
@@ -309,9 +275,7 @@ function DetailsTab({
                                     defaultValue={item.sale_price}
                                     placeholder="0.00"
                                 />
-                                <p className="mt-1 text-[10px] text-slate-400">
-                                    MSRP / retail price
-                                </p>
+                                <p className="mt-1 text-[10px] text-slate-400">MSRP / retail price</p>
                             </div>
                         </div>
                     </section>
@@ -324,38 +288,66 @@ function DetailsTab({
 // ─── Tab: Stock Balance History ───────────────────────────────────────────────
 
 function HistoryTab({
-    log,
-    stock,
+    itemId,
+    refreshKey,
 }: {
-    log: TStockLogEntry[];
-    stock: TStockQuantity | null;
+    itemId: number | string;
+    refreshKey: number; // increments after every successful submission → triggers re-fetch
 }) {
-    const logs: TStockLogEntry[] = [
-        {
-            id: 1,
-            quantity: 10,
-            reason: 'Opening Warehouse Inventory Balance Setup',
-            reference: 'test-001',
-            posted_at: String(new Date()),
-            posted_by: 'Admin',
-        },
-        {
-            id: 2,
-            quantity: 10,
-            reason: 'Cycle Count Correction',
-            reference: 'test-001',
-            posted_at: String(new Date()),
-            posted_by: 'Admin',
-        },
-        {
-            id: 3,
-            quantity: 10,
-            reason: 'Direct Manual Vendor Arrival',
-            reference: 'test-001',
-            posted_at: String(new Date()),
-            posted_by: 'Admin',
-        },
-    ];
+    const [logs, setLogs]       = useState<TStockLogEntry[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError]     = useState<string | null>(null);
+
+    // ── Fetch logs ──────────────────────────────────────────────────
+    useEffect(() => {
+        let cancelled = false;
+        setLoading(true);
+        setError(null);
+
+        fetch(`/api/inventory/stock_adjusted?item_id=${itemId}`)
+            .then((r) => {
+                if (!r.ok) throw new Error(`Server error ${r.status}`);
+                return r.json();
+            })
+            .then((json) => {
+                if (!cancelled) setLogs(json.data ?? json ?? []);
+            })
+            .catch((err) => {
+                if (!cancelled) setError(err.message ?? 'Failed to load history.');
+            })
+            .finally(() => {
+                if (!cancelled) setLoading(false);
+            });
+
+        return () => { cancelled = true; };
+    }, [itemId, refreshKey]); // re-runs whenever refreshKey changes
+
+    // ── Loading ─────────────────────────────────────────────────────
+    if (loading) {
+        return (
+            <div className="flex flex-col items-center justify-center gap-3 py-20 text-slate-400">
+                <Loader2 size={24} className="animate-spin" />
+                <p className="text-xs">Loading stock history…</p>
+            </div>
+        );
+    }
+
+    // ── Error ───────────────────────────────────────────────────────
+    if (error) {
+        return (
+            <div className="flex flex-col items-center justify-center gap-3 py-20 px-6 text-center">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-50">
+                    <AlertCircle size={20} className="text-red-400" />
+                </div>
+                <div>
+                    <p className="text-sm font-semibold text-slate-600">Failed to load history</p>
+                    <p className="mt-1 text-xs text-red-400">{error}</p>
+                </div>
+            </div>
+        );
+    }
+
+    // ── Empty ───────────────────────────────────────────────────────
     if (logs.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center gap-4 py-20 px-6 text-center">
@@ -363,37 +355,28 @@ function HistoryTab({
                     <ClipboardList size={22} className="text-slate-300" />
                 </div>
                 <div>
-                    <p className="text-sm font-semibold text-slate-600">
-                        No adjustment logs yet
-                    </p>
+                    <p className="text-sm font-semibold text-slate-600">No adjustment logs yet</p>
                     <p className="mt-1 text-xs text-slate-400">
-                        Stock balance entries will appear here after you post an
-                        adjustment.
+                        Stock balance entries will appear here after you post an adjustment.
                     </p>
                 </div>
             </div>
         );
     }
 
-    // Running total for the ledger
+    // ── Ledger table ────────────────────────────────────────────────
     let running = 0;
 
     return (
         <div className="p-4 space-y-6">
-            {/* Ledger table */}
             <div className="overflow-hidden rounded-xl border border-slate-200">
-                {/* Table header */}
+                {/* Header */}
                 <div className="grid grid-cols-[2rem_1fr_6rem_8rem_7rem] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-2.5">
-                    {['#', 'Reason', 'Qty', 'Running Total', 'Date'].map(
-                        (h) => (
-                            <p
-                                key={h}
-                                className="text-[10px] font-bold uppercase tracking-widest text-slate-400"
-                            >
-                                {h}
-                            </p>
-                        ),
-                    )}
+                    {['#', 'Reason', 'Qty', 'Running Total', 'Date'].map((h) => (
+                        <p key={h} className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                            {h}
+                        </p>
+                    ))}
                 </div>
 
                 {/* Rows */}
@@ -407,18 +390,12 @@ function HistoryTab({
                                 key={entry.id}
                                 className="grid grid-cols-[2rem_1fr_6rem_8rem_7rem] items-center gap-3 px-4 py-3.5 transition hover:bg-slate-50/80"
                             >
-                                {/* Index */}
                                 <div className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-100">
-                                    <span className="text-[9px] font-bold text-slate-500">
-                                        {idx + 1}
-                                    </span>
+                                    <span className="text-[9px] font-bold text-slate-500">{idx + 1}</span>
                                 </div>
 
-                                {/* Reason pill + ref */}
                                 <div className="min-w-0">
-                                    <span
-                                        className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-semibold ${meta.bg} ${meta.color}`}
-                                    >
+                                    <span className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-semibold ${meta.bg} ${meta.color}`}>
                                         {meta.icon}
                                         {meta.label}
                                     </span>
@@ -430,32 +407,22 @@ function HistoryTab({
                                     )}
                                 </div>
 
-                                {/* Qty */}
                                 <div className="flex items-center gap-1">
-                                    <CheckCircle2
-                                        size={13}
-                                        className="text-emerald-500"
-                                    />
-                                    <span className="text-sm font-bold text-emerald-700">
-                                        +{entry.quantity}
-                                    </span>
+                                    <CheckCircle2 size={13} className="text-emerald-500" />
+                                    <span className="text-sm font-bold text-emerald-700">+{entry.quantity}</span>
                                 </div>
 
-                                {/* Running total */}
                                 <div className="flex items-center gap-1.5">
                                     <div className="h-1.5 w-1.5 rounded-full bg-blue-400" />
-                                    <span className="text-sm font-semibold text-slate-700">
-                                        {running} units
-                                    </span>
+                                    <span className="text-sm font-semibold text-slate-700">{running} units</span>
                                 </div>
 
-                                {/* Date + time */}
                                 <div>
                                     <p className="text-xs font-medium text-slate-600">
                                         {DateTimeFormat(entry.posted_at)}
                                     </p>
                                     <p className="text-[10px] text-slate-400">
-                                        {DateTimeFormat(entry.posted_at)}
+                                        {entry.posted_by}
                                     </p>
                                 </div>
                             </div>
@@ -463,15 +430,13 @@ function HistoryTab({
                     })}
                 </div>
 
-                {/* Table footer */}
+                {/* Footer */}
                 <div className="flex items-center justify-between border-t border-slate-200 bg-slate-50 px-4 py-2.5">
                     <p className="text-[10px] text-slate-400">
-                        {log.length} {log.length === 1 ? 'entry' : 'entries'}{' '}
-                        total
+                        {logs.length} {logs.length === 1 ? 'entry' : 'entries'} total
                     </p>
                     <p className="text-[10px] font-semibold text-slate-600">
-                        Cumulative:{' '}
-                        <span className="text-blue-700">{running} units</span>
+                        Cumulative: <span className="text-blue-700">{running} units</span>
                     </p>
                 </div>
             </div>
@@ -488,59 +453,87 @@ export default function ProductDashboard({
     item: InventoryItemProps;
     autoOpenStockModal?: boolean;
 }) {
-    const [activeTab, setActiveTab] = useState<TabId>('details');
-    const [isStockModalOpen, setIsStockModalOpen] =
-        useState(autoOpenStockModal);
+    const [activeTab, setActiveTab]         = useState<TabId>('details');
+    const [isStockModalOpen, setIsStockModalOpen] = useState(autoOpenStockModal);
+    const [isSubmitting, setIsSubmitting]   = useState(false);
+    // Increment to trigger HistoryTab re-fetch after a successful submission
+    const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
 
     const isStock = item.item_class === 'stock';
-    const stock = item.stock;
-    const log = item.stock_entry ?? [];
-    const tabs: {
-        id: TabId;
-        label: string;
-        icon: React.ReactNode;
-        badge?: number;
-    }[] = [
+    const stock   = item.stock;
+    const log     = item.stock_entry ?? [];
+
+    // ── Submit handler ────────────────────────────────────────────────
+    const handleStockSubmit = useCallback(async (data: StockAdjustmentData) => {
+        setIsSubmitting(true);
+        try {
+            const res = await fetch('/api/inventory/stock_adjusted', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    item_id:  item.id,
+                    quantity: data.quantity,
+                    reason:   data.reason,
+                }),
+            });
+
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err?.message ?? `Server error ${res.status}`);
+            }
+
+            setIsStockModalOpen(false);
+            setHistoryRefreshKey((k) => k + 1); // triggers HistoryTab re-fetch
+            // Switch to history tab so user sees the new entry immediately
+            setActiveTab('history');
+        } catch (err) {
+            console.error('Stock adjustment failed:', err);
+            alert(err instanceof Error ? err.message : 'Submission failed. Please try again.');
+        } finally {
+            setIsSubmitting(false);
+        }
+    }, [item.id]);
+
+    const tabs: { id: TabId; label: string; icon: React.ReactNode; badge?: number }[] = [
         { id: 'details', label: 'Item Details', icon: <FileText size={14} /> },
         ...(isStock
-            ? [
-                  {
-                      id: 'history' as TabId,
-                      label: 'Stock Balance History',
-                      icon: <ClipboardList size={14} />,
-                      badge: log.length,
-                  },
-              ]
-            : [
-                  {
-                      id: 'variant' as TabId,
-                      label: 'Item Variant',
-                      icon: <ClipboardList size={14} />,
-                      badge: log.length,
-                  },
-              ]),
+            ? [{
+                id: 'history' as TabId,
+                label: 'Stock Balance History',
+                icon: <ClipboardList size={14} />,
+                badge: log.length,
+            }]
+            : [{
+                id: 'variant' as TabId,
+                label: 'Item Variant',
+                icon: <ClipboardList size={14} />,
+                badge: log.length,
+            }]
+        ),
     ];
 
     return (
         <div className="min-h-screen bg-gray-50 px-4 py-8 md:px-8">
             <div className="mx-auto space-y-5">
+
                 {/* ── Inventory Status Banner ── */}
                 {isStock ? (
                     <StockBanner
                         stock={stock as TStockQuantity}
-                        // onOpenStockModal={onOpenStockModal}
+                        onOpenStockModal={() => setIsStockModalOpen(true)} // ✅ wired up
                     />
                 ) : (
                     <NonStockBanner />
                 )}
+
+                {/* ── Stock Adjustment Modal ── */}
                 <StockAdjustmentModal
                     isOpen={isStockModalOpen}
                     onClose={() => setIsStockModalOpen(false)}
-                    onSubmit={(data) => {
-                        console.log('Adjustment submitted:', data);
-                        setIsStockModalOpen(false);
-                    }}
+                    onSubmit={handleStockSubmit}
+                    isLoading={isSubmitting}
                 />
+
                 {/* ── Main card with tabs ── */}
                 <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
                     {/* Tab bar */}
@@ -553,27 +546,18 @@ export default function ProductDashboard({
                                     type="button"
                                     onClick={() => setActiveTab(tab.id)}
                                     className={`relative flex items-center gap-2 px-1 py-4 mr-6 text-sm font-medium transition-colors ${
-                                        active
-                                            ? 'text-blue-600'
-                                            : 'text-slate-500 hover:text-slate-700'
+                                        active ? 'text-blue-600' : 'text-slate-500 hover:text-slate-700'
                                     }`}
                                 >
                                     {tab.icon}
                                     {tab.label}
-                                    {/* Badge */}
-                                    {tab.badge !== undefined &&
-                                        tab.badge > 0 && (
-                                            <span
-                                                className={`inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
-                                                    active
-                                                        ? 'bg-blue-100 text-blue-700'
-                                                        : 'bg-slate-100 text-slate-500'
-                                                }`}
-                                            >
-                                                {tab.badge}
-                                            </span>
-                                        )}
-                                    {/* Active underline */}
+                                    {tab.badge !== undefined && tab.badge > 0 && (
+                                        <span className={`inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                                            active ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'
+                                        }`}>
+                                            {tab.badge}
+                                        </span>
+                                    )}
                                     {active && (
                                         <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full bg-blue-600" />
                                     )}
@@ -584,14 +568,13 @@ export default function ProductDashboard({
 
                     {/* Tab content */}
                     {activeTab === 'details' && (
-                        <DetailsTab
-                            item={item}
-                            isStock={isStock}
-                            // onSave={onSave}
-                        />
+                        <DetailsTab item={item} isStock={isStock} />
                     )}
                     {activeTab === 'history' && (
-                        <HistoryTab log={log} stock={stock} />
+                        <HistoryTab
+                            itemId={item.id!}
+                            refreshKey={historyRefreshKey} // ✅ re-fetches after submit
+                        />
                     )}
                 </div>
             </div>
