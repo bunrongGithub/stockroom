@@ -4,6 +4,11 @@ import type {
     CreateCategoryInput,
     UpdateCategoryInput,
 } from '@/lib/validations/category.schema';
+import {
+    PaginatedResult,
+    PaginationMixin,
+    PaginationParams,
+} from '../base/pagination';
 
 export type Category = {
     id: number;
@@ -13,13 +18,15 @@ export type Category = {
 
 const TABLE = 'inventory_item_category' as const;
 
-export class CategoryRepository {
+export class CategoryRepository extends PaginationMixin {
     private static instance: CategoryRepository;
 
     // Cached per-request Supabase client (React.cache handles dedup)
     private clientPromise: Promise<SupabaseClient> | null = null;
 
-    private constructor() {}
+    private constructor() {
+        super();
+    }
 
     static getInstance(): CategoryRepository {
         if (!CategoryRepository.instance) {
@@ -43,12 +50,12 @@ export class CategoryRepository {
     // Query methods
     // -------------------------------------------------------------------------
 
-    async findAll(): Promise<Category[]> {
+    async findAll(
+        params: PaginationParams = {},
+    ): Promise<PaginatedResult<Category>> {
         const supabase = await this.getClient();
-        const { data, error } = await supabase.from(TABLE).select('*');
-
-        if (error) throw new Error(error.message);
-        return data ?? [];
+        const query = supabase.from(TABLE).select('*', { count: 'exact' });
+        return this.paginate(query, params);
     }
 
     async findOne(id: number): Promise<Category | null> {
