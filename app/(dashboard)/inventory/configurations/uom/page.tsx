@@ -8,8 +8,7 @@ async function page() {
     const json = await res.json();
     const uomLIst = json.data;
 
-    console.log(uomLIst)
-    return <UomListForm uoms={uomLIst} />;
+    return <UomListForm uoms={uomLIst.data} />;
 }
 
 export default page;

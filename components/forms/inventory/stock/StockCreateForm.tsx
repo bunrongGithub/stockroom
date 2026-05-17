@@ -181,7 +181,9 @@ export default function StockCreateForm() {
 
             // 4. Success — navigate back
             window.dispatchEvent(new Event('inventory_updated'));
-            router.push('/inventory');
+
+            const data = await response.json();
+            router.push(`/inventory/stock/${data.data.id}/view`);
             router.refresh();
         } catch (error: unknown) {
             console.error('Error saving item:', error);

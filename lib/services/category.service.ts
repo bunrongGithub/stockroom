@@ -7,6 +7,7 @@ import type {
     UpdateCategoryInput,
 } from '@/lib/validations/category.schema';
 import { generateSequenNumbering } from '../utils/sequenumbering';
+import { PaginatedResult, PaginationParams } from '../base/pagination';
 
 export class CategoryService {
     private static instance: CategoryService;
@@ -31,8 +32,10 @@ export class CategoryService {
     // Query methods
     // -------------------------------------------------------------------------
 
-    async getAll(): Promise<Category[]> {
-        return await this.categoryRepo.findAll();
+    async getAll(
+        params?: PaginationParams,
+    ): Promise<PaginatedResult<Category>> {
+        return await this.categoryRepo.findAll(params);
     }
 
     async getById(id: number): Promise<Category> {
@@ -52,12 +55,10 @@ export class CategoryService {
     }
 
     async update(id: number, input: UpdateCategoryInput): Promise<Category> {
-
-
         // qwertyuxcvbnm,zxcv
         // Ensure the record exists before attempting an update
         await this.getById(id);
-        const data = input
+        const data = input;
         return await this.categoryRepo.updateOne(id, data);
     }
 

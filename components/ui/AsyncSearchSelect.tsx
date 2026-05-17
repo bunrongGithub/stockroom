@@ -50,17 +50,12 @@ export default function AsyncSearchSelect({
             );
             if (!res.ok) throw new Error('Failed to fetch');
 
-            const data = await res.json();
-            const items = Array.isArray(data)
-                ? data
-                : Array.isArray(data.results)
-                  ? data.results
-                  : Array.isArray(data.data)
-                    ? data.data
-                    : [];
-
+            const items = await res.json();
+            const {
+                data: { data: data },
+            } = items;
             setOptions(
-                items.map((item: any) => ({
+                data.map((item: any) => ({
                     value: item.id,
                     label: item.name,
                 })),

@@ -4,23 +4,30 @@ import type {
     CreateUomInput,
     UpdateUomInput,
 } from '@/lib/validations/uom.schema';
+import {
+    PaginatedResult,
+    PaginationMixin,
+    PaginationParams,
+} from '../base/pagination';
 
-export type TUom = {
+export interface TUom {
     id: number;
     name: string;
     created_at: string | null;
     writed_at: string | null;
-};
+}
 
 const TABLE = 'inventory_item_uom' as const;
 
-export class UOMRepository {
+export class UOMRepository extends PaginationMixin {
     private static instance: UOMRepository;
 
     // Cached per-request Supabase client (React.cache handles dedup)
     private clientPromise: Promise<SupabaseClient> | null = null;
 
-    private constructor() {}
+    private constructor() {
+        super();
+    }
 
     static getInstance(): UOMRepository {
         if (!UOMRepository.instance) {
@@ -44,12 +51,12 @@ export class UOMRepository {
     // Query methods
     // -------------------------------------------------------------------------
 
-    async findAll(): Promise<TUom[]> {
+    async findAll(
+        params: PaginationParams = {},
+    ): Promise<PaginatedResult<TUom>> {
         const supabase = await this.getClient();
-        const { data, error } = await supabase.from(TABLE).select('*');
-
-        if (error) throw new Error(error.message);
-        return data ?? [];
+        const query = supabase.from(TABLE).select('*', { count: 'exact' });
+        return this.paginate(query, params);
     }
 
     async findOne(id: number): Promise<TUom | null> {
