@@ -1,5 +1,5 @@
 import { TMenuItem } from '@/types';
-import { LayoutList, Package } from 'lucide-react';
+import { LayoutList, LocationEditIcon, Package } from 'lucide-react';
 import { categoryActions, uomAction } from './categoryMenu';
 import { stockMenuAction } from './stockMenu';
 
@@ -44,6 +44,15 @@ export const inventoryMenuItem: TMenuItem[] = [
         icon: Package,
         label: 'Unit of Measure',
         href: '/inventory/configurations/uom',
+        children: [],
+        type: 'configuration',
+        action: uomAction,
+    },
+    {
+        ordering: 2,
+        icon: LocationEditIcon,
+        label: 'Stock Location',
+        href: '/inventory/configurations/location',
         children: [],
         type: 'configuration',
         action: uomAction,

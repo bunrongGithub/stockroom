@@ -8,7 +8,6 @@ async function page() {
     if (!res.ok) notFound();
     const json = await res.json();
     const items = json.data;
-    console.log(items)
     return <StockForm inv_items={items} />;
 }
 
