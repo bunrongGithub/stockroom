@@ -193,7 +193,7 @@ function DetailsTab({
 }) {
     return (
         <div className="p-6 md:p-8">
-            <div className="grid gap-8 xl:grid-cols-[1fr_280px]">
+            <div className="grid gap-8">
                 {/* Left */}
                 <div className="space-y-8">
                     {/* Product Information */}
@@ -203,16 +203,7 @@ function DetailsTab({
                             title="Product Information"
                             subtitle="Manage item name, class, and core identifiers"
                         />
-                        <div className="grid gap-4 sm:grid-cols-2">
-                            <div className="sm:col-span-2">
-                                <FieldLabel required>Item Name</FieldLabel>
-                                <EditableInput
-                                    type="text"
-                                    name="name"
-                                    defaultValue={item.name}
-                                    placeholder="e.g. iPhone Case, Premium Headphones…"
-                                />
-                            </div>
+                        <div className="grid gap-5 lg:grid-cols-2">
                             <div>
                                 <FieldLabel>SKU / Reference No.</FieldLabel>
                                 <EditableInput
@@ -222,16 +213,16 @@ function DetailsTab({
                                     placeholder="SKU-000000"
                                 />
                             </div>
-                            <div>
-                                <FieldLabel>Tracking Class</FieldLabel>
-                                <ReadonlyInput
-                                    value={
-                                        isStock
-                                            ? 'Stocked Physical Good'
-                                            : 'Non-Stock / Service'
-                                    }
+                            <div className="sm:col-span-1">
+                                <FieldLabel required>Item Name</FieldLabel>
+                                <EditableInput
+                                    type="text"
+                                    name="name"
+                                    defaultValue={item.name}
+                                    placeholder="e.g. iPhone Case, Premium Headphones…"
                                 />
                             </div>
+
                             <div>
                                 <FieldLabel>Category</FieldLabel>
                                 <EditableInput
@@ -248,6 +239,16 @@ function DetailsTab({
                                     name="category.name"
                                     defaultValue={item.uom?.name}
                                     placeholder="SKU-000000"
+                                />
+                            </div>
+                            <div>
+                                <FieldLabel>Tracking Class</FieldLabel>
+                                <ReadonlyInput
+                                    value={
+                                        isStock
+                                            ? 'Stocked Physical Good'
+                                            : 'Non-Stock / Service'
+                                    }
                                 />
                             </div>
                             <div className="sm:col-span-2">
@@ -303,95 +304,6 @@ function DetailsTab({
                             </div>
                         </div>
                     </section>
-                </div>
-
-                {/* Right sidebar */}
-                <div className="space-y-4">
-                    {/* Financial summary */}
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 overflow-hidden">
-                        <div className="border-b border-slate-200 px-4 py-3 flex items-center gap-2">
-                            <BarChart3 size={13} className="text-slate-400" />
-                            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                                Financial Summary
-                            </p>
-                        </div>
-                        <div className="divide-y divide-slate-200">
-                            {[
-                                {
-                                    label: 'Cost Basis',
-                                    value: item.purchase_price,
-                                    color: 'text-slate-800',
-                                },
-                                {
-                                    label: 'MSRP Sale Price',
-                                    value: item.sale_price,
-                                    color: 'text-emerald-700',
-                                },
-                            ].map(({ label, value, color }) => (
-                                <div
-                                    key={label}
-                                    className="flex items-center justify-between px-4 py-3"
-                                >
-                                    <span className="text-xs text-slate-500">
-                                        {label}
-                                    </span>
-                                    <span
-                                        className={`text-sm font-bold ${color}`}
-                                    >
-                                        {value}
-                                    </span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* Stock snapshot */}
-                    {isStock && (
-                        <div className="rounded-xl border border-slate-200 bg-slate-50 overflow-hidden">
-                            <div className="border-b border-slate-200 px-4 py-3 flex items-center gap-2">
-                                <Package size={13} className="text-slate-400" />
-                                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                                    Stock Snapshot
-                                </p>
-                            </div>
-                            <div className="divide-y divide-slate-200">
-                                {[
-                                    {
-                                        label: 'On Hand',
-                                        value: item.stock?.stock_onhand || 0,
-                                    },
-                                    {
-                                        label: 'Reserved',
-                                        value: item.stock?.stock_reserved || 0,
-                                    },
-                                    {
-                                        label: 'Available',
-                                        value:
-                                            item.stock?.availiable_to_sell || 0,
-                                    },
-                                ].map(({ label, value }) => (
-                                    <div
-                                        key={label}
-                                        className="flex items-center justify-between px-4 py-3"
-                                    >
-                                        <span className="text-xs text-slate-500">
-                                            {label}
-                                        </span>
-                                        <span className="text-sm font-bold text-slate-800">
-                                            {value}
-                                        </span>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    <div className="rounded-xl border border-dashed border-slate-200 px-4 py-3">
-                        <p className="text-[10px] leading-relaxed text-slate-400">
-                            All stock adjustments are recorded as immutable
-                            ledger entries and cannot be modified retroactively.
-                        </p>
-                    </div>
                 </div>
             </div>
         </div>
