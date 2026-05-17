@@ -48,6 +48,7 @@ export class InventoryItemService {
     async create(input: CreateInventoryInput): Promise<InventoryProduct> {
         const nextSequenumbering = generateSequenNumbering('INVC');
         const payload = { ...input, reference_no: nextSequenumbering };
+        console.log(payload)
         return await this.categoryRepo.insertOne(payload);
     }
 

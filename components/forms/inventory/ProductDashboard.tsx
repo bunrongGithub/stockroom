@@ -29,6 +29,7 @@ import {
     Warehouse,
 } from 'lucide-react';
 import { useState } from 'react';
+import StockAdjustmentModal from './StockAdjustmentModal';
 
 type TabId = 'details' | 'history' | 'variant';
 
@@ -482,10 +483,14 @@ function HistoryTab({
 
 export default function ProductDashboard({
     item,
+    autoOpenStockModal = false,
 }: {
     item: InventoryItemProps;
+    autoOpenStockModal?: boolean;
 }) {
     const [activeTab, setActiveTab] = useState<TabId>('details');
+    const [isStockModalOpen, setIsStockModalOpen] =
+        useState(autoOpenStockModal);
 
     const isStock = item.item_class === 'stock';
     const stock = item.stock;
@@ -528,7 +533,14 @@ export default function ProductDashboard({
                 ) : (
                     <NonStockBanner />
                 )}
-
+                <StockAdjustmentModal
+                    isOpen={isStockModalOpen}
+                    onClose={() => setIsStockModalOpen(false)}
+                    onSubmit={(data) => {
+                        console.log('Adjustment submitted:', data);
+                        setIsStockModalOpen(false);
+                    }}
+                />
                 {/* ── Main card with tabs ── */}
                 <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
                     {/* Tab bar */}

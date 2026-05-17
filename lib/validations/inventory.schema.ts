@@ -60,6 +60,10 @@ const inventoryBaseSchema = {
         .array(z.string().url('Invalid image URL'))
         .optional()
         .nullable(),
+    uom_id: z
+        .number({ error: 'UOM is required' })
+        .int()
+        .positive('Invalid UOM'),
 };
 
 /**

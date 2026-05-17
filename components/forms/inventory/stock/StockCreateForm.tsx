@@ -120,7 +120,6 @@ export default function StockCreateForm() {
         try {
             let uploadedImageUrl = '';
 
-            // 1. Upload image to ImgBB if a file was selected
             if (selectedFile) {
                 const imgFormData = new FormData();
                 imgFormData.append('image', selectedFile);
@@ -148,7 +147,6 @@ export default function StockCreateForm() {
                 uploadedImageUrl = imgData.data.url;
             }
 
-            // 2. Build payload for /api/inventory
             const payload = {
                 name: formData.name,
                 item_class: formData.item_class,
@@ -162,7 +160,6 @@ export default function StockCreateForm() {
                 price: formData.sale_price,
             };
 
-            // 3. POST to /api/inventory
             const response = await fetch('/api/inventory', {
                 method: 'POST',
                 headers: {
@@ -173,17 +170,14 @@ export default function StockCreateForm() {
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
-                throw new Error(
-                    errorData?.message ||
-                        `Server error: ${response.status} ${response.statusText}`,
-                );
+                console.log(errorData.message);
+                return;
             }
 
-            // 4. Success — navigate back
-            window.dispatchEvent(new Event('inventory_updated'));
-
             const data = await response.json();
-            router.push(`/inventory/stock/${data.data.id}/view`);
+            router.push(
+                `/inventory/stock/${data.data.id}/view?create_success=${true}&stock=${true}`,
+            );
             router.refresh();
         } catch (error: unknown) {
             console.error('Error saving item:', error);
@@ -191,7 +185,7 @@ export default function StockCreateForm() {
                 error instanceof Error
                     ? error.message
                     : 'មានបញ្ហាក្នុងការរក្សាទុកទិន្នន័យទៅកាន់ Database!';
-            alert(message);
+            console.log(message);
         } finally {
             setIsSaving(false);
         }
