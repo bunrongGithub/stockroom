@@ -251,6 +251,16 @@ function DetailsTab({
                                     }
                                 />
                             </div>
+                            <div>
+                                <FieldLabel>Stock Location</FieldLabel>
+                                <ReadonlyInput
+                                    value={
+                                        isStock
+                                            ? 'Stocked Physical Good'
+                                            : 'Non-Stock / Service'
+                                    }
+                                />
+                            </div>
                             <div className="sm:col-span-2">
                                 <FieldLabel>Additional Notes</FieldLabel>
                                 <EditableTextarea
