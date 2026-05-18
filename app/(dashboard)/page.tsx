@@ -464,7 +464,6 @@ function DynamicLineChart({
                     ))}
                 </div>
 
-                {/* Draw lines and fill area (SVG) */}
                 <svg
                     className="absolute inset-0 w-full h-full overflow-visible z-10"
                     preserveAspectRatio="none"
