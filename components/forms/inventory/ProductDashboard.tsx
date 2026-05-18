@@ -304,13 +304,13 @@ function HistoryTab({
         setLoading(true);
         setError(null);
 
-        fetch(`/api/inventory/stock_adjusted?item_id=${itemId}`)
+        fetch(`/api/inventory/${itemId}`, { method: 'GET' })
             .then((r) => {
                 if (!r.ok) throw new Error(`Server error ${r.status}`);
                 return r.json();
             })
             .then((json) => {
-                if (!cancelled) setLogs(json.data ?? json ?? []);
+                if (!cancelled) setLogs(json.data?.stock_entry ?? []);
             })
             .catch((err) => {
                 if (!cancelled) setError(err.message ?? 'Failed to load history.');
@@ -467,13 +467,12 @@ export default function ProductDashboard({
     const handleStockSubmit = useCallback(async (data: StockAdjustmentData) => {
         setIsSubmitting(true);
         try {
-            const res = await fetch('/api/inventory/stock_adjusted', {
+            const res = await fetch(`/api/inventory/${item.id}/adjust`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    item_id:  item.id,
-                    quantity: data.quantity,
-                    reason:   data.reason,
+                    received_quantity: data.quantity,
+                    adjustment_reason: data.reason,
                 }),
             });
 

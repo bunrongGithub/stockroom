@@ -8,7 +8,7 @@ import {
 } from '@/components/ui/FieldLabel';
 import { ReadonlyInput } from '@/components/ui/Readonly';
 import { InventoryItemProps } from '@/types/inventory/item';
-import { ArrowLeft, Loader2, Package, Rows3, Upload, X } from 'lucide-react';
+import { ArrowLeft, AlertCircle, Loader2, Package, Rows3, Upload, X } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -20,6 +20,7 @@ export default function StockCreateForm() {
     const [isSaving, setIsSaving] = useState(false);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [imagePreviewUrl, setImagePreviewUrl] = useState<string>('');
+    const [error, setError] = useState('');  // ← unified error state
 
     const [formData, setFormData] = useState<InventoryItemProps>({
         id: null,
@@ -95,10 +96,12 @@ export default function StockCreateForm() {
         if (!file) return;
 
         if (file.size > 32 * 1024 * 1024) {
-            alert('សូមជ្រើសរើសរូបភាពដែលមានទំហំតូចជាង 32MB');
+            // ← replaced alert() with error state
+            setError('សូមជ្រើសរើសរូបភាពដែលមានទំហំតូចជាង 32MB');
             return;
         }
 
+        setError('');
         setSelectedFile(file);
         setImagePreviewUrl(URL.createObjectURL(file));
     };
@@ -115,6 +118,7 @@ export default function StockCreateForm() {
 
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
+        setError('');
         setIsSaving(true);
 
         try {
@@ -170,8 +174,12 @@ export default function StockCreateForm() {
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
-                console.log(errorData.message);
-                return;
+                // ← replaced console.log with error state
+                throw new Error(
+                    errorData.message ??
+                        errorData.error ??
+                        'បរាជ័យក្នុងការ​បង្កើត​ទំនិញ។',
+                );
             }
 
             const data = await response.json();
@@ -180,12 +188,12 @@ export default function StockCreateForm() {
             );
             router.refresh();
         } catch (error: unknown) {
-            console.error('Error saving item:', error);
+            // ← replaced console.log with error state
             const message =
                 error instanceof Error
                     ? error.message
                     : 'មានបញ្ហាក្នុងការរក្សាទុកទិន្នន័យទៅកាន់ Database!';
-            console.log(message);
+            setError(message);
         } finally {
             setIsSaving(false);
         }
@@ -213,6 +221,21 @@ export default function StockCreateForm() {
                     </p>
                 </div>
             </div>
+
+            {/* ── Global error banner ── */}
+            {error && (
+                <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+                    <AlertCircle size={18} className="mt-0.5 shrink-0 text-red-500" />
+                    <p className="text-sm text-red-700">{error}</p>
+                    <button
+                        type="button"
+                        onClick={() => setError('')}
+                        className="ml-auto shrink-0 text-red-400 hover:text-red-600"
+                    >
+                        <X size={16} />
+                    </button>
+                </div>
+            )}
 
             <form
                 onSubmit={handleSave}
