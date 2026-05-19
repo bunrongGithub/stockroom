@@ -1,9 +1,8 @@
+import { createClient } from '@/lib/supabase/server';
 import { itemIdSchema } from '@/lib/validations/inventory.schema';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { service } from '../..';
 
-// ─── Validation (Zod v4) ──────────────────────────────────────────────────────
 const adjustStockSchema = z.object({
     received_quantity: z
         .number({ error: 'Received quantity must be a number' })
@@ -12,55 +11,75 @@ const adjustStockSchema = z.object({
     adjustment_reason: z
         .string({ error: 'Adjustment reason is required' })
         .min(1, 'Adjustment reason is required'),
+    location_id: z
+        .number({ error: 'Location is required' })
+        .int()
+        .positive(),
 });
 
-// ─── Types ────────────────────────────────────────────────────────────────────
 type Params = { params: Promise<{ id: string }> };
 
-// ─── POST /api/inventory/[id]/adjust ─────────────────────────────────────────
 export async function POST(req: NextRequest, { params }: Params) {
     try {
         const { id } = await params;
-
-        // Validate item ID
         const idParsed = itemIdSchema.safeParse({ id });
         if (!idParsed.success) {
-            return NextResponse.json(
-                { error: 'Invalid ID format' },
-                { status: 400 },
-            );
+            return NextResponse.json({ error: 'Invalid ID' }, { status: 400 });
         }
 
-        // Validate request body
         const body = await req.json();
-        const bodyParsed = adjustStockSchema.safeParse(body);
-        if (!bodyParsed.success) {
+        const parsed = adjustStockSchema.safeParse(body);
+        if (!parsed.success) {
             return NextResponse.json(
-                { error: bodyParsed.error.flatten().fieldErrors },
+                { error: parsed.error.flatten().fieldErrors },
                 { status: 422 },
             );
         }
 
-        const { received_quantity } = bodyParsed.data;
+        const { received_quantity, adjustment_reason, location_id } = parsed.data;
+        const supabase = await createClient();
+        const { data: { user } } = await supabase.auth.getUser();
 
-        // Fetch current item.
-        // DB field is `stock numeric` on inventory_item table.
-        // Cast to `any` because InventoryProduct type definition doesn't yet
-        // declare the `stock` column — the DB field exists, the TS type lags.
-        const currentItem = await service.getById(idParsed.data.id);
-        const currentStock = Number((currentItem as any)?.stock ?? 0);
-        const newStock = currentStock + received_quantity;
+        // 1. Find current balance at this location (if any)
+        const { data: balance } = await supabase
+            .from('inventory_stock_balance')
+            .select('id, quantity')
+            .eq('item_id', idParsed.data.id)
+            .eq('location_id', location_id)
+            .maybeSingle();
 
-        // Persist — only update `stock` (numeric column in inventory_item)
-        const updated = await service.update(idParsed.data.id, {
-            stock: newStock,
+        const newQty = Number(balance?.quantity ?? 0) + received_quantity;
+
+        // 2. UPSERT balance
+        const { error: balErr } = balance
+            ? await supabase
+                  .from('inventory_stock_balance')
+                  .update({ quantity: newQty })
+                  .eq('id', balance.id)
+            : await supabase.from('inventory_stock_balance').insert({
+                  item_id: idParsed.data.id,
+                  location_id,
+                  quantity: newQty,
+              });
+
+        if (balErr) return NextResponse.json({ error: balErr.message }, { status: 500 });
+
+        // 3. Log the movement (audit trail)
+        const { error: movErr } = await supabase.from('inventory_stock_movement').insert({
+            item_id: idParsed.data.id,
+            to_location_id: location_id,
+            quantity: received_quantity,
+            movement_type: 'adjustment',
+            reason: adjustment_reason,
+            user_id: user?.id,
         });
 
-        return NextResponse.json({ data: updated }, { status: 200 });
-    } catch (error) {
-        const message =
-            error instanceof Error ? error.message : 'Unexpected error';
-        const status = message.includes('not found') ? 404 : 500;
-        return NextResponse.json({ error: message }, { status });
+        if (movErr) return NextResponse.json({ error: movErr.message }, { status: 500 });
+
+        // 4. inventory_item.stock auto-syncs via trigger we created in Phase 1
+        return NextResponse.json({ data: { new_quantity: newQty } }, { status: 200 });
+    } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Unexpected error';
+        return NextResponse.json({ error: msg }, { status: 500 });
     }
 }
