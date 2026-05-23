@@ -4,7 +4,7 @@ import type {
     UpdateUomInput,
 } from '@/lib/validations/uom.schema';
 import { generateSequenNumbering } from '../utils/sequenumbering';
-import { PaginatedResult } from '../base/pagination';
+import { PaginatedResult, PaginationParams } from '../base/pagination';
 
 export class UOMService {
     private static instance: UOMService;
@@ -29,8 +29,8 @@ export class UOMService {
     // Query methods
     // -------------------------------------------------------------------------
 
-    async getAll(): Promise<PaginatedResult<TUom>> {
-        return await this.uomRepo.findAll();
+    async getAll(params?: PaginationParams): Promise<PaginatedResult<TUom>> {
+        return await this.uomRepo.findAll(params);
     }
 
     async getById(id: number): Promise<TUom> {

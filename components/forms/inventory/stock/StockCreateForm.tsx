@@ -8,19 +8,53 @@ import {
 } from '@/components/ui/FieldLabel';
 import { ReadonlyInput } from '@/components/ui/Readonly';
 import { InventoryItemProps } from '@/types/inventory/item';
-import { ArrowLeft, AlertCircle, Loader2, Package, Rows3, Upload, X } from 'lucide-react';
+import { uploadImage } from '@/utils/utils';
+import {
+    AlertCircle,
+    ArrowLeft,
+    Loader2,
+    Package,
+    Rows3,
+    Upload,
+    X,
+} from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+
+type PriceFieldName = 'purchase_price' | 'sale_price';
+
+const IMAGE_MAX_SIZE = 32 * 1024 * 1024;
+
+function normalizePriceInput(rawValue: string) {
+    const sanitized = rawValue.replace(/[^\d.]/g, '');
+    const [integerPart, ...decimalParts] = sanitized.split('.');
+    const decimalPart = decimalParts.join('').slice(0, 2);
+
+    if (sanitized.startsWith('.')) {
+        return decimalPart ? `0.${decimalPart}` : '0.';
+    }
+
+    if (decimalParts.length === 0) {
+        return integerPart;
+    }
+
+    return `${integerPart}.${decimalPart}`;
+}
 
 export default function StockCreateForm() {
     const router = useRouter();
 
     const [isSaving, setIsSaving] = useState(false);
-    const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [isUploadingImage, setIsUploadingImage] = useState(false);
     const [imagePreviewUrl, setImagePreviewUrl] = useState<string>('');
-    const [error, setError] = useState('');  // ← unified error state
+    const [uploadedImageUrl, setUploadedImageUrl] = useState<string>('');
+    const [error, setError] = useState('');
+    const [priceInputs, setPriceInputs] = useState({
+        purchase_price: '',
+        sale_price: '',
+    });
 
     const [formData, setFormData] = useState<InventoryItemProps>({
         id: null,
@@ -46,6 +80,24 @@ export default function StockCreateForm() {
     });
 
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const previewUrlRef = useRef<string>('');
+
+    const setPreviewUrl = (nextPreviewUrl: string) => {
+        if (previewUrlRef.current) {
+            URL.revokeObjectURL(previewUrlRef.current);
+        }
+
+        previewUrlRef.current = nextPreviewUrl;
+        setImagePreviewUrl(nextPreviewUrl);
+    };
+
+    useEffect(() => {
+        return () => {
+            if (previewUrlRef.current) {
+                URL.revokeObjectURL(previewUrlRef.current);
+            }
+        };
+    }, []);
 
     // Generic handler for text/number inputs
     const handleChange = (
@@ -56,10 +108,36 @@ export default function StockCreateForm() {
         const { name, value } = e.target;
         setFormData((prev) => ({
             ...prev,
-            [name]:
-                name === 'purchase_price' || name === 'sale_price'
-                    ? Number(value)
-                    : value,
+            [name]: value,
+        }));
+    };
+
+    const handlePriceChange =
+        (field: PriceFieldName) =>
+        (e: React.ChangeEvent<HTMLInputElement>) => {
+            const nextValue = normalizePriceInput(e.target.value);
+
+            setPriceInputs((prev) => ({
+                ...prev,
+                [field]: nextValue,
+            }));
+
+            setFormData((prev) => ({
+                ...prev,
+                [field]:
+                    nextValue === '' || nextValue === '0.'
+                        ? 0
+                        : Number(nextValue),
+            }));
+        };
+
+    const handlePriceBlur = (field: PriceFieldName) => {
+        setPriceInputs((prev) => ({
+            ...prev,
+            [field]:
+                prev[field] === ''
+                    ? ''
+                    : Number(formData[field] ?? 0).toFixed(2),
         }));
     };
 
@@ -91,24 +169,47 @@ export default function StockCreateForm() {
         }));
     };
 
-    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
-        if (file.size > 32 * 1024 * 1024) {
-            // ← replaced alert() with error state
+        if (file.size > IMAGE_MAX_SIZE) {
             setError('សូមជ្រើសរើសរូបភាពដែលមានទំហំតូចជាង 32MB');
             return;
         }
 
+        const previewUrl = URL.createObjectURL(file);
         setError('');
-        setSelectedFile(file);
-        setImagePreviewUrl(URL.createObjectURL(file));
+        setUploadedImageUrl('');
+        setPreviewUrl(previewUrl);
+        setIsUploadingImage(true);
+
+        try {
+            const imageUrl = await uploadImage(file);
+            setUploadedImageUrl(imageUrl);
+            setFormData((prev) => ({
+                ...prev,
+                images_url: [imageUrl],
+            }));
+        } catch (uploadError) {
+            removeImage();
+            const message =
+                uploadError instanceof Error
+                    ? uploadError.message
+                    : 'មានបញ្ហាក្នុងការអាប់ឡូតរូបភាព។';
+            setError(message);
+        } finally {
+            setIsUploadingImage(false);
+        }
     };
 
     const removeImage = () => {
-        setImagePreviewUrl('');
-        setSelectedFile(null);
+        setPreviewUrl('');
+        setUploadedImageUrl('');
+        setFormData((prev) => ({
+            ...prev,
+            images_url: [],
+        }));
         if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
@@ -122,33 +223,8 @@ export default function StockCreateForm() {
         setIsSaving(true);
 
         try {
-            let uploadedImageUrl = '';
-
-            if (selectedFile) {
-                const imgFormData = new FormData();
-                imgFormData.append('image', selectedFile);
-
-                const imgbbApiKey = process.env.NEXT_PUBLIC_IMGBB_API_KEY;
-                if (!imgbbApiKey) {
-                    throw new Error(
-                        'រកមិនឃើញ ImgBB API Key! សូមត្រួតពិនិត្យឯកសារ .env.local របស់អ្នក។',
-                    );
-                }
-
-                const imgResponse = await fetch(
-                    `https://api.imgbb.com/1/upload?key=${imgbbApiKey}`,
-                    {
-                        method: 'POST',
-                        body: imgFormData,
-                    },
-                );
-
-                const imgData = await imgResponse.json();
-                if (!imgData.success) {
-                    throw new Error('បរាជ័យក្នុងការ Upload រូបភាពទៅកាន់ ImgBB');
-                }
-
-                uploadedImageUrl = imgData.data.url;
+            if (isUploadingImage) {
+                throw new Error('សូមរង់ចាំរូបភាពអាប់ឡូតរួចសិន។');
             }
 
             const payload = {
@@ -174,7 +250,6 @@ export default function StockCreateForm() {
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
-                // ← replaced console.log with error state
                 throw new Error(
                     errorData.message ??
                         errorData.error ??
@@ -188,7 +263,6 @@ export default function StockCreateForm() {
             );
             router.refresh();
         } catch (error: unknown) {
-            // ← replaced console.log with error state
             const message =
                 error instanceof Error
                     ? error.message
@@ -270,7 +344,10 @@ export default function StockCreateForm() {
                                     label="ប្រភេទ"
                                     placeholder="ជ្រើសរើសប្រភេទ..."
                                     apiUrl="/api/category"
-                                    value={formData.category?.name ?? ''}
+                                    value={formData.category_id}
+                                    selectedLabel={formData.category?.name ?? ''}
+                                    popupTitle="ប្រភេទ"
+                                    enablePopupSearch
                                     onChange={handleCategoryChange}
                                     required
                                 />
@@ -280,9 +357,12 @@ export default function StockCreateForm() {
                             <div>
                                 <AsyncSearchSelect
                                     label="Unit of Measurement"
-                                    placeholder="ជ្រើសរើសប្រភេទ..."
+                                    placeholder="ជ្រើសរើសខ្នាត..."
                                     apiUrl="/api/uom"
-                                    value={formData.uom?.name ?? ''}
+                                    value={formData.uom_id}
+                                    selectedLabel={formData.uom?.name ?? ''}
+                                    popupTitle="Unit of Measurement"
+                                    enablePopupSearch
                                     onChange={handleUomChange}
                                     required
                                 />
@@ -291,27 +371,53 @@ export default function StockCreateForm() {
                             {/* Purchase Price */}
                             <div>
                                 <FieldLabel>តម្លៃទិញចូល ($)</FieldLabel>
-                                <EditableInput
-                                    name="purchase_price"
-                                    type="number"
-                                    min={0}
-                                    step="0.01"
-                                    value={formData.purchase_price}
-                                    onChange={handleChange}
-                                />
+                                <div className="relative">
+                                    <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-sm font-medium text-slate-400">
+                                        $
+                                    </span>
+                                    <EditableInput
+                                        name="purchase_price"
+                                        type="text"
+                                        inputMode="decimal"
+                                        autoComplete="off"
+                                        placeholder="0.00"
+                                        value={priceInputs.purchase_price}
+                                        onChange={handlePriceChange('purchase_price')}
+                                        onBlur={() =>
+                                            handlePriceBlur('purchase_price')
+                                        }
+                                        className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-9 pr-4 text-sm text-slate-800 placeholder-slate-300 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                                    />
+                                </div>
+                                <p className="mt-1.5 text-xs text-slate-400">
+                                    បញ្ចូលតម្លៃទិញជាទម្រង់ទសភាគ 2 ខ្ទង់
+                                </p>
                             </div>
 
                             {/* Sale Price */}
                             <div>
                                 <FieldLabel>តម្លៃលក់ ($)</FieldLabel>
-                                <EditableInput
-                                    name="sale_price"
-                                    type="number"
-                                    min={0}
-                                    step="0.01"
-                                    value={formData.sale_price}
-                                    onChange={handleChange}
-                                />
+                                <div className="relative">
+                                    <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-sm font-medium text-slate-400">
+                                        $
+                                    </span>
+                                    <EditableInput
+                                        name="sale_price"
+                                        type="text"
+                                        inputMode="decimal"
+                                        autoComplete="off"
+                                        placeholder="0.00"
+                                        value={priceInputs.sale_price}
+                                        onChange={handlePriceChange('sale_price')}
+                                        onBlur={() =>
+                                            handlePriceBlur('sale_price')
+                                        }
+                                        className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-9 pr-4 text-sm text-slate-800 placeholder-slate-300 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                                    />
+                                </div>
+                                <p className="mt-1.5 text-xs text-slate-400">
+                                    តម្លៃនេះនឹងប្រើសម្រាប់លក់ចេញក្នុងប្រព័ន្ធ
+                                </p>
                             </div>
 
                             {/* Description */}
@@ -371,10 +477,20 @@ export default function StockCreateForm() {
                                             e.stopPropagation();
                                             removeImage();
                                         }}
+                                        disabled={isUploadingImage}
                                         className="absolute -right-2 -top-2 rounded-full bg-red-500 p-1 text-white shadow-md hover:bg-red-600"
                                     >
                                         <X size={14} />
                                     </button>
+                                    {isUploadingImage ? (
+                                        <div className="absolute inset-x-3 bottom-3 flex items-center justify-center gap-2 rounded-full bg-slate-900/75 px-3 py-2 text-xs font-medium text-white">
+                                            <Loader2
+                                                size={14}
+                                                className="animate-spin"
+                                            />
+                                            កំពុងអាប់ឡូតរូបភាព...
+                                        </div>
+                                    ) : null}
                                 </div>
                             ) : (
                                 <div className="flex flex-col items-center justify-center py-10 text-slate-500">
@@ -393,6 +509,11 @@ export default function StockCreateForm() {
                                 </div>
                             )}
                         </div>
+                        {uploadedImageUrl ? (
+                            <p className="mt-2 text-xs text-[#1a9e52]">
+                                រូបភាពត្រូវបានអាប់ឡូតរួចរាល់ ហើយនឹងភ្ជាប់ជាមួយទំនិញនេះ។
+                            </p>
+                        ) : null}
                     </section>
 
                     {/* Summary */}
@@ -437,7 +558,7 @@ export default function StockCreateForm() {
                             </Link>
                             <button
                                 type="submit"
-                                disabled={isSaving}
+                                disabled={isSaving || isUploadingImage}
                                 className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1a9e52] px-4 py-3 font-medium text-white transition-colors hover:bg-[#158042] disabled:opacity-50"
                             >
                                 {isSaving ? (
@@ -448,6 +569,8 @@ export default function StockCreateForm() {
                                 ) : null}
                                 {isSaving
                                     ? 'កំពុងរក្សាទុក...'
+                                    : isUploadingImage
+                                      ? 'កំពុងរង់ចាំរូបភាព...'
                                     : 'រក្សាទុក (Save)'}
                             </button>
                         </div>

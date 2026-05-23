@@ -8,6 +8,8 @@ import { cache } from 'react';
 export const createClient = cache(async () => {
     const cookieStore = await cookies();
 
+
+    console.log(process.env.NEXT_PUBLIC_SUPABASE_URL);
     return createServerClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,

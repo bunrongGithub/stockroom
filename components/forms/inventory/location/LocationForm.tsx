@@ -20,7 +20,7 @@ interface Props {
     branches: BranchProps[];
 }
 
-export default function BranchPageClient({ branches }: Props) {
+export default function LocationForm({ branches }: Props) {
     const router = useRouter();
     const [search, setSearch] = useState('');
     const [showForm, setShowForm] = useState(false);
