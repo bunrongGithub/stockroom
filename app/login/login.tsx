@@ -1,8 +1,7 @@
 'use client';
 
 import { AlertCircle, Loader2, Lock, Mail } from 'lucide-react';
-import React, { useEffect, useState } from 'react';
-// ប្រើប្រាស់ useRouter របស់ Next.js ដើម្បីប្តូរទំព័រឱ្យមានប្រសិទ្ធភាព
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
 
@@ -13,7 +12,6 @@ export default function LoginPage() {
     const [error, setError] = useState<string | null>(null);
     const router = useRouter();
 
-    // ឆែកមើលក្រែងលោមាន Session ស្រាប់
     useEffect(() => {
         const checkUser = async () => {
             const {
@@ -26,7 +24,7 @@ export default function LoginPage() {
         checkUser();
     }, [router]);
 
-    const handleLogin = async (e: React.FormEvent) => {
+    const handleLogin = async (e: { preventDefault(): void }) => {
         e.preventDefault();
         if (!email || !password)
             return setError('សូមបញ្ចូលអ៊ីមែល និងលេខសម្ងាត់!');
@@ -35,26 +33,30 @@ export default function LoginPage() {
         setError(null);
 
         try {
-            const { error: authError } = await supabase.auth.signInWithPassword(
-                {
-                    email,
-                    password,
-                },
-            );
+            const res = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password }),
+            });
 
-            if (authError) {
+            if (!res.ok) {
+                const json = await res.json();
+                const message = typeof json.error === 'string' ? json.error : 'Invalid login credentials';
                 setError(
-                    authError.message === 'Invalid login credentials'
+                    message === 'Invalid login credentials'
                         ? 'អ៊ីមែល ឬលេខសម្ងាត់មិនត្រឹមត្រូវទេ!'
-                        : authError.message,
+                        : message,
                 );
                 setLoading(false);
-            } else {
-                // បើជោគជ័យ ប្រើ router.push ហើយ refresh ដើម្បីឱ្យ Middleware ទទួលបាន Cookie ថ្មី
-                router.push('/');
-                router.refresh();
+                return;
             }
-        } catch (err) {
+
+            const json = await res.json();
+            console.log(json);
+
+            router.push('/');
+            router.refresh();
+        } catch {
             setError('មានបញ្ហាបច្ចេកទេសក្នុងការតភ្ជាប់។');
             setLoading(false);
         }
@@ -65,14 +67,30 @@ export default function LoginPage() {
             return setError('សូមបញ្ចូលព័ត៌មានឱ្យគ្រប់ដើម្បីចុះឈ្មោះ!');
         setLoading(true);
         setError(null);
+
         try {
-            const { error: signUpError } = await supabase.auth.signUp({
-                email,
-                password,
+            const res = await fetch('/api/auth/signup', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password }),
             });
-            if (signUpError) setError(signUpError.message);
-            else alert('ចុះឈ្មោះជោគជ័យ! សាកល្បង Login ចូល។');
-        } catch (err) {
+
+            const json = await res.json();
+
+            if (!res.ok) {
+                const message = typeof json.error === 'string' ? json.error : 'មានបញ្ហាក្នុងការចុះឈ្មោះ។';
+                setError(message);
+                setLoading(false);
+                return;
+            }
+
+            if (json.data?.requiresConfirmation) {
+                alert('ចុះឈ្មោះជោគជ័យ! សូមពិនិត្យអ៊ីមែលរបស់អ្នកដើម្បីបញ្ជាក់គណនី។');
+            } else {
+                router.push('/');
+                router.refresh();
+            }
+        } catch {
             setError('មានបញ្ហាក្នុងការចុះឈ្មោះ។');
         }
         setLoading(false);

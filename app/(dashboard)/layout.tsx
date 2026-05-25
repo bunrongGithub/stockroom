@@ -1,6 +1,7 @@
 'use client';
 
 import { PageActionContext } from '@/context/PageActionContext';
+import { UserProfileProvider, useUserProfile } from '@/context/UserProfileContext';
 import { supabase } from '@/lib/supabase/client';
 import { Action, TMenuItem } from '@/types';
 import { modulesList } from '@/utils/systemMenu';
@@ -9,6 +10,12 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
+
+function SidebarRole() {
+    const profile = useUserProfile();
+    const label = profile ? profile.role.charAt(0).toUpperCase() + profile.role.slice(1) : 'Shop Manager';
+    return <p className="text-[10px] text-gray-600">{label}</p>;
+}
 
 export default function DashboardLayout({
     children,
@@ -123,6 +130,7 @@ export default function DashboardLayout({
 
     // ── render ────────────────────────────────────────────────────────────────
     return (
+        <UserProfileProvider>
         <div className="flex h-screen w-full overflow-hidden bg-gray-50 font-sans">
             {/* ═══════════════════ SIDEBAR ═══════════════════ */}
             <aside className="w-64 bg-gray-950 border-r border-gray-800 flex flex-col shrink-0">
@@ -320,9 +328,7 @@ export default function DashboardLayout({
                             <p className="text-gray-200 text-xs font-semibold truncate group-hover:text-white">
                                 {userEmail ?? 'កំពុងផ្ទុក...'}
                             </p>
-                            <p className="text-[10px] text-gray-600">
-                                Shop Manager
-                            </p>
+                            <SidebarRole />
                         </div>
                         <button
                             onClick={handleLogout}
@@ -402,5 +408,6 @@ export default function DashboardLayout({
                 </main>
             </div>
         </div>
+        </UserProfileProvider>
     );
 }
