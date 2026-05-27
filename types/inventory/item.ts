@@ -15,7 +15,10 @@ export interface InventoryItemProps {
     uom_id: number | null;
     uom: TUOM | null;
     images_url: string[] | null;
+    stock_location?: TStockLocationSummary | null;
+    stock_balances?: TStockBalanceRow[];
 }
+
 export type TCategory = {
     id: number | null;
     name: string;
@@ -31,48 +34,29 @@ export interface TStockLogEntry {
     id: number;
     quantity: number;
     reason: TStockLogReason;
-    posted_at: string; // ISO date string
+    posted_at: string;
     posted_by?: string;
     reference?: string;
 }
 
 export type TStockLogReason = string;
 
-
-export interface InventoryItemProps {
-    id: number | null;
-    name: string;
-    item_class: InventoryItemClass;
-    reference_no: string;
-    purchase_price: number;
-    sale_price: number;
-    description: string | null;
-    stock: number | TStockQuantity | null;
-    stock_entry: TStockLogEntry[] | null;
-    category_id: number | null;
-    category: TCategory | null;
-    uom_id: number | null;
-    uom: TUOM | null;
-    images_url: string[] | null;
-
-    // ── NEW: stock location info (populated by GET /api/inventory/[id]) ──
-    stock_location?: TStockLocationSummary | null;
-    stock_balances?: TStockBalanceRow[];
-}
-
 // ── NEW types ──
 export type TStockLocationSummary = {
     location_id: number | null;
     location_name: string | null;
+    location_code?: string | null;
+    branch_id?: number | null;
     branch_name: string | null;
+    is_default?: boolean;
     quantity: number;
 };
 
 export type TStockBalanceRow = {
     location_id?: number | null;
-    location_name: string;
+    location_name?: string;
     location_code?: string | null;
     branch_id?: number | null;
-    branch_name: string;
+    branch_name?: string;
     quantity: number;
 };
