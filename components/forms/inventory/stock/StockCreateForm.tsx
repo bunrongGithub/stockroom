@@ -7,12 +7,22 @@ import {
     FieldLabel,
 } from '@/components/ui/FieldLabel';
 import { ReadonlyInput } from '@/components/ui/Readonly';
+import { StockLocationProps } from '@/types/branch';
 import { InventoryItemProps } from '@/types/inventory/item';
-import { ArrowLeft, AlertCircle, Loader2, Package, Rows3, Upload, X } from 'lucide-react';
+import {
+    ArrowLeft,
+    AlertCircle,
+    Loader2,
+    MapPin,
+    Package,
+    Rows3,
+    Upload,
+    X,
+} from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 export default function StockCreateForm() {
     const router = useRouter();
@@ -21,6 +31,10 @@ export default function StockCreateForm() {
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [imagePreviewUrl, setImagePreviewUrl] = useState<string>('');
     const [error, setError] = useState('');  // ← unified error state
+    const [locations, setLocations] = useState<StockLocationProps[]>([]);
+    const [locationId, setLocationId] = useState<number | ''>('');
+    const [initialQuantity, setInitialQuantity] = useState<number | ''>(0);
+    const [loadingLocations, setLoadingLocations] = useState(true);
 
     const [formData, setFormData] = useState<InventoryItemProps>({
         id: null,
@@ -46,6 +60,44 @@ export default function StockCreateForm() {
     });
 
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        async function loadLocations() {
+            try {
+                const res = await fetch('/api/stock-location');
+                const json = await res.json();
+                if (!res.ok) {
+                    throw new Error(json.error ?? 'Failed to load stock locations');
+                }
+
+                const data: StockLocationProps[] = json.data ?? [];
+                if (cancelled) return;
+
+                setLocations(data);
+                const defaultLocation =
+                    data.find((location) => location.is_default) ?? data[0];
+                if (defaultLocation) setLocationId(defaultLocation.id);
+            } catch (err) {
+                if (!cancelled) {
+                    setError(
+                        err instanceof Error
+                            ? err.message
+                            : 'Failed to load stock locations',
+                    );
+                }
+            } finally {
+                if (!cancelled) setLoadingLocations(false);
+            }
+        }
+
+        loadLocations();
+
+        return () => {
+            cancelled = true;
+        };
+    }, []);
 
     // Generic handler for text/number inputs
     const handleChange = (
@@ -119,6 +171,26 @@ export default function StockCreateForm() {
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
+
+        const quantity =
+            initialQuantity === '' ? 0 : Number(initialQuantity);
+        if (Number.isNaN(quantity) || quantity < 0) {
+            setError('សូមបញ្ចូលចំនួនស្តុកដំបូងត្រឹមត្រូវ។');
+            return;
+        }
+        if (loadingLocations) {
+            setError('កំពុងទាញយកទីតាំងស្តុក។ សូមរង់ចាំបន្តិច។');
+            return;
+        }
+        if (locations.length === 0) {
+            setError('មិនមានទីតាំងស្តុក។ សូមបង្កើត Storage Location ជាមុនសិន');
+            return;
+        }
+        if (!locationId) {
+            setError('សូមជ្រើសរើសទីតាំងស្តុក។');
+            return;
+        }
+
         setIsSaving(true);
 
         try {
@@ -162,6 +234,7 @@ export default function StockCreateForm() {
                 uom_id: formData.uom_id,
                 images_url: uploadedImageUrl ? [uploadedImageUrl] : [],
                 price: formData.sale_price,
+                stock: 0,
             };
 
             const response = await fetch('/api/inventory', {
@@ -183,6 +256,33 @@ export default function StockCreateForm() {
             }
 
             const data = await response.json();
+            const newItemId = data.data?.id;
+
+            if (quantity > 0 && newItemId) {
+                const stockResponse = await fetch(
+                    `/api/inventory/${newItemId}/adjust`,
+                    {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            received_quantity: quantity,
+                            adjustment_reason: 'Initial stock',
+                            location_id: locationId,
+                            movement_type: 'in',
+                        }),
+                    },
+                );
+
+                if (!stockResponse.ok) {
+                    const stockError = await stockResponse.json().catch(() => ({}));
+                    throw new Error(
+                        stockError.error ??
+                            stockError.message ??
+                            'Item was created, but initial stock could not be saved.',
+                    );
+                }
+            }
+
             router.push(
                 `/inventory/stock/${data.data.id}/view?create_success=${true}&stock=${true}`,
             );
@@ -314,6 +414,61 @@ export default function StockCreateForm() {
                                 />
                             </div>
 
+                            {/* Initial Quantity */}
+                            <div>
+                                <FieldLabel>Initial Stock Quantity</FieldLabel>
+                                <EditableInput
+                                    type="number"
+                                    min={0}
+                                    step={1}
+                                    value={initialQuantity}
+                                    onChange={(e) =>
+                                        setInitialQuantity(
+                                            e.target.value === ''
+                                                ? ''
+                                                : Number(e.target.value),
+                                        )
+                                    }
+                                    placeholder="0"
+                                />
+                            </div>
+
+                            {/* Storage Location */}
+                            <div>
+                                <FieldLabel>Storage Location *</FieldLabel>
+                                <select
+                                    value={locationId}
+                                    onChange={(e) =>
+                                        setLocationId(Number(e.target.value) || '')
+                                    }
+                                    disabled={loadingLocations || locations.length === 0}
+                                    required
+                                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    <option value="">
+                                        {loadingLocations
+                                            ? 'កំពុងទាញយកទីតាំង...'
+                                            : 'ជ្រើសរើសទីតាំង...'}
+                                    </option>
+                                    {locations.map((location) => (
+                                        <option key={location.id} value={location.id}>
+                                            {location.code ? `[${location.code}] ` : ''}
+                                            {location.name}
+                                            {location.is_default ? ' (Default)' : ''}
+                                        </option>
+                                    ))}
+                                </select>
+                                {!loadingLocations && locations.length === 0 && (
+                                    <p className="mt-2 flex items-start gap-2 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                                        <AlertCircle
+                                            size={14}
+                                            className="mt-0.5 shrink-0"
+                                        />
+                                        មិនមានទីតាំងស្តុក។ សូមបង្កើត Storage Location ជាមុនសិន
+                                    </p>
+                                )}
+                            </div>
+
                             {/* Description */}
                             <div className="lg:col-span-2">
                                 <FieldLabel>Additional Notes</FieldLabel>
@@ -426,6 +581,22 @@ export default function StockCreateForm() {
                                     ${Number(formData.sale_price).toFixed(2)}
                                 </span>
                             </div>
+                            <div className="flex items-center justify-between gap-4 rounded-2xl bg-white px-4 py-3">
+                                <span>Initial Stock</span>
+                                <span className="font-semibold text-slate-800">
+                                    {initialQuantity || 0}
+                                </span>
+                            </div>
+                            <div className="flex items-center justify-between gap-4 rounded-2xl bg-white px-4 py-3">
+                                <span className="flex items-center gap-1.5">
+                                    <MapPin size={13} />
+                                    Location
+                                </span>
+                                <span className="truncate text-right font-semibold text-slate-800">
+                                    {locations.find((location) => location.id === locationId)
+                                        ?.name ?? '-'}
+                                </span>
+                            </div>
                         </div>
 
                         <div className="mt-6 flex flex-col-reverse gap-3">
@@ -437,7 +608,11 @@ export default function StockCreateForm() {
                             </Link>
                             <button
                                 type="submit"
-                                disabled={isSaving}
+                                disabled={
+                                    isSaving ||
+                                    loadingLocations ||
+                                    locations.length === 0
+                                }
                                 className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1a9e52] px-4 py-3 font-medium text-white transition-colors hover:bg-[#158042] disabled:opacity-50"
                             >
                                 {isSaving ? (

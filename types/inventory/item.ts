@@ -1,12 +1,14 @@
+export type InventoryItemClass = 'stock' | 'non_stock' | 'service';
+
 export interface InventoryItemProps {
     id: number | null;
     name: string;
-    item_class: 'stock' | 'non_stock';
+    item_class: InventoryItemClass;
     reference_no: string;
     purchase_price: number;
     sale_price: number;
     description: string | null;
-    stock: TStockQuantity | null;
+    stock: number | TStockQuantity | null;
     stock_entry: TStockLogEntry[] | null;
     category_id: number | null;
     category: TCategory | null;
@@ -34,21 +36,18 @@ export interface TStockLogEntry {
     reference?: string;
 }
 
-export type TStockLogReason =
-    | 'Opening Warehouse Inventory Balance Setup'
-    | 'Cycle Count Correction'
-    | 'Direct Manual Vendor Arrival';
+export type TStockLogReason = string;
 
 
 export interface InventoryItemProps {
     id: number | null;
     name: string;
-    item_class: 'stock' | 'non_stock';
+    item_class: InventoryItemClass;
     reference_no: string;
     purchase_price: number;
     sale_price: number;
     description: string | null;
-    stock: TStockQuantity | null;
+    stock: number | TStockQuantity | null;
     stock_entry: TStockLogEntry[] | null;
     category_id: number | null;
     category: TCategory | null;
@@ -70,7 +69,10 @@ export type TStockLocationSummary = {
 };
 
 export type TStockBalanceRow = {
+    location_id?: number | null;
     location_name: string;
+    location_code?: string | null;
+    branch_id?: number | null;
     branch_name: string;
     quantity: number;
 };

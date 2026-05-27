@@ -5,19 +5,20 @@ import BranchPageClient from './BranchPageClient';
 
 export default async function BranchPage() {
     const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
 
     if (!user) redirect('/login');
 
     const { data, error } = await supabase
-        .from('branch')
+        .from('warehouse')
         .select(`
             *,
             user_branch!inner(user_id, role),
             stock_location(*)
         `)
         .eq('user_branch.user_id', user.id)
-        .order('is_default', { ascending: false })
         .order('name');
 
     if (error) {

@@ -1,52 +1,44 @@
 'use client';
+import { EditableInput, FieldLabel } from '@/components/ui/FieldLabel';
+import { StockLocationProps } from '@/types/branch';
 import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 
 export interface StockAdjustmentData {
     quantity: number;
-    reason: 'opening' | 'cycle_count' | 'vendor_arrival';
+    reason: string;
+    location_id: number;
 }
 
 interface StockAdjustmentModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSubmit: (data: StockAdjustmentData) => void;
+    onSubmit: (data: StockAdjustmentData) => void | Promise<void>;
     isLoading?: boolean;
+    locations?: StockLocationProps[];
 }
+
+const DEFAULT_REASON = 'Opening Warehouse Inventory Balance Setup';
 
 export default function StockAdjustmentModal({
     isOpen,
     onClose,
     onSubmit,
     isLoading = false,
+    locations = [],
 }: StockAdjustmentModalProps) {
     const [formData, setFormData] = useState<StockAdjustmentData>({
         quantity: 1,
-        reason: 'opening',
+        reason: DEFAULT_REASON,
+        location_id: 0,
     });
     const [errors, setErrors] = useState<
         Partial<Record<keyof StockAdjustmentData, string>>
     >({});
 
-    // ── Animation state ──────────────────────────────────────────────
-    const [mounted, setMounted] = useState(false); // controls DOM presence
-    const [visible, setVisible] = useState(false); // controls CSS classes
-
-    useEffect(() => {
-        if (isOpen) {
-            setMounted(true);
-            // tiny delay so the browser paints the initial (hidden) state first
-            const raf = requestAnimationFrame(() => {
-                requestAnimationFrame(() => setVisible(true));
-            });
-            return () => cancelAnimationFrame(raf);
-        } else {
-            setVisible(false);
-            // wait for the CSS transition to finish before unmounting
-            const timer = setTimeout(() => setMounted(false), 250);
-            return () => clearTimeout(timer);
-        }
-    }, [isOpen]);
+    const defaultLocation =
+        locations.find((location) => location.is_default) ?? locations[0];
+    const selectedLocationId = formData.location_id || defaultLocation?.id || 0;
 
     // ── Close on Escape ──────────────────────────────────────────────
     useEffect(() => {
@@ -62,28 +54,39 @@ export default function StockAdjustmentModal({
             newErrors.quantity = 'Quantity must be at least 1';
         if (!formData.reason)
             newErrors.reason = 'Please select an adjustment reason';
+        if (!selectedLocationId)
+            newErrors.location_id = 'Please select a storage location';
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
+    const handleSubmit = (
+        e?: React.FormEvent<HTMLFormElement> | React.MouseEvent<HTMLButtonElement>,
+    ) => {
+        e?.preventDefault();
         if (validateForm()) {
-            onSubmit(formData);
-            setFormData({ quantity: 1, reason: 'opening' });
+            onSubmit({ ...formData, location_id: selectedLocationId });
+            setFormData((prev) => ({
+                ...prev,
+                quantity: 1,
+                reason: DEFAULT_REASON,
+            }));
             setErrors({});
         }
     };
 
-    if (!mounted) return null;
+    if (!isOpen) return null;
 
     const reasonOptions = [
         {
-            value: 'opening',
+            value: DEFAULT_REASON,
             label: 'Opening Warehouse Inventory Balance Setup',
         },
-        { value: 'cycle_count', label: 'Cycle Count Correction' },
-        { value: 'vendor_arrival', label: 'Direct Manual Vendor Arrival' },
+        { value: 'Cycle Count Correction', label: 'Cycle Count Correction' },
+        {
+            value: 'Direct Manual Vendor Arrival',
+            label: 'Direct Manual Vendor Arrival',
+        },
     ];
 
     return (
@@ -91,20 +94,12 @@ export default function StockAdjustmentModal({
             {/* ── Backdrop ── */}
             <div
                 onClick={onClose}
-                className={`absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity duration-250 ease-out ${
-                    visible ? 'opacity-100' : 'opacity-0'
-                }`}
+                className="absolute inset-0 bg-black/40 backdrop-blur-sm"
             />
 
             {/* ── Modal panel ── */}
             <div
-                className={`relative bg-white rounded-xl border border-gray-200 shadow-xl max-w-md w-full overflow-hidden
-          transition-all duration-250 ease-out
-          ${
-              visible
-                  ? 'opacity-100 scale-100 translate-y-0'
-                  : 'opacity-0 scale-95 translate-y-4'
-          }`}
+                className="relative w-full max-w-md overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl"
             >
                 {/* Header */}
                 <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
@@ -129,10 +124,8 @@ export default function StockAdjustmentModal({
                 <form onSubmit={handleSubmit} className="px-6 py-6 space-y-5">
                     {/* Quantity */}
                     <div>
-                        <label className="block text-sm font-medium text-gray-900 mb-2">
-                            Received Quantity *
-                        </label>
-                        <input
+                        <FieldLabel>Received Quantity *</FieldLabel>
+                        <EditableInput
                             type="number"
                             min="1"
                             value={formData.quantity}
@@ -142,11 +135,6 @@ export default function StockAdjustmentModal({
                                     quantity: parseInt(e.target.value) || 1,
                                 }))
                             }
-                            className={`w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors ${
-                                errors.quantity
-                                    ? 'border-red-300 bg-red-50'
-                                    : 'border-gray-200 bg-white'
-                            }`}
                         />
                         {errors.quantity && (
                             <p className="text-xs text-red-600 mt-1">
@@ -155,11 +143,48 @@ export default function StockAdjustmentModal({
                         )}
                     </div>
 
+                    {/* Location */}
+                    <div>
+                        <FieldLabel>Storage Location *</FieldLabel>
+                        <select
+                            value={selectedLocationId || ''}
+                            onChange={(e) =>
+                                setFormData((prev) => ({
+                                    ...prev,
+                                    location_id: Number(e.target.value) || 0,
+                                }))
+                            }
+                            disabled={locations.length === 0}
+                            className={`w-full rounded-xl border bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-50 ${
+                                errors.location_id
+                                    ? 'border-red-300 bg-red-50'
+                                    : 'border-slate-200'
+                            }`}
+                        >
+                            <option value="">ជ្រើសរើសទីតាំង...</option>
+                            {locations.map((location) => (
+                                <option key={location.id} value={location.id}>
+                                    {location.code ? `[${location.code}] ` : ''}
+                                    {location.name}
+                                    {location.is_default ? ' (Default)' : ''}
+                                </option>
+                            ))}
+                        </select>
+                        {locations.length === 0 && (
+                            <p className="mt-2 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                                មិនមានទីតាំងស្តុក។ សូមបង្កើត Storage Location ជាមុនសិន
+                            </p>
+                        )}
+                        {errors.location_id && (
+                            <p className="text-xs text-red-600 mt-1">
+                                {errors.location_id}
+                            </p>
+                        )}
+                    </div>
+
                     {/* Reason */}
                     <div>
-                        <label className="block text-sm font-medium text-gray-900 mb-2">
-                            Adjustment Action Reason *
-                        </label>
+                        <FieldLabel>Adjustment Action Reason *</FieldLabel>
                         <select
                             value={formData.reason}
                             onChange={(e) =>
@@ -202,7 +227,7 @@ export default function StockAdjustmentModal({
                     </button>
                     <button
                         onClick={handleSubmit}
-                        disabled={isLoading}
+                        disabled={isLoading || locations.length === 0}
                         className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
                     >
                         {isLoading ? 'Processing...' : 'Post Adjustment Log'}

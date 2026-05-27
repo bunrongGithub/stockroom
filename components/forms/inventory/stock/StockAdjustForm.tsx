@@ -1,7 +1,7 @@
 'use client';
 
 import { EditableInput, FieldLabel } from '@/components/ui/FieldLabel';
-import { BranchProps } from '@/types/branch';
+import { StockLocationProps } from '@/types/branch';
 import { Loader2, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -18,6 +18,11 @@ const ADJUSTMENT_REASONS = [
 ] as const;
 
 type AdjustmentReason = (typeof ADJUSTMENT_REASONS)[number] | '';
+type MovementType = 'in' | 'out' | 'adjustment';
+type LocationBalance = {
+    item_id: number;
+    quantity: number | string;
+};
 
 interface Props {
     itemId: number;
@@ -27,8 +32,9 @@ interface Props {
 
 export default function StockAdjustForm({ itemId, onClose, onSuccess }: Props) {
     const router = useRouter();
-    const [branches, setBranches] = useState<BranchProps[]>([]);
+    const [locations, setLocations] = useState<StockLocationProps[]>([]);
     const [locationId, setLocationId] = useState<number | ''>('');
+    const [movementType, setMovementType] = useState<MovementType>('in');
     const [quantity, setQuantity] = useState<number | ''>('');
     const [reason, setReason] = useState<AdjustmentReason>(
         'Opening Warehouse Inventory Balance Setup',
@@ -38,25 +44,36 @@ export default function StockAdjustForm({ itemId, onClose, onSuccess }: Props) {
     const [error, setError] = useState('');
 
     useEffect(() => {
+        let cancelled = false;
+
         (async () => {
             try {
-                const res = await fetch('/api/branch');
+                const res = await fetch('/api/stock-location');
                 const json = await res.json();
-                if (!res.ok) throw new Error(json.error ?? 'Failed to load branches');
-                const data: BranchProps[] = json.data ?? [];
-                setBranches(data);
+                if (!res.ok) throw new Error(json.error ?? 'Failed to load locations');
+                const data: StockLocationProps[] = json.data ?? [];
+                if (cancelled) return;
 
-                const defBranch = data.find((b) => b.is_default) ?? data[0];
-                const defLoc =
-                    defBranch?.stock_location?.find((l) => l.is_default) ??
-                    defBranch?.stock_location?.[0];
-                if (defLoc) setLocationId(defLoc.id);
-            } catch (err: any) {
-                setError(err.message);
+                setLocations(data);
+                const defaultLocation =
+                    data.find((location) => location.is_default) ?? data[0];
+                if (defaultLocation) setLocationId(defaultLocation.id);
+            } catch (err) {
+                if (!cancelled) {
+                    setError(
+                        err instanceof Error
+                            ? err.message
+                            : 'Failed to load locations',
+                    );
+                }
             } finally {
-                setLoading(false);
+                if (!cancelled) setLoading(false);
             }
         })();
+
+        return () => {
+            cancelled = true;
+        };
     }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -71,13 +88,41 @@ export default function StockAdjustForm({ itemId, onClose, onSuccess }: Props) {
 
         setSubmitting(true);
         try {
+            const qty = Number(quantity);
+
+            if (movementType === 'out') {
+                const balanceRes = await fetch(
+                    `/api/stock-balance?location_id=${locationId}`,
+                );
+                const balanceJson = await balanceRes.json();
+                if (!balanceRes.ok) {
+                    throw new Error(balanceJson.error ?? 'Failed to check stock balance');
+                }
+
+                const balances: LocationBalance[] = Array.isArray(balanceJson)
+                    ? balanceJson
+                    : [];
+                const balance = balances.find(
+                    (row) => Number(row.item_id) === itemId,
+                );
+
+                if (!balance || Number(balance.quantity) < qty) {
+                    setError(
+                        `ស្តុកមិនគ្រប់គ្រាន់ក្នុងទីតាំងនេះ។ មាន: ${balance?.quantity ?? 0}`,
+                    );
+                    setSubmitting(false);
+                    return;
+                }
+            }
+
             const res = await fetch(`/api/inventory/${itemId}/adjust`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    received_quantity: Number(quantity),
+                    received_quantity: qty,
                     adjustment_reason: reason,
                     location_id: Number(locationId),
+                    movement_type: movementType,
                 }),
             });
             const json = await res.json();
@@ -86,8 +131,12 @@ export default function StockAdjustForm({ itemId, onClose, onSuccess }: Props) {
             router.refresh();
             onSuccess?.();
             onClose();
-        } catch (err: any) {
-            setError(err.message ?? 'មាន​បញ្ហា​ក្នុង​ការ​រក្សា​ទុក។');
+        } catch (err) {
+            setError(
+                err instanceof Error
+                    ? err.message
+                    : 'មាន​បញ្ហា​ក្នុង​ការ​រក្សា​ទុក។',
+            );
         } finally {
             setSubmitting(false);
         }
@@ -118,32 +167,56 @@ export default function StockAdjustForm({ itemId, onClose, onSuccess }: Props) {
                 <form onSubmit={handleSubmit}>
                     <div className="space-y-5 px-6 py-6">
                         <div>
+                            <FieldLabel>Movement Type *</FieldLabel>
+                            <select
+                                value={movementType}
+                                onChange={(e) =>
+                                    setMovementType(e.target.value as MovementType)
+                                }
+                                required
+                                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                            >
+                                <option value="in">Stock In</option>
+                                <option value="out">Stock Out</option>
+                                <option value="adjustment">Set Exact Quantity</option>
+                            </select>
+                        </div>
+
+                        <div>
                             <FieldLabel>Storage Location *</FieldLabel>
                             <select
                                 value={locationId}
-                                onChange={(e) => setLocationId(Number(e.target.value))}
+                                onChange={(e) =>
+                                    setLocationId(Number(e.target.value) || '')
+                                }
                                 required
-                                disabled={loading}
+                                disabled={loading || locations.length === 0}
                                 className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50"
                             >
                                 <option value="" disabled>
                                     {loading ? '— Loading… —' : '— Select location —'}
                                 </option>
-                                {branches.map((b) => (
-                                    <optgroup key={b.id} label={b.name}>
-                                        {(b.stock_location ?? []).map((loc) => (
-                                            <option key={loc.id} value={loc.id}>
-                                                {loc.name}
-                                                {loc.is_default ? ' (default)' : ''}
-                                            </option>
-                                        ))}
-                                    </optgroup>
+                                {locations.map((location) => (
+                                    <option key={location.id} value={location.id}>
+                                        {location.code ? `[${location.code}] ` : ''}
+                                        {location.name}
+                                        {location.is_default ? ' (default)' : ''}
+                                    </option>
                                 ))}
                             </select>
+                            {!loading && locations.length === 0 && (
+                                <p className="mt-2 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                                    មិនមានទីតាំងស្តុក។ សូមបង្កើត Storage Location ជាមុនសិន
+                                </p>
+                            )}
                         </div>
 
                         <div>
-                            <FieldLabel>Received Quantity *</FieldLabel>
+                            <FieldLabel>
+                                {movementType === 'adjustment'
+                                    ? 'Exact Quantity *'
+                                    : 'Quantity *'}
+                            </FieldLabel>
                             <EditableInput
                                 type="number"
                                 min={1}
@@ -188,7 +261,7 @@ export default function StockAdjustForm({ itemId, onClose, onSuccess }: Props) {
                         </button>
                         <button
                             type="submit"
-                            disabled={submitting || loading}
+                            disabled={submitting || loading || locations.length === 0}
                             className="flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
                         >
                             {submitting && <Loader2 size={15} className="animate-spin" />}

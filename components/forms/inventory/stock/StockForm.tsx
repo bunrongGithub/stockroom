@@ -1,61 +1,94 @@
 'use client';
 import { usePageActions } from '@/hook/usePageAction';
+import { BranchProps } from '@/types/branch';
 import { InventoryItemProps } from '@/types/inventory/item';
 import { resolveHref } from '@/utils/utils';
-import { Package, Search } from 'lucide-react';
+import { MapPin, Package, Search } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
-export default function StockForm({
-    inv_items,
-}: {
+interface Props {
     inv_items: Array<InventoryItemProps>;
-}) {
+    branches?: BranchProps[];
+}
+
+function LocationCell({ item }: { item: InventoryItemProps }) {
+    if (item.item_class !== 'stock') {
+        return <span className="text-xs text-slate-300">—</span>;
+    }
+
+    if (!item.stock_location) {
+        return (
+            <span className="text-xs italic text-slate-400">No location set</span>
+        );
+    }
+
+    return (
+        <div className="flex min-w-40 items-center gap-2">
+            <MapPin size={13} className="shrink-0 text-slate-400" />
+            <div className="min-w-0">
+                <p className="truncate text-xs font-semibold text-slate-700">
+                    {item.stock_location.location_name ?? '—'}
+                </p>
+                {item.stock_location.branch_name && (
+                    <p className="truncate text-[10px] text-slate-400">
+                        {item.stock_location.branch_name}
+                    </p>
+                )}
+            </div>
+        </div>
+    );
+}
+
+export default function StockForm({ inv_items, branches = [] }: Props) {
     const [searchQuery, setSearchQuery] = useState('');
+    const [filterBranchId, setFilterBranchId] = useState<number | 'all'>('all');
+    const [filterLocationId, setFilterLocationId] = useState<number | 'all'>('all');
     const pageAction = usePageActions();
     const [deletingId, setDeletingId] = useState<number | null>(null);
-    const [isDeleting, setIsDeleting] = useState(false);
-
-    const [toast, setToast] = useState<{
-        msg: string;
-        type: 'success' | 'error';
-    } | null>(null);
 
     const staticActions = pageAction?.actions.filter((a) => !a.dynamic) ?? [];
     const dynamicActions = pageAction?.actions.filter((a) => a.dynamic) ?? [];
+    const allLocations = useMemo(
+        () =>
+            branches.flatMap((branch) =>
+                (branch.stock_location ?? []).map((location) => ({
+                    ...location,
+                    branch_name: branch.name,
+                })),
+            ),
+        [branches],
+    );
+    const branchLocations = useMemo(
+        () =>
+            filterBranchId === 'all'
+                ? allLocations
+                : allLocations.filter(
+                      (location) => location.branch_id === filterBranchId,
+                  ),
+        [allLocations, filterBranchId],
+    );
+    const filteredItems = useMemo(() => {
+        const q = searchQuery.trim().toLowerCase();
 
-    const onConfirm = async () => {
-        if (!deletingId) return;
+        return inv_items.filter((item) => {
+            const matchesSearch =
+                !q ||
+                item.name.toLowerCase().includes(q) ||
+                (item.reference_no ?? '').toLowerCase().includes(q) ||
+                (item.category?.name ?? '').toLowerCase().includes(q);
+            const matchesLocation =
+                filterLocationId === 'all' ||
+                item.stock_location?.location_id === filterLocationId ||
+                item.stock_balances?.some(
+                    (balance) => balance.location_id === filterLocationId,
+                );
 
-        try {
-            setIsDeleting(true);
+            return matchesSearch && matchesLocation;
+        });
+    }, [filterLocationId, inv_items, searchQuery]);
 
-            const res = await fetch(`/api/category/${deletingId}`, {
-                method: 'DELETE',
-            });
-
-            if (!res.ok) {
-                throw new Error('Delete failed');
-            }
-
-            setToast({
-                msg: 'Delete successful',
-                type: 'success',
-            });
-
-            // Optional refresh
-            window.location.reload();
-        } catch (error) {
-            setToast({
-                msg: 'Delete failed',
-                type: 'error',
-            });
-        } finally {
-            setIsDeleting(false);
-            setDeletingId(null);
-        }
-    };
     return (
         <div className="max-w-full mx-auto space-y-8 animate-in fade-in duration-500 p-4 md:p-8">
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
@@ -89,8 +122,8 @@ export default function StockForm({
             {/* Main Content */}
             <div className="mx-auto">
                 {/* Search Bar */}
-                <div className="mb-8">
-                    <div className="relative max-w-md">
+                <div className="mb-8 flex flex-wrap items-center gap-3">
+                    <div className="relative min-w-60 max-w-md flex-1">
                         <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                             <Search size={18} className="text-gray-400" />
                         </div>
@@ -102,6 +135,51 @@ export default function StockForm({
                             onChange={(e) => setSearchQuery(e.target.value)}
                         />
                     </div>
+                    {branches.length > 1 && (
+                        <select
+                            value={filterBranchId}
+                            onChange={(e) => {
+                                setFilterBranchId(
+                                    e.target.value === 'all'
+                                        ? 'all'
+                                        : Number(e.target.value),
+                                );
+                                setFilterLocationId('all');
+                            }}
+                            className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                        >
+                            <option value="all">All Branches</option>
+                            {branches.map((branch) => (
+                                <option key={branch.id} value={branch.id}>
+                                    {branch.name}
+                                </option>
+                            ))}
+                        </select>
+                    )}
+                    {branchLocations.length > 0 && (
+                        <select
+                            value={filterLocationId}
+                            onChange={(e) =>
+                                setFilterLocationId(
+                                    e.target.value === 'all'
+                                        ? 'all'
+                                        : Number(e.target.value),
+                                )
+                            }
+                            className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                        >
+                            <option value="all">All Locations</option>
+                            {branchLocations.map((location) => (
+                                <option key={location.id} value={location.id}>
+                                    {location.code ? `[${location.code}] ` : ''}
+                                    {location.name}
+                                    {branches.length > 1
+                                        ? ` - ${location.branch_name}`
+                                        : ''}
+                                </option>
+                            ))}
+                        </select>
+                    )}
                 </div>
 
                 <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden relative">
@@ -122,6 +200,9 @@ export default function StockForm({
                                         UOM
                                     </th>
                                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                        Stock Location
+                                    </th>
+                                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                                         Sale Price
                                     </th>
                                     <th className="px-6 py-4 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
@@ -130,7 +211,7 @@ export default function StockForm({
                                 </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-slate-100">
-                                {inv_items.map((item) => (
+                                {filteredItems.map((item) => (
                                     <tr
                                         key={item.id}
                                         className="hover:bg-gray-50/80 transition-colors"
@@ -184,6 +265,9 @@ export default function StockForm({
                                             <span className="text-xs font-medium text-gray-700">
                                                 {item.uom?.name ?? ''}
                                             </span>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <LocationCell item={item} />
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <span className="text-sm font-semibold text-gray-900">

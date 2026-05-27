@@ -6,11 +6,12 @@ import {
     FieldLabel,
 } from '@/components/ui/FieldLabel';
 import { ReadonlyInput } from '@/components/ui/Readonly';
+import StockTransferModal from '@/components/forms/inventory/configurations/StockTransferModal';
 import { DateTimeFormat } from '@/lib/utils/dateformat';
+import { StockLocationProps } from '@/types/branch';
 import {
     InventoryItemProps,
     TStockLogEntry,
-    TStockQuantity,
 } from '@/types/inventory/item';
 import {
     AlertCircle,
@@ -22,14 +23,31 @@ import {
     FileText,
     Hash,
     Loader2,
+    MapPin,
     Plus,
     RefreshCw,
     Warehouse,
 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import StockAdjustmentModal, { StockAdjustmentData } from './StockAdjustmentModal';
 
 type TabId = 'details' | 'history' | 'variant';
+
+export interface StockBalanceWithLocation {
+    id: number;
+    quantity: number;
+    location_id: number;
+    updated_at: string;
+    stock_location: {
+        id: number;
+        name: string;
+        code: string | null;
+        is_default: boolean;
+        branch_id: number;
+        warehouse: { id: number; name: string } | null;
+    } | null;
+}
 
 // ─── Reason meta ──────────────────────────────────────────────────────────────
 
@@ -91,23 +109,122 @@ function SectionHeading({
     );
 }
 
+function getStockOnHand(stock: InventoryItemProps['stock']) {
+    if (typeof stock === 'number') return stock;
+    return stock?.stock_onhand ?? 0;
+}
+
+function getReservedStock(stock: InventoryItemProps['stock']) {
+    if (typeof stock === 'number') return 0;
+    return stock?.stock_reserved ?? 0;
+}
+
+function StockByLocationSection({
+    itemId,
+    stockBalances,
+    onOpenTransfer,
+}: {
+    itemId: number;
+    stockBalances: StockBalanceWithLocation[];
+    onOpenTransfer: (fromLocationId: number, itemId: number) => void;
+}) {
+    const total = stockBalances.reduce(
+        (sum, balance) => sum + Number(balance.quantity ?? 0),
+        0,
+    );
+
+    return (
+        <div className="mt-5 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+            <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
+                <MapPin size={15} className="text-blue-500" />
+                Stock by Location
+            </h3>
+
+            {stockBalances.length === 0 ? (
+                <p className="text-xs text-slate-400">
+                    មិនមានស្តុកក្នុងទីតាំងណាមួយទេ
+                </p>
+            ) : (
+                <div className="space-y-2">
+                    {stockBalances.map((balance) => (
+                        <div
+                            key={balance.id}
+                            className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5"
+                        >
+                            <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    {balance.stock_location?.code && (
+                                        <span className="rounded bg-blue-100 px-1.5 py-0.5 font-mono text-[10px] font-bold text-blue-700">
+                                            {balance.stock_location.code}
+                                        </span>
+                                    )}
+                                    <span className="text-sm font-medium text-slate-700">
+                                        {balance.stock_location?.name ?? 'Unknown'}
+                                    </span>
+                                    {balance.stock_location?.is_default && (
+                                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-600">
+                                            Default
+                                        </span>
+                                    )}
+                                </div>
+                                <p className="mt-0.5 text-[11px] text-slate-400">
+                                    {balance.stock_location?.warehouse?.name ?? '—'}
+                                </p>
+                            </div>
+                            <div className="ml-3 flex shrink-0 items-center gap-3">
+                                <span className="font-mono text-base font-bold text-slate-800">
+                                    {balance.quantity}
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        onOpenTransfer(balance.location_id, itemId)
+                                    }
+                                    className="rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-600 hover:bg-blue-100"
+                                >
+                                    Transfer -&gt;
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+
+                    <div className="mt-2 flex items-center justify-between border-t border-slate-200 pt-2">
+                        <span className="text-xs font-semibold text-slate-500">
+                            Total
+                        </span>
+                        <span className="font-mono text-base font-bold text-slate-800">
+                            {total}
+                        </span>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
 // ─── Stock Banner ─────────────────────────────────────────────────────────────
 
 function StockBanner({
     stock,
+    itemId,
+    stockBalances,
     onOpenStockModal,
+    onOpenTransfer,
 }: {
-    stock: TStockQuantity;
+    stock: InventoryItemProps['stock'];
+    itemId: number;
+    stockBalances: StockBalanceWithLocation[];
     onOpenStockModal: () => void; // required — not optional
+    onOpenTransfer: (fromLocationId: number, itemId: number) => void;
 }) {
     const available = Math.max(
         0,
-        (stock?.stock_onhand ?? 0) - (stock?.stock_reserved ?? 0),
+        getStockOnHand(stock) - getReservedStock(stock),
     );
 
     const counts = [
-        { label: 'Physical on hand',  value: stock?.stock_onhand   ?? 0 },
-        { label: 'Reserved (sold)',   value: stock?.stock_reserved ?? 0 },
+        { label: 'Physical on hand', value: getStockOnHand(stock) },
+        { label: 'Reserved (sold)', value: getReservedStock(stock) },
         { label: 'Available to sell', value: available },
     ];
 
@@ -148,6 +265,12 @@ function StockBanner({
                             </div>
                         ))}
                     </div>
+
+                    <StockByLocationSection
+                        itemId={itemId}
+                        stockBalances={stockBalances}
+                        onOpenTransfer={onOpenTransfer}
+                    />
                 </div>
             </div>
         </div>
@@ -309,8 +432,6 @@ function HistoryTab({
     // ── Fetch logs ──────────────────────────────────────────────────
     useEffect(() => {
         let cancelled = false;
-        setLoading(true);
-        setError(null);
 
         fetch(`/api/inventory/${itemId}`, { method: 'GET' })
             .then((r) => {
@@ -318,7 +439,10 @@ function HistoryTab({
                 return r.json();
             })
             .then((json) => {
-                if (!cancelled) setLogs(json.data?.stock_entry ?? []);
+                if (!cancelled) {
+                    setLogs(json.data?.stock_entry ?? []);
+                    setError(null);
+                }
             })
             .catch((err) => {
                 if (!cancelled) setError(err.message ?? 'Failed to load history.');
@@ -373,7 +497,13 @@ function HistoryTab({
     }
 
     // ── Ledger table ────────────────────────────────────────────────
-    let running = 0;
+    const rowsWithRunning = logs.reduce<
+        { entry: TStockLogEntry; idx: number; running: number }[]
+    >((acc, entry, idx) => {
+        const previous = acc[idx - 1]?.running ?? 0;
+        return [...acc, { entry, idx, running: previous + entry.quantity }];
+    }, []);
+    const cumulative = rowsWithRunning.at(-1)?.running ?? 0;
 
     return (
         <div className="p-4 space-y-6">
@@ -389,8 +519,7 @@ function HistoryTab({
 
                 {/* Rows */}
                 <div className="divide-y divide-slate-100">
-                    {logs.map((entry, idx) => {
-                        running += entry.quantity;
+                    {rowsWithRunning.map(({ entry, idx, running }) => {
                         const meta = getReasonMeta(entry.reason);
 
                         return (
@@ -444,7 +573,7 @@ function HistoryTab({
                         {logs.length} {logs.length === 1 ? 'entry' : 'entries'} total
                     </p>
                     <p className="text-[10px] font-semibold text-slate-600">
-                        Cumulative: <span className="text-blue-700">{running} units</span>
+                        Cumulative: <span className="text-blue-700">{cumulative} units</span>
                     </p>
                 </div>
             </div>
@@ -456,20 +585,64 @@ function HistoryTab({
 
 export default function ProductDashboard({
     item,
+    stockBalances = [],
     autoOpenStockModal = false,
 }: {
     item: InventoryItemProps;
+    stockBalances?: StockBalanceWithLocation[];
     autoOpenStockModal?: boolean;
 }) {
+    const router = useRouter();
     const [activeTab, setActiveTab]         = useState<TabId>('details');
     const [isStockModalOpen, setIsStockModalOpen] = useState(autoOpenStockModal);
     const [isSubmitting, setIsSubmitting]   = useState(false);
     // Increment to trigger HistoryTab re-fetch after a successful submission
     const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
+    const [locations, setLocations] = useState<StockLocationProps[]>([]);
+    const [showTransfer, setShowTransfer] = useState(false);
+    const [transferFromId, setTransferFromId] = useState<number | null>(null);
+    const [transferItemId, setTransferItemId] = useState<number | null>(null);
 
     const isStock = item.item_class === 'stock';
     const stock   = item.stock;
     const log     = item.stock_entry ?? [];
+
+    useEffect(() => {
+        let cancelled = false;
+
+        fetch('/api/stock-location')
+            .then((res) => res.json().then((json) => ({ ok: res.ok, json })))
+            .then(({ ok, json }) => {
+                if (!cancelled && ok) {
+                    setLocations(json.data ?? []);
+                }
+            })
+            .catch(() => {
+                if (!cancelled) setLocations([]);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    const openTransferModal = useCallback(
+        (fromLocationId: number, itemId: number) => {
+            setTransferFromId(fromLocationId);
+            setTransferItemId(itemId);
+            setShowTransfer(true);
+        },
+        [],
+    );
+
+    const transferBranchId =
+        stockBalances.find((balance) => balance.location_id === transferFromId)
+            ?.stock_location?.branch_id ??
+        stockBalances[0]?.stock_location?.branch_id ??
+        0;
+    const transferLocations = transferBranchId
+        ? locations.filter((location) => location.branch_id === transferBranchId)
+        : locations;
 
     // ── Submit handler ────────────────────────────────────────────────
     const handleStockSubmit = useCallback(async (data: StockAdjustmentData) => {
@@ -481,6 +654,8 @@ export default function ProductDashboard({
                 body: JSON.stringify({
                     received_quantity: data.quantity,
                     adjustment_reason: data.reason,
+                    location_id: data.location_id,
+                    movement_type: 'in',
                 }),
             });
 
@@ -491,6 +666,7 @@ export default function ProductDashboard({
 
             setIsStockModalOpen(false);
             setHistoryRefreshKey((k) => k + 1); // triggers HistoryTab re-fetch
+            router.refresh();
             // Switch to history tab so user sees the new entry immediately
             setActiveTab('history');
         } catch (err) {
@@ -499,7 +675,7 @@ export default function ProductDashboard({
         } finally {
             setIsSubmitting(false);
         }
-    }, [item.id]);
+    }, [item.id, router]);
 
     const tabs: { id: TabId; label: string; icon: React.ReactNode; badge?: number }[] = [
         { id: 'details', label: 'Item Details', icon: <FileText size={14} /> },
@@ -526,8 +702,11 @@ export default function ProductDashboard({
                 {/* ── Inventory Status Banner ── */}
                 {isStock ? (
                     <StockBanner
-                        stock={stock as TStockQuantity}
+                        stock={stock}
+                        itemId={item.id ?? 0}
+                        stockBalances={stockBalances}
                         onOpenStockModal={() => setIsStockModalOpen(true)} // ✅ wired up
+                        onOpenTransfer={openTransferModal}
                     />
                 ) : (
                     <NonStockBanner />
@@ -539,7 +718,22 @@ export default function ProductDashboard({
                     onClose={() => setIsStockModalOpen(false)}
                     onSubmit={handleStockSubmit}
                     isLoading={isSubmitting}
+                    locations={locations}
                 />
+
+                {showTransfer && (
+                    <StockTransferModal
+                        branchId={transferBranchId}
+                        locations={transferLocations}
+                        preselectedFromId={transferFromId}
+                        preselectedItemId={transferItemId}
+                        onClose={() => setShowTransfer(false)}
+                        onSuccess={() => {
+                            setShowTransfer(false);
+                            router.refresh();
+                        }}
+                    />
+                )}
 
                 {/* ── Main card with tabs ── */}
                 <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">

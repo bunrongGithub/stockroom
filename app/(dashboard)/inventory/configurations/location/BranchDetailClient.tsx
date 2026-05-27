@@ -75,7 +75,7 @@ function getCapacityLevel(count: number) {
     return { label: 'Full', color: 'text-emerald-500' };
 }
 
-/* ─────────────────── Shelf Bin ─────────────────── */
+/* ─────────────────── Shelf Bin (small box on rack) ─────────────────── */
 
 function ShelfBin({
     item,
@@ -88,7 +88,7 @@ function ShelfBin({
 }) {
     if (!item) {
         return (
-            <div className="flex h-14 w-full items-center justify-center rounded-lg border-2 border-dashed border-slate-100 bg-slate-50/50" />
+            <div className="flex h-14 w-full items-center justify-center rounded-lg border-2 border-dashed border-slate-100 bg-slate-50/50 transition-colors" />
         );
     }
 
@@ -152,6 +152,7 @@ function ShelfRack({
                     ? 'border-blue-400 bg-blue-50/50 shadow-lg shadow-blue-100 scale-[1.02]'
                     : `${colorSet.border} bg-white shadow-sm hover:shadow-md`
             } ${!location.is_active ? 'opacity-50' : ''}`}
+            style={{ animationDelay: `${index * 60}ms` }}
             onDragOver={(e) => {
                 e.preventDefault();
                 setIsDragOver(true);
@@ -163,8 +164,10 @@ function ShelfRack({
                 onDrop(e, location.id);
             }}
         >
-            {/* Rack Header */}
-            <div className={`flex items-center justify-between rounded-t-xl ${colorSet.accent} px-4 py-2.5`}>
+            {/* Rack Header — like a physical shelf label */}
+            <div
+                className={`flex items-center justify-between rounded-t-xl ${colorSet.accent} px-4 py-2.5`}
+            >
                 <div className="flex items-center gap-2">
                     <Warehouse size={14} className="text-white/80" />
                     <span className="font-mono text-xs font-bold tracking-wider text-white">
@@ -178,25 +181,39 @@ function ShelfRack({
                     )}
                 </div>
                 <div className="flex items-center gap-1">
-                    <button onClick={onEdit} className="rounded p-1 text-white/60 hover:bg-white/20 hover:text-white">
+                    <button
+                        onClick={onEdit}
+                        className="rounded p-1 text-white/60 transition-colors hover:bg-white/20 hover:text-white"
+                    >
                         <Edit2 size={12} />
                     </button>
-                    <button onClick={onDelete} className="rounded p-1 text-white/60 hover:bg-white/20 hover:text-white">
+                    <button
+                        onClick={onDelete}
+                        className="rounded p-1 text-white/60 transition-colors hover:bg-white/20 hover:text-white"
+                    >
                         <Trash2 size={12} />
                     </button>
                 </div>
             </div>
 
-            {/* Shelf Contents */}
+            {/* Shelf Contents — Grid of bins */}
             <div className="px-3 py-3">
                 <div className="mb-2 flex items-center justify-between">
-                    <h3 className="truncate text-sm font-semibold text-slate-800">{location.name}</h3>
+                    <h3 className="truncate text-sm font-semibold text-slate-800">
+                        {location.name}
+                    </h3>
                     <span className={`text-[10px] font-bold ${level.color}`}>{level.label}</span>
                 </div>
 
+                {/* Bin grid — represents physical compartments */}
                 <div className="grid grid-cols-2 gap-1.5">
                     {displayItems.map((item) => (
-                        <ShelfBin key={item.id} item={item} onDragStart={onDragStart} locationId={location.id} />
+                        <ShelfBin
+                            key={item.id}
+                            item={item}
+                            onDragStart={onDragStart}
+                            locationId={location.id}
+                        />
                     ))}
                     {Array.from({ length: emptySlots }).map((_, i) => (
                         <ShelfBin key={`empty-${i}`} locationId={location.id} />
@@ -204,7 +221,9 @@ function ShelfRack({
                 </div>
 
                 {items.length > 6 && (
-                    <p className="mt-1.5 text-center text-[10px] text-slate-400">+{items.length - 6} more items</p>
+                    <p className="mt-1.5 text-center text-[10px] text-slate-400">
+                        +{items.length - 6} more items
+                    </p>
                 )}
             </div>
 
@@ -212,13 +231,22 @@ function ShelfRack({
             <div className="flex items-center justify-between border-t border-slate-100 px-3 py-2">
                 <div className="flex items-center gap-2 text-[11px] text-slate-500">
                     <Package size={12} />
-                    <span className="font-semibold">{totalItems}</span> units · <span>{items.length}</span> SKUs
+                    <span className="font-semibold">{totalItems}</span> units ·{' '}
+                    <span>{items.length}</span> SKUs
                 </div>
                 <div className="flex items-center gap-1">
-                    <button onClick={onViewItems} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-50 hover:text-blue-600" title="View all items">
+                    <button
+                        onClick={onViewItems}
+                        className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-50 hover:text-blue-600"
+                        title="View all items"
+                    >
                         <Eye size={13} />
                     </button>
-                    <button onClick={onTransfer} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-50 hover:text-blue-600" title="Transfer stock">
+                    <button
+                        onClick={onTransfer}
+                        className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-50 hover:text-blue-600"
+                        title="Transfer stock"
+                    >
                         <ArrowRightLeft size={13} />
                     </button>
                 </div>
@@ -242,17 +270,23 @@ function FloorPlanView({
 
     return (
         <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-6">
+            {/* Floor plan header */}
             <div className="mb-4 flex items-center gap-2 text-sm text-slate-500">
                 <MapPin size={14} />
                 <span className="font-medium">Floor Plan View</span>
                 <span className="text-xs text-slate-400">— Click a zone to view details</span>
             </div>
 
-            <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
+            {/* Grid map */}
+            <div
+                className="grid gap-3"
+                style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}
+            >
                 {locations.map((loc, i) => {
                     const items = balancesByLocation.get(loc.id) ?? [];
                     const totalQty = items.reduce((s, b) => s + b.quantity, 0);
                     const colorSet = RACK_COLORS[i % RACK_COLORS.length];
+                    const fillPercent = Math.min(totalQty / 50, 1); // normalized to 50 max for visual
 
                     return (
                         <button
@@ -263,26 +297,52 @@ function FloorPlanView({
                             }`}
                             style={{ minHeight: 100 }}
                         >
-                            <span className={`font-mono text-xs font-bold ${colorSet.text}`}>
-                                {loc.code || '—'}
-                            </span>
-                            <p className="mt-1 text-[11px] font-semibold text-slate-700">{loc.name}</p>
-                            <div className="mt-2 flex items-center justify-center gap-1">
-                                <Box size={10} className="text-slate-400" />
-                                <span className="text-xs font-bold text-slate-600">{totalQty}</span>
+                            {/* Fill indicator */}
+                            <div
+                                className={`absolute inset-0 rounded-xl ${colorSet.light} transition-all`}
+                                style={{
+                                    clipPath: `inset(${100 - fillPercent * 100}% 0 0 0)`,
+                                    opacity: 0.5,
+                                }}
+                            />
+
+                            <div className="relative z-10">
+                                <span className={`font-mono text-xs font-bold ${colorSet.text}`}>
+                                    {loc.code || '—'}
+                                </span>
+                                <p className="mt-1 text-[11px] font-semibold text-slate-700">
+                                    {loc.name}
+                                </p>
+                                <div className="mt-2 flex items-center justify-center gap-1">
+                                    <Box size={10} className="text-slate-400" />
+                                    <span className="text-xs font-bold text-slate-600">
+                                        {totalQty}
+                                    </span>
+                                </div>
+                                {loc.is_default && (
+                                    <Star
+                                        size={10}
+                                        fill="currentColor"
+                                        className="absolute -right-1 -top-1 text-amber-500"
+                                    />
+                                )}
                             </div>
-                            {loc.is_default && (
-                                <Star size={10} fill="currentColor" className="absolute right-2 top-2 text-amber-500" />
-                            )}
                         </button>
                     );
                 })}
             </div>
 
+            {/* Legend */}
             <div className="mt-4 flex flex-wrap items-center gap-4 text-[10px] text-slate-400">
-                <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded bg-emerald-200" /> High Stock</span>
-                <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded bg-amber-200" /> Medium</span>
-                <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded bg-slate-200" /> Empty</span>
+                <span className="flex items-center gap-1">
+                    <span className="h-2.5 w-2.5 rounded bg-emerald-200" /> High Stock
+                </span>
+                <span className="flex items-center gap-1">
+                    <span className="h-2.5 w-2.5 rounded bg-amber-200" /> Medium
+                </span>
+                <span className="flex items-center gap-1">
+                    <span className="h-2.5 w-2.5 rounded bg-slate-200" /> Empty
+                </span>
             </div>
         </div>
     );
@@ -316,6 +376,7 @@ function LocationDrawer({
             onClick={(e) => e.target === e.currentTarget && onClose()}
         >
             <div className="h-full w-full max-w-md animate-in slide-in-from-right duration-300 overflow-y-auto bg-white shadow-2xl">
+                {/* Header */}
                 <div className="sticky top-0 z-10 border-b border-slate-100 bg-white px-5 py-4">
                     <div className="flex items-center justify-between">
                         <div>
@@ -323,19 +384,28 @@ function LocationDrawer({
                                 <span className="rounded bg-blue-100 px-2 py-0.5 font-mono text-xs font-bold text-blue-700">
                                     {location.code}
                                 </span>
-                                <h2 className="text-base font-semibold text-slate-800">{location.name}</h2>
+                                <h2 className="text-base font-semibold text-slate-800">
+                                    {location.name}
+                                </h2>
                             </div>
                             <p className="mt-1 text-xs text-slate-400">
                                 {items.length} SKUs · {totalQty} total units
                             </p>
                         </div>
-                        <button onClick={onClose} className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100">
+                        <button
+                            onClick={onClose}
+                            className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100"
+                        >
                             ✕
                         </button>
                     </div>
 
+                    {/* Search */}
                     <div className="relative mt-3">
-                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <Search
+                            size={14}
+                            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                        />
                         <input
                             type="text"
                             placeholder="Search items..."
@@ -346,6 +416,7 @@ function LocationDrawer({
                     </div>
                 </div>
 
+                {/* Item list */}
                 <div className="divide-y divide-slate-50 px-5">
                     {filtered.length === 0 ? (
                         <div className="py-12 text-center">
@@ -354,16 +425,25 @@ function LocationDrawer({
                         </div>
                     ) : (
                         filtered.map((item) => (
-                            <div key={item.id} className="flex items-center gap-3 py-3">
+                            <div
+                                key={item.id}
+                                className="flex items-center gap-3 py-3"
+                            >
                                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-100">
                                     <Package size={16} className="text-slate-400" />
                                 </div>
                                 <div className="min-w-0 flex-1">
-                                    <p className="truncate text-sm font-medium text-slate-800">{item.inventory_item.name}</p>
-                                    <p className="text-xs text-slate-400">{item.inventory_item.sku ?? item.inventory_item.reference_no}</p>
+                                    <p className="truncate text-sm font-medium text-slate-800">
+                                        {item.inventory_item.name}
+                                    </p>
+                                    <p className="text-xs text-slate-400">
+                                        {item.inventory_item.sku ?? item.inventory_item.reference_no}
+                                    </p>
                                 </div>
                                 <div className="text-right">
-                                    <p className="font-mono text-sm font-bold text-slate-700">{item.quantity}</p>
+                                    <p className="font-mono text-sm font-bold text-slate-700">
+                                        {item.quantity}
+                                    </p>
                                     <button
                                         onClick={() => onTransfer(item.item_id)}
                                         className="mt-0.5 text-[10px] font-medium text-blue-500 hover:underline"
@@ -385,6 +465,7 @@ function LocationDrawer({
 export default function BranchDetailClient({ branch, locations, balances, userRole }: Props) {
     const router = useRouter();
 
+    // ── State ──
     const [search, setSearch] = useState('');
     const [viewMode, setViewMode] = useState<ViewMode>('rack');
     const [showLocationForm, setShowLocationForm] = useState(false);
@@ -395,6 +476,7 @@ export default function BranchDetailClient({ branch, locations, balances, userRo
     const [viewingLocation, setViewingLocation] = useState<StockLocationProps | null>(null);
     const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
 
+    // ── Derived data ──
     const balancesByLocation = useMemo(() => {
         const map = new Map<number, BalanceRow[]>();
         for (const b of balances) {
@@ -418,6 +500,7 @@ export default function BranchDetailClient({ branch, locations, balances, userRo
     const totalItems = balances.reduce((s, b) => s + b.quantity, 0);
     const totalSKUs = new Set(balances.map((b) => b.item_id)).size;
 
+    // ── Handlers ──
     const showToast = (msg: string, type: 'success' | 'error') => {
         setToast({ msg, type });
         setTimeout(() => setToast(null), 3000);
@@ -466,6 +549,7 @@ export default function BranchDetailClient({ branch, locations, balances, userRo
             if (!dragData) return;
             if (dragData.fromLocationId === toLocationId) return;
 
+            // Ask quantity
             const maxQty = dragData.item.quantity;
             const input = prompt(
                 `Transfer "${dragData.item.inventory_item.name}" to this location.\nMax available: ${maxQty}\n\nQuantity:`,
@@ -506,6 +590,7 @@ export default function BranchDetailClient({ branch, locations, balances, userRo
 
     return (
         <>
+            {/* Toast */}
             {toast && (
                 <div
                     className={`fixed right-4 top-4 z-[60] rounded-xl px-4 py-3 text-sm font-medium shadow-lg ${
@@ -516,6 +601,7 @@ export default function BranchDetailClient({ branch, locations, balances, userRo
                 </div>
             )}
 
+            {/* Modals */}
             {(showLocationForm || editingLocation) && (
                 <StockLocationForm
                     branchId={branch.id}
@@ -554,6 +640,7 @@ export default function BranchDetailClient({ branch, locations, balances, userRo
                 />
             )}
 
+            {/* Page */}
             <div className="mx-auto animate-in fade-in duration-500 p-4 md:p-8">
                 {/* Breadcrumb + Header */}
                 <div className="mb-6">
@@ -581,14 +668,14 @@ export default function BranchDetailClient({ branch, locations, balances, userRo
                         <div className="flex items-center gap-2">
                             <button
                                 onClick={() => openTransfer()}
-                                className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm font-medium text-blue-700 hover:bg-blue-100"
+                                className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-100"
                             >
                                 <ArrowRightLeft size={15} />
                                 Transfer Stock
                             </button>
                             <button
                                 onClick={() => setShowLocationForm(true)}
-                                className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700"
+                                className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700"
                             >
                                 <Plus size={15} />
                                 New Location
@@ -600,14 +687,24 @@ export default function BranchDetailClient({ branch, locations, balances, userRo
                 {/* Summary Stats */}
                 <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
                     {[
-                        { icon: MapPin, label: 'Locations', value: locations.length, bgColor: 'bg-blue-50', iconColor: 'text-blue-500' },
-                        { icon: Package, label: 'Active', value: locations.filter((l) => l.is_active).length, bgColor: 'bg-emerald-50', iconColor: 'text-emerald-500' },
-                        { icon: Box, label: 'Total SKUs', value: totalSKUs, bgColor: 'bg-amber-50', iconColor: 'text-amber-500' },
-                        { icon: Warehouse, label: 'Total Units', value: totalItems, bgColor: 'bg-violet-50', iconColor: 'text-violet-500' },
-                    ].map(({ icon: Icon, label, value, bgColor, iconColor }) => (
-                        <div key={label} className="flex items-center gap-3 rounded-xl border border-slate-100 bg-white p-4 shadow-sm">
-                            <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${bgColor}`}>
-                                <Icon size={18} className={iconColor} />
+                        { icon: MapPin, label: 'Locations', value: locations.length, color: 'blue' },
+                        {
+                            icon: Package,
+                            label: 'Active',
+                            value: locations.filter((l) => l.is_active).length,
+                            color: 'emerald',
+                        },
+                        { icon: Box, label: 'Total SKUs', value: totalSKUs, color: 'amber' },
+                        { icon: Warehouse, label: 'Total Units', value: totalItems, color: 'violet' },
+                    ].map(({ icon: Icon, label, value, color }) => (
+                        <div
+                            key={label}
+                            className="flex items-center gap-3 rounded-xl border border-slate-100 bg-white p-4 shadow-sm"
+                        >
+                            <div
+                                className={`flex h-10 w-10 items-center justify-center rounded-lg bg-${color}-50`}
+                            >
+                                <Icon size={18} className={`text-${color}-500`} />
                             </div>
                             <div>
                                 <p className="font-mono text-lg font-bold text-slate-800">{value}</p>
@@ -634,7 +731,9 @@ export default function BranchDetailClient({ branch, locations, balances, userRo
                         <button
                             onClick={() => setViewMode('rack')}
                             className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                                viewMode === 'rack' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-50'
+                                viewMode === 'rack'
+                                    ? 'bg-blue-600 text-white'
+                                    : 'text-slate-500 hover:bg-slate-50'
                             }`}
                         >
                             <Warehouse size={13} />
@@ -643,7 +742,9 @@ export default function BranchDetailClient({ branch, locations, balances, userRo
                         <button
                             onClick={() => setViewMode('floorplan')}
                             className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                                viewMode === 'floorplan' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-50'
+                                viewMode === 'floorplan'
+                                    ? 'bg-blue-600 text-white'
+                                    : 'text-slate-500 hover:bg-slate-50'
                             }`}
                         >
                             <LayoutGrid size={13} />
@@ -691,6 +792,7 @@ export default function BranchDetailClient({ branch, locations, balances, userRo
                     />
                 )}
 
+                {/* Drag hint */}
                 {viewMode === 'rack' && filteredLocations.length > 1 && (
                     <p className="mt-4 text-center text-xs text-slate-400">
                         💡 Drag items between racks to transfer stock
