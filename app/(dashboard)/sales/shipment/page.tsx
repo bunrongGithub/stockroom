@@ -1,8 +1,8 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
-import SalesOrderClient from '@/components/forms/sales/order/SalesOrderClient';
+import ShipmentClient from '@/components/forms/sales/shipment/ShipmentClient';
 
-export default async function SalesOrderPage() {
+export default async function ShipmentPage() {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
@@ -18,9 +18,9 @@ export default async function SalesOrderPage() {
             description,
             status,
             items,
-            customers ( name, phone )
+            customers ( name, phone, address )
         `)
         .order('created_at', { ascending: false });
 
-    return <SalesOrderClient initialSales={sales || []} />;
+    return <ShipmentClient initialSales={sales || []} />;
 }

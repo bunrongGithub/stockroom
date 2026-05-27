@@ -4,6 +4,14 @@ export const saleMenu: TMenuItem[] = [
     {
         ordering: 1,
         icon: null,
+        label: 'Point of Sale (POS)',
+        href: '/sales/pos',
+        type: 'menu',
+        action: null,
+    },
+    {
+        ordering: 2,
+        icon: null,
         label: 'Sale Order',
         href: '/sales/order',
         type: 'menu',
