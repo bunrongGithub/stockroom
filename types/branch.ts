@@ -2,14 +2,16 @@ export interface BranchProps {
     id: number;
     company_id: number;
     name: string;
-    code: string | null;
-    address: string | null;
-    phone: string | null;
+    code?: string | null;
+    address?: string | null;
+    phone?: string | null;
+    reference_no: string;
+    is_default?: boolean;
     is_active: boolean;
-    is_default: boolean;
     created_at: string;
     updated_at: string;
     stock_location?: StockLocationProps[];
+    user_branch?: UserBranchProps[];
 }
 
 export interface StockLocationProps {

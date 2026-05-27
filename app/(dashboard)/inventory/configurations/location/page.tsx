@@ -5,16 +5,28 @@ interface PageProps {
     searchParams: Promise<{ page?: string; limit?: string; search?: string }>;
 }
 
-export default async function page({ searchParams }: PageProps) {
-    const { page = '1', limit = '10', search = '' } = await searchParams;
+export default async function BranchPage() {
+    const supabase = await createClient();
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
 
-    const params = new URLSearchParams({ page, limit, search });
-    const API_URL = `${process.env.NEXT_PUBLIC_APP_URL}/api/location?${params}`;
+    if (!user) redirect('/login');
 
-    const res = await fetch(API_URL, { cache: 'no-store' });
-    if (!res.ok) notFound();
+    const { data, error } = await supabase
+        .from('warehouse')
+        .select(`
+            *,
+            user_branch!inner(user_id, role),
+            stock_location(*)
+        `)
+        .eq('user_branch.user_id', user.id)
+        .order('name');
 
-    const json = await res.json();
-    const data = json.data;
-    return <LocationForm branches={data} />;
+    if (error) {
+        console.error('Failed to load branches:', error.message);
+    }
+
+    const branches: BranchProps[] = data ?? [];
+    return <BranchPageClient branches={branches} />;
 }

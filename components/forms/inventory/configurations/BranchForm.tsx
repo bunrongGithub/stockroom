@@ -18,10 +18,7 @@ export default function BranchForm({ branch, onClose, onSuccess }: Props) {
 
     const [form, setForm] = useState({
         name: branch?.name ?? '',
-        code: branch?.code ?? '',
-        address: branch?.address ?? '',
-        phone: branch?.phone ?? '',
-        is_default: branch?.is_default ?? false,
+        reference_no: branch?.reference_no ?? '',
         is_active: branch?.is_active ?? true,
     });
     const [submitting, setSubmitting] = useState(false);
@@ -32,6 +29,7 @@ export default function BranchForm({ branch, onClose, onSuccess }: Props) {
         setError('');
 
         if (!form.name.trim()) return setError('សូម​បញ្ចូល​ឈ្មោះ​សាខា។');
+        if (!form.reference_no.trim()) return setError('សូម​បញ្ចូល Reference No។');
 
         setSubmitting(true);
         try {
@@ -94,56 +92,28 @@ export default function BranchForm({ branch, onClose, onSuccess }: Props) {
                         </div>
 
                         <div>
-                            <FieldLabel>Branch Code</FieldLabel>
+                            <FieldLabel>Reference No *</FieldLabel>
                             <EditableInput
-                                value={form.code}
-                                onChange={(e) => setForm({ ...form, code: e.target.value })}
-                                placeholder="e.g. PP01"
+                                value={form.reference_no}
+                                onChange={(e) => setForm({ ...form, reference_no: e.target.value })}
+                                placeholder="e.g. WH-PP01"
                             />
+                            <p className="mt-1 text-xs text-slate-400">
+                                Unique identifier — cannot be changed later
+                            </p>
                         </div>
 
-                        <div>
-                            <FieldLabel>Address</FieldLabel>
-                            <textarea
-                                value={form.address}
-                                onChange={(e) => setForm({ ...form, address: e.target.value })}
-                                rows={2}
-                                placeholder="អាសយដ្ឋាន"
-                                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                            />
-                        </div>
-
-                        <div>
-                            <FieldLabel>Phone</FieldLabel>
-                            <EditableInput
-                                value={form.phone}
-                                onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                                placeholder="012 345 678"
-                            />
-                        </div>
-
-                        <div className="flex items-center gap-6">
+                        {isEdit && (
                             <label className="flex items-center gap-2 text-sm text-slate-700">
                                 <input
                                     type="checkbox"
-                                    checked={form.is_default}
-                                    onChange={(e) => setForm({ ...form, is_default: e.target.checked })}
+                                    checked={form.is_active}
+                                    onChange={(e) => setForm({ ...form, is_active: e.target.checked })}
                                     className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                                 />
-                                Set as default branch
+                                Active
                             </label>
-                            {isEdit && (
-                                <label className="flex items-center gap-2 text-sm text-slate-700">
-                                    <input
-                                        type="checkbox"
-                                        checked={form.is_active}
-                                        onChange={(e) => setForm({ ...form, is_active: e.target.checked })}
-                                        className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                                    />
-                                    Active
-                                </label>
-                            )}
-                        </div>
+                        )}
 
                         {error && (
                             <p className="rounded-lg bg-red-50 px-4 py-2.5 text-sm text-red-600">{error}</p>

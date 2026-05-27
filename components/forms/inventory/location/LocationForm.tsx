@@ -6,11 +6,10 @@ import {
     Building2,
     Edit2,
     MapPin,
-    Phone,
     Plus,
     Search,
-    Star,
     Trash2,
+    Warehouse,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -35,7 +34,7 @@ export default function LocationForm({ branches }: Props) {
     const filtered = branches.filter(
         (b) =>
             b.name.toLowerCase().includes(search.toLowerCase()) ||
-            (b.code ?? '').toLowerCase().includes(search.toLowerCase()),
+            b.reference_no.toLowerCase().includes(search.toLowerCase()),
     );
 
     const onDelete = async (id: number) => {
@@ -93,7 +92,7 @@ export default function LocationForm({ branches }: Props) {
                             <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                             <input
                                 type="text"
-                                placeholder="Search by name or code…"
+                                placeholder="Search by name or ref…"
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
                                 className="w-full rounded-lg border border-gray-200 bg-white py-2.5 pl-10 pr-4 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
@@ -117,80 +116,70 @@ export default function LocationForm({ branches }: Props) {
                             <p className="mt-3 text-sm text-slate-400">No branches found.</p>
                         </div>
                     ) : (
-                        filtered.map((b) => (
-                            <div
-                                key={b.id}
-                                className="group rounded-2xl border border-slate-100 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
-                            >
-                                <div className="flex items-start justify-between">
-                                    <div className="min-w-0">
-                                        <div className="flex items-center gap-2">
-                                            <h3 className="truncate text-base font-semibold text-slate-800">
-                                                {b.name}
-                                            </h3>
-                                            {b.is_default && (
-                                                <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
-                                                    <Star size={10} fill="currentColor" />
-                                                    Default
-                                                </span>
-                                            )}
-                                            {!b.is_active && (
-                                                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
-                                                    Inactive
-                                                </span>
-                                            )}
-                                        </div>
-                                        {b.code && (
+                        filtered.map((b) => {
+                            const locationCount = b.stock_location?.length ?? 0;
+
+                            return (
+                                <div
+                                    key={b.id}
+                                    className="group rounded-2xl border border-slate-100 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
+                                >
+                                    <div className="flex items-start justify-between">
+                                        <div className="min-w-0">
+                                            <div className="flex items-center gap-2">
+                                                <h3 className="truncate text-base font-semibold text-slate-800">
+                                                    {b.name}
+                                                </h3>
+                                                {!b.is_active && (
+                                                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
+                                                        Inactive
+                                                    </span>
+                                                )}
+                                            </div>
                                             <span className="mt-1 inline-block rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
-                                                {b.code}
+                                                {b.reference_no}
                                             </span>
-                                        )}
-                                    </div>
-                                </div>
-
-                                <div className="mt-3 space-y-1.5 text-sm text-slate-600">
-                                    {b.address && (
-                                        <div className="flex items-start gap-2">
-                                            <MapPin size={14} className="mt-0.5 shrink-0 text-slate-400" />
-                                            <span className="line-clamp-2">{b.address}</span>
                                         </div>
-                                    )}
-                                    {b.phone && (
+                                    </div>
+
+                                    <div className="mt-3 space-y-1.5 text-sm text-slate-600">
                                         <div className="flex items-center gap-2">
-                                            <Phone size={14} className="shrink-0 text-slate-400" />
-                                            <span>{b.phone}</span>
+                                            <Warehouse size={14} className="shrink-0 text-slate-400" />
+                                            <span>
+                                                {locationCount} storage location{locationCount !== 1 ? 's' : ''}
+                                            </span>
                                         </div>
-                                    )}
-                                </div>
+                                    </div>
 
-                                <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
-                                    <Link
-                                        href={`/inventory/configurations/location/${b.id}`}
-                                        className="text-xs font-medium text-blue-600 hover:underline"
-                                    >
-                                        Manage Storage Locations →
-                                    </Link>
-                                    <div className="flex items-center gap-1">
-                                        <button
-                                            type="button"
-                                            onClick={() => setEditing(b)}
-                                            className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-blue-50 hover:text-blue-600"
-                                            aria-label="Edit"
+                                    <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
+                                        <Link
+                                            href={`/inventory/configurations/location/${b.id}`}
+                                            className="text-xs font-medium text-blue-600 hover:underline"
                                         >
-                                            <Edit2 size={14} />
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => onDelete(b.id)}
-                                            className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600"
-                                            aria-label="Delete"
-                                        >
-                                            <Trash2 size={14} />
-                                        </button>
+                                            Manage Storage Locations →
+                                        </Link>
+                                        <div className="flex items-center gap-1">
+                                            <button
+                                                type="button"
+                                                onClick={() => setEditing(b)}
+                                                className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-blue-50 hover:text-blue-600"
+                                                aria-label="Edit"
+                                            >
+                                                <Edit2 size={14} />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => onDelete(b.id)}
+                                                className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600"
+                                                aria-label="Delete"
+                                            >
+                                                <Trash2 size={14} />
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        ))
+                            );
+                        })
                     )}
                 </div>
             </div>
