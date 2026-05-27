@@ -228,10 +228,18 @@ function DetailsTab({
                                 />
                             </div>
                             <div>
-                                <FieldLabel>Stock Location</FieldLabel>
-                                <ReadonlyInput
-                                    value={isStock ? 'Stocked Physical Good' : 'Non-Stock / Service'}
-                                />
+                                <div>
+                                    <FieldLabel>Stock Location</FieldLabel>
+                                    <ReadonlyInput
+                                        value={
+                                            isStock
+                                                ? item.stock_location
+                                                    ? `${item.stock_location.branch_name ?? ''} → ${item.stock_location.location_name ?? '—'} (${item.stock_location.quantity} units)`
+                                                    : 'No stock placed yet'
+                                                : 'Not applicable'
+                                        }
+                                    />
+                                </div>
                             </div>
                             <div className="sm:col-span-2">
                                 <FieldLabel>Additional Notes</FieldLabel>
