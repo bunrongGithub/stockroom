@@ -17,6 +17,9 @@ export interface InventoryItemProps {
     images_url: string[] | null;
     stock_location?: TStockLocationSummary | null;
     stock_balances?: TStockBalanceRow[];
+    warranty_duration?: string | null;
+    labor_cost?: number | null;
+    estimated_duration?: string | null;
 }
 
 export type TCategory = {
