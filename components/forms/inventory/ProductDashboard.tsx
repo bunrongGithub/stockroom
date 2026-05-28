@@ -15,7 +15,9 @@ import {
 } from '@/types/inventory/item';
 import {
     AlertCircle,
+    ArrowRightLeft,
     ArrowUpCircle,
+    BarChart3,
     Box,
     CheckCircle2,
     ClipboardList,
@@ -24,8 +26,13 @@ import {
     Hash,
     Loader2,
     MapPin,
+    Package,
+    Percent,
     Plus,
     RefreshCw,
+    RotateCcw,
+    ShieldCheck,
+    Tag,
     Warehouse,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -119,158 +126,107 @@ function getReservedStock(stock: InventoryItemProps['stock']) {
     return stock?.stock_reserved ?? 0;
 }
 
-function StockByLocationSection({
-    itemId,
-    stockBalances,
-    onOpenTransfer,
+// ─── Toggle Badge (read-only display) ─────────────────────────────────────────
+
+function ToggleBadge({
+    active,
+    icon,
+    label,
 }: {
-    itemId: number;
-    stockBalances: StockBalanceWithLocation[];
-    onOpenTransfer: (fromLocationId: number, itemId: number) => void;
+    active: boolean;
+    icon: React.ReactNode;
+    label: string;
 }) {
-    const total = stockBalances.reduce(
-        (sum, balance) => sum + Number(balance.quantity ?? 0),
-        0,
-    );
-
     return (
-        <div className="mt-5 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-            <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
-                <MapPin size={15} className="text-blue-500" />
-                Stock by Location
-            </h3>
-
-            {stockBalances.length === 0 ? (
-                <p className="text-xs text-slate-400">
-                    មិនមានស្តុកក្នុងទីតាំងណាមួយទេ
-                </p>
+        <span
+            className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all ${
+                active
+                    ? 'border-blue-200 bg-blue-50 text-blue-700'
+                    : 'border-slate-100 bg-slate-50 text-slate-400'
+            }`}
+        >
+            {icon}
+            {label}
+            {active ? (
+                <CheckCircle2 size={12} className="text-blue-500" />
             ) : (
-                <div className="space-y-2">
-                    {stockBalances.map((balance) => (
-                        <div
-                            key={balance.id}
-                            className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5"
-                        >
-                            <div className="min-w-0">
-                                <div className="flex flex-wrap items-center gap-2">
-                                    {balance.stock_location?.code && (
-                                        <span className="rounded bg-blue-100 px-1.5 py-0.5 font-mono text-[10px] font-bold text-blue-700">
-                                            {balance.stock_location.code}
-                                        </span>
-                                    )}
-                                    <span className="text-sm font-medium text-slate-700">
-                                        {balance.stock_location?.name ?? 'Unknown'}
-                                    </span>
-                                    {balance.stock_location?.is_default && (
-                                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-600">
-                                            Default
-                                        </span>
-                                    )}
-                                </div>
-                                <p className="mt-0.5 text-[11px] text-slate-400">
-                                    {balance.stock_location?.warehouse?.name ?? '—'}
-                                </p>
-                            </div>
-                            <div className="ml-3 flex shrink-0 items-center gap-3">
-                                <span className="font-mono text-base font-bold text-slate-800">
-                                    {balance.quantity}
-                                </span>
-                                <button
-                                    type="button"
-                                    onClick={() =>
-                                        onOpenTransfer(balance.location_id, itemId)
-                                    }
-                                    className="rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-600 hover:bg-blue-100"
-                                >
-                                    Transfer -&gt;
-                                </button>
-                            </div>
-                        </div>
-                    ))}
-
-                    <div className="mt-2 flex items-center justify-between border-t border-slate-200 pt-2">
-                        <span className="text-xs font-semibold text-slate-500">
-                            Total
-                        </span>
-                        <span className="font-mono text-base font-bold text-slate-800">
-                            {total}
-                        </span>
-                    </div>
-                </div>
+                <span className="text-[10px] text-slate-300">OFF</span>
             )}
-        </div>
+        </span>
     );
 }
 
-// ─── Stock Banner ─────────────────────────────────────────────────────────────
+// ─── Stock Banner (uses stockBalances total) ──────────────────────────────────
 
 function StockBanner({
     stock,
-    itemId,
     stockBalances,
     onOpenStockModal,
-    onOpenTransfer,
 }: {
     stock: InventoryItemProps['stock'];
-    itemId: number;
     stockBalances: StockBalanceWithLocation[];
-    onOpenStockModal: () => void; // required — not optional
-    onOpenTransfer: (fromLocationId: number, itemId: number) => void;
+    onOpenStockModal: () => void;
 }) {
-    const available = Math.max(
+    // Sum quantities from ALL branches/locations
+    const totalOnHand = stockBalances.reduce(
+        (sum, b) => sum + Number(b.quantity ?? 0),
         0,
-        getStockOnHand(stock) - getReservedStock(stock),
     );
+    const reserved = getReservedStock(stock);
+    const available = Math.max(0, totalOnHand - reserved);
+
+    // Group by branch for summary
+    const branchMap = new Map<string, number>();
+    stockBalances.forEach((b) => {
+        const branchName = b.stock_location?.warehouse?.name ?? 'Unknown';
+        branchMap.set(branchName, (branchMap.get(branchName) ?? 0) + Number(b.quantity ?? 0));
+    });
 
     const counts = [
-        { label: 'Physical on hand', value: getStockOnHand(stock) },
-        { label: 'Reserved (sold)', value: getReservedStock(stock) },
+        { label: 'Physical on hand (all branches)', value: totalOnHand },
+        { label: 'Reserved (sold)', value: reserved },
         { label: 'Available to sell', value: available },
     ];
 
     return (
         <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
-            <div className="flex flex-wrap items-stretch">
-                <div className="flex-1 min-w-65 border-r border-gray-100 px-6 py-5">
-                    <div className="flex justify-between items-center gap-2">
-                        <div>
-                            <span className="h-1.5 w-1.5 rounded-full bg-amber-600" />
-                            <p className="text-[11px] font-medium uppercase tracking-widest text-amber-700">
-                                Current Stockroom Inventory
+            <div className="px-6 py-5">
+                <div className="flex justify-between items-center gap-2 mb-4">
+                    <div>
+                        <p className="text-[11px] font-medium uppercase tracking-widest text-amber-700">
+                            Current Stockroom Inventory
+                        </p>
+                        {branchMap.size > 1 && (
+                            <p className="mt-1 text-xs text-slate-400">
+                                Across {branchMap.size} branches:{' '}
+                                {Array.from(branchMap.entries())
+                                    .map(([name, qty]) => `${name} (${qty})`)
+                                    .join(' · ')}
+                            </p>
+                        )}
+                    </div>
+
+                    <button
+                        type="button"
+                        onClick={onOpenStockModal}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-4 py-2.5 text-sm font-medium text-amber-50 transition hover:bg-amber-700 active:scale-95 whitespace-nowrap"
+                    >
+                        <Plus size={15} strokeWidth={2} />
+                        Log stock adjustment
+                    </button>
+                </div>
+
+                <div className="grid grid-cols-3 divide-x divide-gray-200 overflow-hidden rounded-lg">
+                    {counts.map(({ label, value }) => (
+                        <div key={label} className="px-3 py-3.5 text-center bg-gray-50">
+                            <p className="text-2xl font-medium leading-none text-green-700">
+                                {value}
+                            </p>
+                            <p className="mt-1.5 text-[11px] leading-snug text-gray-500">
+                                {label}
                             </p>
                         </div>
-
-                        {/* ── Button now calls onOpenStockModal ── */}
-                        <div className="flex items-center justify-center px-6 py-5">
-                            <button
-                                type="button"
-                                onClick={onOpenStockModal}
-                                className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-4 py-2.5 text-sm font-medium text-amber-50 transition hover:bg-amber-700 active:scale-95 whitespace-nowrap"
-                            >
-                                <Plus size={15} strokeWidth={2} />
-                                Log initial stock balance
-                            </button>
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-3 divide-x divide-gray-200 overflow-hidden rounded-lg">
-                        {counts.map(({ label, value }) => (
-                            <div key={label} className="px-3 py-3.5 text-center bg-gray-50">
-                                <p className="text-2xl font-medium leading-none text-green-700">
-                                    {value}
-                                </p>
-                                <p className="mt-1.5 text-[11px] leading-snug text-gray-500">
-                                    {label}
-                                </p>
-                            </div>
-                        ))}
-                    </div>
-
-                    <StockByLocationSection
-                        itemId={itemId}
-                        stockBalances={stockBalances}
-                        onOpenTransfer={onOpenTransfer}
-                    />
+                    ))}
                 </div>
             </div>
         </div>
@@ -294,17 +250,31 @@ function DetailsTab({
     item,
     isStock,
     onSubmit,
-    isSubmitting
+    isSubmitting,
 }: {
     item: InventoryItemProps;
     isStock: boolean;
     onSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
     isSubmitting: boolean;
 }) {
+    // Cast to access new fields
+    const extItem = item as InventoryItemProps & {
+        condition?: string;
+        brand?: string;
+        supplier?: string;
+        barcode?: string;
+        min_stock?: number | null;
+        has_warranty?: boolean;
+        is_discount?: boolean;
+        is_returnable?: boolean;
+        is_sellable?: boolean;
+    };
+
     return (
         <form onSubmit={onSubmit} className="p-6 md:p-8">
             <div className="grid gap-8">
                 <div className="space-y-8">
+                    {/* ── Product Information ── */}
                     <section>
                         <SectionHeading
                             icon={<Box size={15} />}
@@ -321,7 +291,7 @@ function DetailsTab({
                                     placeholder="SKU-000000"
                                 />
                             </div>
-                            <div className="sm:col-span-1">
+                            <div>
                                 <FieldLabel required>Item Name</FieldLabel>
                                 <EditableInput
                                     type="text"
@@ -329,6 +299,27 @@ function DetailsTab({
                                     defaultValue={item.name}
                                     placeholder="e.g. iPhone Case, Premium Headphones…"
                                 />
+                            </div>
+                            <div>
+                                <FieldLabel>ម៉ាក (Brand)</FieldLabel>
+                                <EditableInput
+                                    type="text"
+                                    name="brand"
+                                    defaultValue={extItem.brand ?? ''}
+                                    placeholder="e.g. Apple, Samsung, Xiaomi"
+                                />
+                            </div>
+                            <div>
+                                <FieldLabel>ស្ថានភាព (Condition)</FieldLabel>
+                                <select
+                                    name="condition"
+                                    defaultValue={extItem.condition ?? 'new'}
+                                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                                >
+                                    <option value="new">ថ្មី (New)</option>
+                                    <option value="used">មួយទឹក (Used)</option>
+                                    <option value="refurbished">Refurbished</option>
+                                </select>
                             </div>
                             <div>
                                 <FieldLabel>Category</FieldLabel>
@@ -349,26 +340,43 @@ function DetailsTab({
                                 />
                             </div>
                             <div>
+                                <FieldLabel>Barcode</FieldLabel>
+                                <EditableInput
+                                    type="text"
+                                    name="barcode"
+                                    defaultValue={extItem.barcode ?? ''}
+                                    placeholder="Scan or type barcode"
+                                />
+                            </div>
+                            <div>
+                                <FieldLabel>អ្នកផ្គត់ផ្គង់ (Supplier)</FieldLabel>
+                                <EditableInput
+                                    type="text"
+                                    name="supplier"
+                                    defaultValue={extItem.supplier ?? ''}
+                                    placeholder="Supplier name"
+                                />
+                            </div>
+                            <div>
                                 <FieldLabel>Tracking Class</FieldLabel>
                                 <ReadonlyInput
                                     value={isStock ? 'Stocked Physical Good' : 'Non-Stock / Service'}
                                 />
                             </div>
                             <div>
-                                <div>
-                                    <FieldLabel>Stock Location</FieldLabel>
-                                    <ReadonlyInput
-                                        value={
-                                            isStock
-                                                ? item.stock_location
-                                                    ? `${item.stock_location.branch_name ?? ''} → ${item.stock_location.location_name ?? '—'} (${item.stock_location.quantity} units)`
-                                                    : 'No stock placed yet'
-                                                : 'Not applicable'
-                                        }
-                                    />
-                                </div>
+                                <FieldLabel>Min Stock Alert</FieldLabel>
+                                <EditableInput
+                                    type="number"
+                                    name="min_stock"
+                                    min="0"
+                                    defaultValue={extItem.min_stock ?? ''}
+                                    placeholder="e.g. 5"
+                                />
+                                <p className="mt-1 text-[10px] text-slate-400">
+                                    ជូនដំណឹងពេលស្តុកទាបជាងចំនួននេះ
+                                </p>
                             </div>
-                            <div className="sm:col-span-2">
+                            <div className="lg:col-span-2">
                                 <FieldLabel>Additional Notes</FieldLabel>
                                 <EditableTextarea
                                     name="description"
@@ -381,13 +389,56 @@ function DetailsTab({
 
                     <div className="border-t border-dashed border-slate-100" />
 
+                    {/* ── Item Properties (Toggles) ── */}
+                    <section>
+                        <SectionHeading
+                            icon={<ShieldCheck size={15} />}
+                            title="Item Properties"
+                            subtitle="លក្ខណៈសម្បត្តិទំនិញ — ប្រើពេលលក់ចេញ"
+                        />
+                        <div className="flex flex-wrap gap-2">
+                            <ToggleBadge
+                                active={extItem.has_warranty ?? false}
+                                icon={<ShieldCheck size={13} />}
+                                label="Warranty"
+                            />
+                            <ToggleBadge
+                                active={extItem.is_discount ?? false}
+                                icon={<Percent size={13} />}
+                                label="Discountable"
+                            />
+                            <ToggleBadge
+                                active={extItem.is_returnable ?? false}
+                                icon={<RotateCcw size={13} />}
+                                label="Returnable"
+                            />
+                            <ToggleBadge
+                                active={extItem.is_sellable ?? true}
+                                icon={<Tag size={13} />}
+                                label="Sellable"
+                            />
+                        </div>
+                        <p className="mt-3 text-[11px] text-slate-400">
+                            កែប្រែ properties ទាំងនេះនៅក្នុង Edit Item form
+                        </p>
+
+                        {/* Hidden inputs so they get submitted with the form */}
+                        <input type="hidden" name="has_warranty" value={extItem.has_warranty ? 'true' : 'false'} />
+                        <input type="hidden" name="is_discount" value={extItem.is_discount ? 'true' : 'false'} />
+                        <input type="hidden" name="is_returnable" value={extItem.is_returnable ? 'true' : 'false'} />
+                        <input type="hidden" name="is_sellable" value={extItem.is_sellable ? 'true' : 'false'} />
+                    </section>
+
+                    <div className="border-t border-dashed border-slate-100" />
+
+                    {/* ── Pricing Details ── */}
                     <section>
                         <SectionHeading
                             icon={<DollarSign size={15} />}
                             title="Pricing Details"
                             subtitle="Cost basis, retail price, and internal valuation"
                         />
-                        <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="grid gap-4 sm:grid-cols-3">
                             <div>
                                 <FieldLabel required>Purchase Price ($)</FieldLabel>
                                 <EditableInput
@@ -411,6 +462,32 @@ function DetailsTab({
                                     placeholder="0.00"
                                 />
                                 <p className="mt-1 text-[10px] text-slate-400">MSRP / retail price</p>
+                            </div>
+                            <div>
+                                <FieldLabel>ប្រាក់ចំណេញ (Profit)</FieldLabel>
+                                {(() => {
+                                    const profit = (item.sale_price ?? 0) - (item.purchase_price ?? 0);
+                                    const margin = (item.sale_price ?? 0) > 0
+                                        ? ((profit / (item.sale_price ?? 1)) * 100).toFixed(1)
+                                        : '0.0';
+                                    return (
+                                        <div
+                                            className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-sm font-semibold ${
+                                                profit > 0
+                                                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                                    : profit < 0
+                                                      ? 'border-red-200 bg-red-50 text-red-600'
+                                                      : 'border-slate-200 bg-slate-50 text-slate-500'
+                                            }`}
+                                        >
+                                            <BarChart3 size={14} />
+                                            ${profit.toFixed(2)}{' '}
+                                            <span className="text-xs font-normal opacity-70">
+                                                ({margin}%)
+                                            </span>
+                                        </div>
+                                    );
+                                })()}
                             </div>
                         </div>
                     </section>
@@ -436,192 +513,295 @@ function DetailsTab({
     );
 }
 
-// ─── Tab: Stock Balance History ───────────────────────────────────────────────
+// ─── Stock by Location (inside History Tab) ───────────────────────────────────
 
-function HistoryTab({
+function StockByLocationCard({
+    stockBalances,
     itemId,
-    refreshKey,
+    onOpenTransfer,
 }: {
-    itemId: number | string;
-    refreshKey: number; // increments after every successful submission → triggers re-fetch
+    stockBalances: StockBalanceWithLocation[];
+    itemId: number;
+    onOpenTransfer: (fromLocationId: number, itemId: number) => void;
 }) {
-    const [logs, setLogs]       = useState<TStockLogEntry[]>([{
-            id: 1,
-            reason: 'Opening Warehouse Inventory Balance Setup',
-            quantity: 100,
-            posted_at: new Date().toISOString(),
-            posted_by: 'Admin User',
-                reference: 'Initial stock entry when item was created',
+    // Group balances by branch (warehouse)
+    const branchGroups = new Map<
+        string,
+        { branchName: string; branchId: number; balances: StockBalanceWithLocation[] }
+    >();
 
-        },{
-            id: 2,
-            reason: 'Cycle Count Correction',
-            quantity: 20,
-            posted_at: new Date().toISOString(),
-            posted_by: 'Admin User',
-                reference: 'Initial stock entry when item was created',
-                
-        },{
-            id: 3,
-            reason: 'Direct Manual Vendor Arrival',
-            quantity: 24,
-            posted_at: new Date().toISOString(),
-            posted_by: 'Admin User',
-                reference: 'Initial stock entry when item was created',
-                
-        }]);
-    const [loading, setLoading] = useState(false);
-    const [error, setError]     = useState<string | null>(null);
+    stockBalances.forEach((b) => {
+        const branchName = b.stock_location?.warehouse?.name ?? 'Unknown';
+        const branchId = b.stock_location?.branch_id ?? 0;
+        const key = String(branchId);
+        if (!branchGroups.has(key)) {
+            branchGroups.set(key, { branchName, branchId, balances: [] });
+        }
+        branchGroups.get(key)!.balances.push(b);
+    });
 
-    // ── Fetch logs ──────────────────────────────────────────────────
-    // useEffect(() => {
-    //     let cancelled = false;
-
-    //     fetch(`/api/inventory/${itemId}`, { method: 'GET' })
-    //         .then((r) => {
-    //             if (!r.ok) throw new Error(`Server error ${r.status}`);
-    //             return r.json();
-    //         })
-    //         .then((json) => {
-    //             if (!cancelled) {
-    //                 setLogs(json.data?.stock_entry ?? []);
-    //                 setError(null);
-    //             }
-    //         })
-    //         .catch((err) => {
-    //             if (!cancelled) setError(err.message ?? 'Failed to load history.');
-    //         })
-    //         .finally(() => {
-    //             if (!cancelled) setLoading(false);
-    //         });
-
-    //     // setLogs()
-    //     return () => { cancelled = true; };
-
-    // }, [itemId, refreshKey]); // re-runs whenever refreshKey changes
-
-    // ── Loading ─────────────────────────────────────────────────────
-    if (loading) {
-        return (
-            <div className="flex flex-col items-center justify-center gap-3 py-20 text-slate-400">
-                <Loader2 size={24} className="animate-spin" />
-                <p className="text-xs">Loading stock history…</p>
-            </div>
-        );
-    }
-
-    // ── Error ───────────────────────────────────────────────────────
-    if (error) {
-        return (
-            <div className="flex flex-col items-center justify-center gap-3 py-20 px-6 text-center">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-50">
-                    <AlertCircle size={20} className="text-red-400" />
-                </div>
-                <div>
-                    <p className="text-sm font-semibold text-slate-600">Failed to load history</p>
-                    <p className="mt-1 text-xs text-red-400">{error}</p>
-                </div>
-            </div>
-        );
-    }
-
-    // ── Empty ───────────────────────────────────────────────────────
-    if (logs.length === 0) {
-        return (
-            <div className="flex flex-col items-center justify-center gap-4 py-20 px-6 text-center">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50">
-                    <ClipboardList size={22} className="text-slate-300" />
-                </div>
-                <div>
-                    <p className="text-sm font-semibold text-slate-600">No adjustment logs yet</p>
-                    <p className="mt-1 text-xs text-slate-400">
-                        Stock balance entries will appear here after you post an adjustment.
-                    </p>
-                </div>
-            </div>
-        );
-    }
-
-    // ── Ledger table ────────────────────────────────────────────────
-    const rowsWithRunning = logs.reduce<
-        { entry: TStockLogEntry; idx: number; running: number }[]
-    >((acc, entry, idx) => {
-        const previous = acc[idx - 1]?.running ?? 0;
-        return [...acc, { entry, idx, running: previous + entry.quantity }];
-    }, []);
-    const cumulative = rowsWithRunning.at(-1)?.running ?? 0;
+    const totalAll = stockBalances.reduce((s, b) => s + Number(b.quantity ?? 0), 0);
 
     return (
-        <div className="p-4 space-y-6">
-            <div className="overflow-hidden rounded-xl border border-slate-200">
-                {/* Header */}
-                <div className="grid grid-cols-[2rem_1fr_6rem_8rem_7rem] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-2.5">
-                    {['#', 'Reason', 'Qty', 'Running Total', 'Date'].map((h) => (
-                        <p key={h} className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                            {h}
-                        </p>
-                    ))}
-                </div>
+        <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+            <div className="mb-4 flex items-center justify-between">
+                <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                    <MapPin size={15} className="text-blue-500" />
+                    Stock by Location
+                </h3>
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
+                    Total: {totalAll}
+                </span>
+            </div>
 
-                {/* Rows */}
-                <div className="divide-y divide-slate-100">
-                    {rowsWithRunning.map(({ entry, idx, running }) => {
-                        const meta = getReasonMeta(entry.reason);
+            {stockBalances.length === 0 ? (
+                <p className="text-xs text-slate-400 py-4 text-center">
+                    មិនមានស្តុកក្នុងទីតាំងណាមួយទេ
+                </p>
+            ) : (
+                <div className="space-y-4">
+                    {Array.from(branchGroups.values()).map((group) => {
+                        const branchTotal = group.balances.reduce(
+                            (s, b) => s + Number(b.quantity ?? 0),
+                            0,
+                        );
 
                         return (
-                            <div
-                                key={entry.id}
-                                className="grid grid-cols-[2rem_1fr_6rem_8rem_7rem] items-center gap-3 px-4 py-3.5 transition hover:bg-slate-50/80"
-                            >
-                                <div className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-100">
-                                    <span className="text-[9px] font-bold text-slate-500">{idx + 1}</span>
-                                </div>
-
-                                <div className="min-w-0">
-                                    <span className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-semibold ${meta.bg} ${meta.color}`}>
-                                        {meta.icon}
-                                        {meta.label}
+                            <div key={group.branchId}>
+                                {/* Branch header */}
+                                <div className="mb-2 flex items-center gap-2">
+                                    <Warehouse size={13} className="text-slate-400" />
+                                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                                        {group.branchName}
                                     </span>
-                                    {entry.reference && (
-                                        <p className="mt-0.5 flex items-center gap-1 text-[10px] text-slate-400">
-                                            <Hash size={9} />
-                                            {entry.reference}
-                                        </p>
-                                    )}
+                                    <span className="ml-auto text-xs font-semibold text-slate-500">
+                                        {branchTotal} units
+                                    </span>
                                 </div>
 
-                                <div className="flex items-center gap-1">
-                                    <CheckCircle2 size={13} className="text-emerald-500" />
-                                    <span className="text-sm font-bold text-emerald-700">+{entry.quantity}</span>
-                                </div>
-
-                                <div className="flex items-center gap-1.5">
-                                    <div className="h-1.5 w-1.5 rounded-full bg-blue-400" />
-                                    <span className="text-sm font-semibold text-slate-700">{running} units</span>
-                                </div>
-
-                                <div>
-                                    <p className="text-xs font-medium text-slate-600">
-                                        {DateTimeFormat(entry.posted_at)}
-                                    </p>
-                                    <p className="text-[10px] text-slate-400">
-                                        {entry.posted_by}
-                                    </p>
+                                {/* Location rows */}
+                                <div className="space-y-1.5">
+                                    {group.balances.map((balance) => (
+                                        <div
+                                            key={balance.id}
+                                            className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5"
+                                        >
+                                            <div className="min-w-0">
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    {balance.stock_location?.code && (
+                                                        <span className="rounded bg-blue-100 px-1.5 py-0.5 font-mono text-[10px] font-bold text-blue-700">
+                                                            {balance.stock_location.code}
+                                                        </span>
+                                                    )}
+                                                    <span className="text-sm font-medium text-slate-700">
+                                                        {balance.stock_location?.name ?? 'Unknown'}
+                                                    </span>
+                                                    {balance.stock_location?.is_default && (
+                                                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-600">
+                                                            Default
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className="ml-3 flex shrink-0 items-center gap-3">
+                                                <span className="font-mono text-base font-bold text-slate-800">
+                                                    {balance.quantity}
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        onOpenTransfer(balance.location_id, itemId)
+                                                    }
+                                                    className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-600 hover:bg-blue-100"
+                                                >
+                                                    <ArrowRightLeft size={11} />
+                                                    Transfer
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
                         );
                     })}
                 </div>
+            )}
+        </div>
+    );
+}
 
-                {/* Footer */}
-                <div className="flex items-center justify-between border-t border-slate-200 bg-slate-50 px-4 py-2.5">
-                    <p className="text-[10px] text-slate-400">
-                        {logs.length} {logs.length === 1 ? 'entry' : 'entries'} total
-                    </p>
-                    <p className="text-[10px] font-semibold text-slate-600">
-                        Cumulative: <span className="text-blue-700">{cumulative} units</span>
-                    </p>
-                </div>
+// ─── Tab: Stock Balance History ───────────────────────────────────────────────
+
+function HistoryTab({
+    itemId,
+    refreshKey,
+    stockBalances,
+    onOpenTransfer,
+}: {
+    itemId: number | string;
+    refreshKey: number;
+    stockBalances: StockBalanceWithLocation[];
+    onOpenTransfer: (fromLocationId: number, itemId: number) => void;
+}) {
+    const [logs, setLogs] = useState<TStockLogEntry[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    // Fetch logs
+    useEffect(() => {
+        let cancelled = false;
+        setLoading(true);
+
+        fetch(`/api/inventory/${itemId}`, { method: 'GET' })
+            .then((r) => {
+                if (!r.ok) throw new Error(`Server error ${r.status}`);
+                return r.json();
+            })
+            .then((json) => {
+                if (!cancelled) {
+                    setLogs(json.data?.stock_entry ?? []);
+                    setError(null);
+                }
+            })
+            .catch((err) => {
+                if (!cancelled) setError(err.message ?? 'Failed to load history.');
+            })
+            .finally(() => {
+                if (!cancelled) setLoading(false);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [itemId, refreshKey]);
+
+    return (
+        <div className="p-4 space-y-6">
+            {/* ── Stock by Location (top) ── */}
+            <StockByLocationCard
+                stockBalances={stockBalances}
+                itemId={Number(itemId)}
+                onOpenTransfer={onOpenTransfer}
+            />
+
+            {/* ── Movement History (bottom) ── */}
+            <div>
+                <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
+                    <ClipboardList size={15} className="text-violet-500" />
+                    Movement History
+                </h3>
+
+                {loading ? (
+                    <div className="flex flex-col items-center justify-center gap-3 py-16 text-slate-400">
+                        <Loader2 size={24} className="animate-spin" />
+                        <p className="text-xs">Loading stock history…</p>
+                    </div>
+                ) : error ? (
+                    <div className="flex flex-col items-center justify-center gap-3 py-16 px-6 text-center">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-50">
+                            <AlertCircle size={20} className="text-red-400" />
+                        </div>
+                        <div>
+                            <p className="text-sm font-semibold text-slate-600">Failed to load history</p>
+                            <p className="mt-1 text-xs text-red-400">{error}</p>
+                        </div>
+                    </div>
+                ) : logs.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center gap-4 py-16 px-6 text-center">
+                        <div className="flex h-14 w-14 items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50">
+                            <ClipboardList size={22} className="text-slate-300" />
+                        </div>
+                        <div>
+                            <p className="text-sm font-semibold text-slate-600">No adjustment logs yet</p>
+                            <p className="mt-1 text-xs text-slate-400">
+                                Stock balance entries will appear here after you post an adjustment.
+                            </p>
+                        </div>
+                    </div>
+                ) : (
+                    (() => {
+                        const rowsWithRunning = logs.reduce<
+                            { entry: TStockLogEntry; idx: number; running: number }[]
+                        >((acc, entry, idx) => {
+                            const previous = acc[idx - 1]?.running ?? 0;
+                            return [...acc, { entry, idx, running: previous + entry.quantity }];
+                        }, []);
+                        const cumulative = rowsWithRunning.at(-1)?.running ?? 0;
+
+                        return (
+                            <div className="overflow-hidden rounded-xl border border-slate-200">
+                                {/* Header */}
+                                <div className="grid grid-cols-[2rem_1fr_6rem_8rem_7rem] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-2.5">
+                                    {['#', 'Reason', 'Qty', 'Running Total', 'Date'].map((h) => (
+                                        <p key={h} className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                                            {h}
+                                        </p>
+                                    ))}
+                                </div>
+
+                                {/* Rows */}
+                                <div className="divide-y divide-slate-100">
+                                    {rowsWithRunning.map(({ entry, idx, running }) => {
+                                        const meta = getReasonMeta(entry.reason);
+
+                                        return (
+                                            <div
+                                                key={entry.id}
+                                                className="grid grid-cols-[2rem_1fr_6rem_8rem_7rem] items-center gap-3 px-4 py-3.5 transition hover:bg-slate-50/80"
+                                            >
+                                                <div className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-100">
+                                                    <span className="text-[9px] font-bold text-slate-500">{idx + 1}</span>
+                                                </div>
+
+                                                <div className="min-w-0">
+                                                    <span className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-semibold ${meta.bg} ${meta.color}`}>
+                                                        {meta.icon}
+                                                        {meta.label}
+                                                    </span>
+                                                    {entry.reference && (
+                                                        <p className="mt-0.5 flex items-center gap-1 text-[10px] text-slate-400">
+                                                            <Hash size={9} />
+                                                            {entry.reference}
+                                                        </p>
+                                                    )}
+                                                </div>
+
+                                                <div className="flex items-center gap-1">
+                                                    <CheckCircle2 size={13} className="text-emerald-500" />
+                                                    <span className="text-sm font-bold text-emerald-700">+{entry.quantity}</span>
+                                                </div>
+
+                                                <div className="flex items-center gap-1.5">
+                                                    <div className="h-1.5 w-1.5 rounded-full bg-blue-400" />
+                                                    <span className="text-sm font-semibold text-slate-700">{running} units</span>
+                                                </div>
+
+                                                <div>
+                                                    <p className="text-xs font-medium text-slate-600">
+                                                        {DateTimeFormat(entry.posted_at)}
+                                                    </p>
+                                                    <p className="text-[10px] text-slate-400">
+                                                        {entry.posted_by}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                {/* Footer */}
+                                <div className="flex items-center justify-between border-t border-slate-200 bg-slate-50 px-4 py-2.5">
+                                    <p className="text-[10px] text-slate-400">
+                                        {logs.length} {logs.length === 1 ? 'entry' : 'entries'} total
+                                    </p>
+                                    <p className="text-[10px] font-semibold text-slate-600">
+                                        Cumulative: <span className="text-blue-700">{cumulative} units</span>
+                                    </p>
+                                </div>
+                            </div>
+                        );
+                    })()
+                )}
             </div>
         </div>
     );
@@ -639,11 +819,10 @@ export default function ProductDashboard({
     autoOpenStockModal?: boolean;
 }) {
     const router = useRouter();
-    const [activeTab, setActiveTab]         = useState<TabId>('details');
+    const [activeTab, setActiveTab] = useState<TabId>('details');
     const [isStockModalOpen, setIsStockModalOpen] = useState(autoOpenStockModal);
-    const [isSubmitting, setIsSubmitting]   = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSavingDetails, setIsSavingDetails] = useState(false);
-    // Increment to trigger HistoryTab re-fetch after a successful submission
     const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
     const [locations, setLocations] = useState<StockLocationProps[]>([]);
     const [showTransfer, setShowTransfer] = useState(false);
@@ -651,8 +830,8 @@ export default function ProductDashboard({
     const [transferItemId, setTransferItemId] = useState<number | null>(null);
 
     const isStock = item.item_class === 'stock';
-    const stock   = item.stock;
-    const log     = item.stock_entry ?? [];
+    const stock = item.stock;
+    const log = item.stock_entry ?? [];
 
     useEffect(() => {
         let cancelled = false;
@@ -692,103 +871,117 @@ export default function ProductDashboard({
         : locations;
 
     // ── Submit handler ────────────────────────────────────────────────
-    const handleStockSubmit = useCallback(async (data: StockAdjustmentData) => {
-        setIsSubmitting(true);
-        try {
-            const res = await fetch(`/api/inventory/${item.id}/adjust`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    received_quantity: data.quantity,
-                    adjustment_reason: data.reason,
-                    location_id: data.location_id,
-                    movement_type: data.movement_type,
-                }),
-            });
+    const handleStockSubmit = useCallback(
+        async (data: StockAdjustmentData) => {
+            setIsSubmitting(true);
+            try {
+                const res = await fetch(`/api/inventory/${item.id}/adjust`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        received_quantity: data.quantity,
+                        adjustment_reason: data.reason,
+                        location_id: data.location_id,
+                        movement_type: data.movement_type,
+                    }),
+                });
 
-            if (!res.ok) {
-                const err = await res.json().catch(() => ({}));
-                throw new Error(err?.message ?? `Server error ${res.status}`);
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err?.message ?? `Server error ${res.status}`);
+                }
+
+                setIsStockModalOpen(false);
+                setHistoryRefreshKey((k) => k + 1);
+                router.refresh();
+                setActiveTab('history');
+            } catch (err) {
+                console.error('Stock adjustment failed:', err);
+                alert(err instanceof Error ? err.message : 'Submission failed. Please try again.');
+            } finally {
+                setIsSubmitting(false);
             }
-
-            setIsStockModalOpen(false);
-            setHistoryRefreshKey((k) => k + 1); // triggers HistoryTab re-fetch
-            router.refresh();
-            // Switch to history tab so user sees the new entry immediately
-            setActiveTab('history');
-        } catch (err) {
-            console.error('Stock adjustment failed:', err);
-            alert(err instanceof Error ? err.message : 'Submission failed. Please try again.');
-        } finally {
-            setIsSubmitting(false);
-        }
-    }, [item.id, router]);
+        },
+        [item.id, router],
+    );
 
     // ── Update details handler ──────────────────────────────────────
-    const handleUpdateDetails = useCallback(async (e: React.FormEvent<HTMLFormElement>) => {
-        e.preventDefault();
-        setIsSavingDetails(true);
-        try {
-            const formData = new FormData(e.currentTarget);
-            const data = {
-                name: formData.get('name'),
-                reference_no: formData.get('reference_no'),
-                purchase_price: formData.get('purchase_price'),
-                sale_price: formData.get('sale_price'),
-                description: formData.get('description'),
-            };
+    const handleUpdateDetails = useCallback(
+        async (e: React.FormEvent<HTMLFormElement>) => {
+            e.preventDefault();
+            setIsSavingDetails(true);
+            try {
+                const formData = new FormData(e.currentTarget);
+                const data = {
+                    name: formData.get('name'),
+                    reference_no: formData.get('reference_no'),
+                    purchase_price: formData.get('purchase_price'),
+                    sale_price: formData.get('sale_price'),
+                    description: formData.get('description'),
+                    brand: formData.get('brand') || null,
+                    condition: formData.get('condition') || 'new',
+                    supplier: formData.get('supplier') || null,
+                    barcode: formData.get('barcode') || null,
+                    min_stock: formData.get('min_stock') ? Number(formData.get('min_stock')) : null,
+                    has_warranty: formData.get('has_warranty') === 'true',
+                    is_discount: formData.get('is_discount') === 'true',
+                    is_returnable: formData.get('is_returnable') === 'true',
+                    is_sellable: formData.get('is_sellable') === 'true',
+                };
 
-            const res = await fetch(`/api/inventory/${item.id}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data),
-            });
+                const res = await fetch(`/api/inventory/${item.id}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data),
+                });
 
-            if (!res.ok) {
-                const err = await res.json().catch(() => ({}));
-                throw new Error(err?.error || `Server error ${res.status}`);
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err?.error || `Server error ${res.status}`);
+                }
+
+                alert('Product updated successfully!');
+                router.refresh();
+            } catch (err) {
+                console.error('Update failed:', err);
+                alert(err instanceof Error ? err.message : 'Update failed. Please try again.');
+            } finally {
+                setIsSavingDetails(false);
             }
-
-            alert('Product updated successfully!');
-            router.refresh();
-        } catch (err) {
-            console.error('Update failed:', err);
-            alert(err instanceof Error ? err.message : 'Update failed. Please try again.');
-        } finally {
-            setIsSavingDetails(false);
-        }
-    }, [item.id, router]);
+        },
+        [item.id, router],
+    );
 
     const tabs: { id: TabId; label: string; icon: React.ReactNode; badge?: number }[] = [
         { id: 'details', label: 'Item Details', icon: <FileText size={14} /> },
         ...(isStock
-            ? [{
-                id: 'history' as TabId,
-                label: 'Stock Balance History',
-                icon: <ClipboardList size={14} />,
-                badge: log.length,
-            }]
-            : [{
-                id: 'variant' as TabId,
-                label: 'Item Variant',
-                icon: <ClipboardList size={14} />,
-                badge: log.length,
-            }]
-        ),
+            ? [
+                  {
+                      id: 'history' as TabId,
+                      label: 'Stock & History',
+                      icon: <ClipboardList size={14} />,
+                      badge: log.length,
+                  },
+              ]
+            : [
+                  {
+                      id: 'variant' as TabId,
+                      label: 'Item Variant',
+                      icon: <ClipboardList size={14} />,
+                      badge: log.length,
+                  },
+              ]),
     ];
 
     return (
         <div className="min-h-screen bg-gray-50 px-4 py-8 md:px-8">
             <div className="mx-auto space-y-5">
-
                 {/* ── Inventory Status Banner ── */}
                 {isStock ? (
                     <StockBanner
                         stock={stock}
-                        itemId={item.id ?? 0}
                         stockBalances={stockBalances}
-                        onOpenStockModal={() => setIsStockModalOpen(true)} // ✅ wired up
-                        onOpenTransfer={openTransferModal}
+                        onOpenStockModal={() => setIsStockModalOpen(true)}
                     />
                 ) : (
                     <NonStockBanner />
@@ -812,6 +1005,7 @@ export default function ProductDashboard({
                         onClose={() => setShowTransfer(false)}
                         onSuccess={() => {
                             setShowTransfer(false);
+                            setHistoryRefreshKey((k) => k + 1);
                             router.refresh();
                         }}
                     />
@@ -835,9 +1029,11 @@ export default function ProductDashboard({
                                     {tab.icon}
                                     {tab.label}
                                     {tab.badge !== undefined && tab.badge > 0 && (
-                                        <span className={`inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
-                                            active ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'
-                                        }`}>
+                                        <span
+                                            className={`inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                                                active ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'
+                                            }`}
+                                        >
                                             {tab.badge}
                                         </span>
                                     )}
@@ -851,17 +1047,19 @@ export default function ProductDashboard({
 
                     {/* Tab content */}
                     {activeTab === 'details' && (
-                        <DetailsTab 
-                            item={item} 
-                            isStock={isStock} 
-                            onSubmit={handleUpdateDetails} 
-                            isSubmitting={isSavingDetails} 
+                        <DetailsTab
+                            item={item}
+                            isStock={isStock}
+                            onSubmit={handleUpdateDetails}
+                            isSubmitting={isSavingDetails}
                         />
                     )}
                     {activeTab === 'history' && (
                         <HistoryTab
                             itemId={item.id!}
-                            refreshKey={historyRefreshKey} // ✅ re-fetches after submit
+                            refreshKey={historyRefreshKey}
+                            stockBalances={stockBalances}
+                            onOpenTransfer={openTransferModal}
                         />
                     )}
                 </div>

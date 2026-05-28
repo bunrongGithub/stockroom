@@ -6,6 +6,7 @@ import {
     EditableTextarea,
     FieldLabel,
 } from '@/components/ui/FieldLabel';
+
 import { ReadonlyInput } from '@/components/ui/Readonly';
 import { StockLocationProps } from '@/types/branch';
 import { InventoryItemProps } from '@/types/inventory/item';
@@ -18,25 +19,164 @@ import {
     Rows3,
     Upload,
     X,
+    ShieldCheck,
+    Percent,
+    RotateCcw,
+    Tag,
+    Truck,
+    BarChart3,
+    ScanBarcode,
 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 
+// ─── Toggle Checkbox Component ────────────────────────────────────────────────
+function ToggleCheckbox({
+    checked,
+    onChange,
+    icon,
+    label,
+    description,
+}: {
+    checked: boolean;
+    onChange: (val: boolean) => void;
+    icon: React.ReactNode;
+    label: string;
+    description: string;
+}) {
+    return (
+        <label
+            className={`flex cursor-pointer items-start gap-3 rounded-xl border px-4 py-3 transition-all ${
+                checked
+                    ? 'border-blue-200 bg-blue-50/60 shadow-sm'
+                    : 'border-slate-100 bg-white hover:border-slate-200 hover:bg-slate-50/50'
+            }`}
+        >
+            <input
+                type="checkbox"
+                checked={checked}
+                onChange={(e) => onChange(e.target.checked)}
+                className="sr-only"
+            />
+            <div
+                className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-all ${
+                    checked
+                        ? 'border-blue-500 bg-blue-500 text-white'
+                        : 'border-slate-300 bg-white'
+                }`}
+            >
+                {checked && (
+                    <svg
+                        width="12"
+                        height="12"
+                        viewBox="0 0 12 12"
+                        fill="none"
+                    >
+                        <path
+                            d="M2.5 6L5 8.5L9.5 3.5"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                        />
+                    </svg>
+                )}
+            </div>
+            <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                    <span
+                        className={`${checked ? 'text-blue-600' : 'text-slate-400'}`}
+                    >
+                        {icon}
+                    </span>
+                    <span
+                        className={`text-sm font-semibold ${checked ? 'text-blue-800' : 'text-slate-700'}`}
+                    >
+                        {label}
+                    </span>
+                </div>
+                <p className="mt-0.5 text-xs text-slate-400">{description}</p>
+            </div>
+        </label>
+    );
+}
+
+// ─── Condition Selector ───────────────────────────────────────────────────────
+function ConditionSelector({
+    value,
+    onChange,
+}: {
+    value: string;
+    onChange: (val: string) => void;
+}) {
+    const options = [
+        {
+            value: 'new',
+            label: 'ថ្មី (New)',
+            color: 'bg-emerald-50 border-emerald-200 text-emerald-700',
+            activeColor:
+                'bg-emerald-500 border-emerald-500 text-white shadow-sm',
+        },
+        {
+            value: 'used',
+            label: 'មួយទឹក (Used)',
+            color: 'bg-amber-50 border-amber-200 text-amber-700',
+            activeColor: 'bg-amber-500 border-amber-500 text-white shadow-sm',
+        },
+        {
+            value: 'refurbished',
+            label: 'Refurbished',
+            color: 'bg-blue-50 border-blue-200 text-blue-700',
+            activeColor: 'bg-blue-500 border-blue-500 text-white shadow-sm',
+        },
+    ];
+
+    return (
+        <div className="flex flex-wrap gap-2">
+            {options.map((opt) => (
+                <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => onChange(opt.value)}
+                    className={`rounded-lg border px-3.5 py-2 text-xs font-semibold transition-all ${
+                        value === opt.value ? opt.activeColor : opt.color
+                    }`}
+                >
+                    {opt.label}
+                </button>
+            ))}
+        </div>
+    );
+}
+
+// ─── Main Form ────────────────────────────────────────────────────────────────
 export default function StockCreateForm() {
     const router = useRouter();
 
     const [isSaving, setIsSaving] = useState(false);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [imagePreviewUrl, setImagePreviewUrl] = useState<string>('');
-    const [error, setError] = useState('');  // ← unified error state
+    const [error, setError] = useState('');
     const [locations, setLocations] = useState<StockLocationProps[]>([]);
     const [locationId, setLocationId] = useState<number | ''>('');
     const [initialQuantity, setInitialQuantity] = useState<number | ''>(0);
     const [loadingLocations, setLoadingLocations] = useState(true);
 
-    const [formData, setFormData] = useState<InventoryItemProps>({
+    const [formData, setFormData] = useState<
+        InventoryItemProps & {
+            condition: string;
+            brand: string;
+            supplier: string;
+            barcode: string;
+            min_stock: number | '';
+            has_warranty: boolean;
+            is_discountable: boolean;
+            is_returnable: boolean;
+            is_sellable: boolean;
+        }
+    >({
         id: null,
         name: '',
         item_class: 'stock',
@@ -47,16 +187,20 @@ export default function StockCreateForm() {
         stock: null,
         stock_entry: null,
         category_id: null,
-        category: {
-            id: null,
-            name: '',
-        },
+        category: { id: null, name: '' },
         uom_id: null,
-        uom: {
-            id: null,
-            name: '',
-        },
+        uom: { id: null, name: '' },
         images_url: [],
+        // ── New fields ──
+        condition: 'new',
+        brand: '',
+        supplier: '',
+        barcode: '',
+        min_stock: '',
+        has_warranty: false,
+        is_discountable: true,
+        is_returnable: false,
+        is_sellable: true,
     });
 
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -69,7 +213,9 @@ export default function StockCreateForm() {
                 const res = await fetch('/api/stock-location');
                 const json = await res.json();
                 if (!res.ok) {
-                    throw new Error(json.error ?? 'Failed to load stock locations');
+                    throw new Error(
+                        json.error ?? 'Failed to load stock locations',
+                    );
                 }
 
                 const data: StockLocationProps[] = json.data ?? [];
@@ -93,13 +239,11 @@ export default function StockCreateForm() {
         }
 
         loadLocations();
-
         return () => {
             cancelled = true;
         };
     }, []);
 
-    // Generic handler for text/number inputs
     const handleChange = (
         e: React.ChangeEvent<
             HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
@@ -115,7 +259,6 @@ export default function StockCreateForm() {
         }));
     };
 
-    // Handler for category AsyncSearchSelect
     const handleCategoryChange = (
         selected: { id: string | number | null; name: string } | null,
     ) => {
@@ -129,7 +272,6 @@ export default function StockCreateForm() {
         }));
     };
 
-    // Handler for UOM AsyncSearchSelect
     const handleUomChange = (
         selected: { id: string | number | null; name: string } | null,
     ) => {
@@ -148,7 +290,6 @@ export default function StockCreateForm() {
         if (!file) return;
 
         if (file.size > 32 * 1024 * 1024) {
-            // ← replaced alert() with error state
             setError('សូមជ្រើសរើសរូបភាពដែលមានទំហំតូចជាង 32MB');
             return;
         }
@@ -183,7 +324,9 @@ export default function StockCreateForm() {
             return;
         }
         if (locations.length === 0) {
-            setError('មិនមានទីតាំងស្តុក។ សូមបង្កើត Storage Location ជាមុនសិន');
+            setError(
+                'មិនមានទីតាំងស្តុក។ សូមបង្កើត Storage Location ជាមុនសិន',
+            );
             return;
         }
         if (!locationId) {
@@ -209,15 +352,14 @@ export default function StockCreateForm() {
 
                 const imgResponse = await fetch(
                     `https://api.imgbb.com/1/upload?key=${imgbbApiKey}`,
-                    {
-                        method: 'POST',
-                        body: imgFormData,
-                    },
+                    { method: 'POST', body: imgFormData },
                 );
 
                 const imgData = await imgResponse.json();
                 if (!imgData.success) {
-                    throw new Error('បរាជ័យក្នុងការ Upload រូបភាពទៅកាន់ ImgBB');
+                    throw new Error(
+                        'បរាជ័យក្នុងការ Upload រូបភាពទៅកាន់ ImgBB',
+                    );
                 }
 
                 uploadedImageUrl = imgData.data.url;
@@ -235,19 +377,26 @@ export default function StockCreateForm() {
                 images_url: uploadedImageUrl ? [uploadedImageUrl] : [],
                 price: formData.sale_price,
                 stock: 0,
+                // ── New fields in payload ──
+                condition: formData.condition,
+                brand: formData.brand || null,
+                supplier: formData.supplier || null,
+                barcode: formData.barcode || null,
+                min_stock: formData.min_stock === '' ? null : Number(formData.min_stock),
+                has_warranty: formData.has_warranty,
+                is_discountable: formData.is_discountable,
+                is_returnable: formData.is_returnable,
+                is_sellable: formData.is_sellable,
             };
 
             const response = await fetch('/api/inventory', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload),
             });
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
-                // ← replaced console.log with error state
                 throw new Error(
                     errorData.message ??
                         errorData.error ??
@@ -274,7 +423,9 @@ export default function StockCreateForm() {
                 );
 
                 if (!stockResponse.ok) {
-                    const stockError = await stockResponse.json().catch(() => ({}));
+                    const stockError = await stockResponse
+                        .json()
+                        .catch(() => ({}));
                     throw new Error(
                         stockError.error ??
                             stockError.message ??
@@ -288,7 +439,6 @@ export default function StockCreateForm() {
             );
             router.refresh();
         } catch (error: unknown) {
-            // ← replaced console.log with error state
             const message =
                 error instanceof Error
                     ? error.message
@@ -298,6 +448,13 @@ export default function StockCreateForm() {
             setIsSaving(false);
         }
     };
+
+    // ── Profit calculation ──
+    const profit = Number(formData.sale_price) - Number(formData.purchase_price);
+    const profitMargin =
+        Number(formData.sale_price) > 0
+            ? ((profit / Number(formData.sale_price)) * 100).toFixed(1)
+            : '0.0';
 
     return (
         <div className="mx-auto max-w-7xl space-y-6 p-4 md:p-8">
@@ -325,7 +482,10 @@ export default function StockCreateForm() {
             {/* ── Global error banner ── */}
             {error && (
                 <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
-                    <AlertCircle size={18} className="mt-0.5 shrink-0 text-red-500" />
+                    <AlertCircle
+                        size={18}
+                        className="mt-0.5 shrink-0 text-red-500"
+                    />
                     <p className="text-sm text-red-700">{error}</p>
                     <button
                         type="button"
@@ -339,28 +499,62 @@ export default function StockCreateForm() {
 
             <form
                 onSubmit={handleSave}
-                className="grid gap-6 xl:grid-cols-[minmax(0,1.5fr)_360px]"
+                className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_280px]"
             >
-                {/* ── Left column ── */}
+                {/* ══════════════════════════════════════════════════════════════
+                    LEFT COLUMN — Main form (wider now)
+                   ══════════════════════════════════════════════════════════════ */}
                 <div className="space-y-6">
-                    <section className="rounded-md border border-slate-50">
-                        <div className="grid gap-5 lg:grid-cols-2">
-                            {/* Reference No — readonly, generated server-side */}
-                            <div className="lg:col-span-1">
+                    {/* ── Section 1: Basic Information ── */}
+                    <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+                        <h3 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-slate-500">
+                            <Package size={15} className="text-[#1a9e52]" />
+                            ព័ត៌មានទំនិញ
+                        </h3>
+
+                        <div className="grid gap-4 lg:grid-cols-2">
+                            {/* Reference No */}
+                            <div>
                                 <FieldLabel>Reference No</FieldLabel>
                                 <ReadonlyInput placeholder="Auto-generated" />
                             </div>
 
                             {/* Item Name */}
-                            <div className="lg:col-span-1">
-                                <FieldLabel>ឈ្មោះទំនិញ</FieldLabel>
+                            <div>
+                                <FieldLabel required>ឈ្មោះទំនិញ</FieldLabel>
                                 <EditableInput
                                     type="text"
                                     name="name"
                                     required
                                     value={formData.name}
                                     onChange={handleChange}
-                                    placeholder="ឧ. iPhone Case..."
+                                    placeholder="ឧ. iPhone 16 Pro Max, Samsung S24..."
+                                />
+                            </div>
+
+                            {/* Brand */}
+                            <div>
+                                <FieldLabel>ម៉ាក (Brand)</FieldLabel>
+                                <EditableInput
+                                    type="text"
+                                    name="brand"
+                                    value={formData.brand}
+                                    onChange={handleChange}
+                                    placeholder="ឧ. Apple, Samsung, Xiaomi..."
+                                />
+                            </div>
+
+                            {/* Condition */}
+                            <div>
+                                <FieldLabel>ស្ថានភាពទំនិញ (Condition)</FieldLabel>
+                                <ConditionSelector
+                                    value={formData.condition}
+                                    onChange={(val) =>
+                                        setFormData((prev) => ({
+                                            ...prev,
+                                            condition: val,
+                                        }))
+                                    }
                                 />
                             </div>
 
@@ -380,7 +574,7 @@ export default function StockCreateForm() {
                             <div>
                                 <AsyncSearchSelect
                                     label="Unit of Measurement"
-                                    placeholder="ជ្រើសរើសប្រភេទ..."
+                                    placeholder="ជ្រើសរើស UOM..."
                                     apiUrl="/api/uom"
                                     value={formData.uom?.name ?? ''}
                                     onChange={handleUomChange}
@@ -388,7 +582,46 @@ export default function StockCreateForm() {
                                 />
                             </div>
 
-                            {/* Purchase Price */}
+                            {/* Barcode */}
+                            <div>
+                                <FieldLabel>Barcode / SKU</FieldLabel>
+                                <div className="relative">
+                                    <EditableInput
+                                        type="text"
+                                        name="barcode"
+                                        value={formData.barcode}
+                                        onChange={handleChange}
+                                        placeholder="Scan or type barcode..."
+                                    />
+                                    <ScanBarcode
+                                        size={16}
+                                        className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-300"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Supplier */}
+                            <div>
+                                <FieldLabel>អ្នកផ្គត់ផ្គង់ (Supplier)</FieldLabel>
+                                <EditableInput
+                                    type="text"
+                                    name="supplier"
+                                    value={formData.supplier}
+                                    onChange={handleChange}
+                                    placeholder="ឈ្មោះអ្នកផ្គត់ផ្គង់..."
+                                />
+                            </div>
+                        </div>
+                    </section>
+
+                    {/* ── Section 2: Pricing ── */}
+                    <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+                        <h3 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-slate-500">
+                            <Tag size={15} className="text-[#1a9e52]" />
+                            តម្លៃ
+                        </h3>
+
+                        <div className="grid gap-4 sm:grid-cols-3">
                             <div>
                                 <FieldLabel>តម្លៃទិញចូល ($)</FieldLabel>
                                 <EditableInput
@@ -400,10 +633,8 @@ export default function StockCreateForm() {
                                     onChange={handleChange}
                                 />
                             </div>
-
-                            {/* Sale Price */}
                             <div>
-                                <FieldLabel>តម្លៃលក់ ($)</FieldLabel>
+                                <FieldLabel required>តម្លៃលក់ ($)</FieldLabel>
                                 <EditableInput
                                     name="sale_price"
                                     type="number"
@@ -413,10 +644,38 @@ export default function StockCreateForm() {
                                     onChange={handleChange}
                                 />
                             </div>
-
-                            {/* Initial Quantity */}
+                            {/* Profit indicator */}
                             <div>
-                                <FieldLabel>Initial Stock Quantity</FieldLabel>
+                                <FieldLabel>ប្រាក់ចំណេញ (Profit)</FieldLabel>
+                                <div
+                                    className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-sm font-semibold ${
+                                        profit > 0
+                                            ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                            : profit < 0
+                                              ? 'border-red-200 bg-red-50 text-red-600'
+                                              : 'border-slate-200 bg-slate-50 text-slate-500'
+                                    }`}
+                                >
+                                    <BarChart3 size={14} />$
+                                    {profit.toFixed(2)}{' '}
+                                    <span className="text-xs font-normal opacity-70">
+                                        ({profitMargin}%)
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    {/* ── Section 3: Stock & Location ── */}
+                    <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+                        <h3 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-slate-500">
+                            <Truck size={15} className="text-[#1a9e52]" />
+                            ស្តុក និងទីតាំង
+                        </h3>
+
+                        <div className="grid gap-4 sm:grid-cols-3">
+                            <div>
+                                <FieldLabel>ស្តុកដំបូង (Initial Stock)</FieldLabel>
                                 <EditableInput
                                     type="number"
                                     min={0}
@@ -433,15 +692,42 @@ export default function StockCreateForm() {
                                 />
                             </div>
 
-                            {/* Storage Location */}
                             <div>
-                                <FieldLabel>Storage Location *</FieldLabel>
+                                <FieldLabel>ចំនួនអប្បបរមា (Min Stock Alert)</FieldLabel>
+                                <EditableInput
+                                    type="number"
+                                    min={0}
+                                    step={1}
+                                    value={formData.min_stock}
+                                    onChange={(e) =>
+                                        setFormData((prev) => ({
+                                            ...prev,
+                                            min_stock:
+                                                e.target.value === ''
+                                                    ? ''
+                                                    : Number(e.target.value),
+                                        }))
+                                    }
+                                    placeholder="ឧ. 5"
+                                />
+                                <p className="mt-1 text-[10px] text-slate-400">
+                                    ជូនដំណឹងពេលស្តុកទាបជាងចំនួននេះ
+                                </p>
+                            </div>
+
+                            <div>
+                                <FieldLabel>ទីតាំងស្តុក (Location) *</FieldLabel>
                                 <select
                                     value={locationId}
                                     onChange={(e) =>
-                                        setLocationId(Number(e.target.value) || '')
+                                        setLocationId(
+                                            Number(e.target.value) || '',
+                                        )
                                     }
-                                    disabled={loadingLocations || locations.length === 0}
+                                    disabled={
+                                        loadingLocations ||
+                                        locations.length === 0
+                                    }
                                     required
                                     className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-50"
                                 >
@@ -451,49 +737,123 @@ export default function StockCreateForm() {
                                             : 'ជ្រើសរើសទីតាំង...'}
                                     </option>
                                     {locations.map((location) => (
-                                        <option key={location.id} value={location.id}>
-                                            {location.code ? `[${location.code}] ` : ''}
+                                        <option
+                                            key={location.id}
+                                            value={location.id}
+                                        >
+                                            {location.code
+                                                ? `[${location.code}] `
+                                                : ''}
                                             {location.name}
-                                            {location.is_default ? ' (Default)' : ''}
+                                            {location.is_default
+                                                ? ' (Default)'
+                                                : ''}
                                         </option>
                                     ))}
                                 </select>
-                                {!loadingLocations && locations.length === 0 && (
-                                    <p className="mt-2 flex items-start gap-2 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                                        <AlertCircle
-                                            size={14}
-                                            className="mt-0.5 shrink-0"
-                                        />
-                                        មិនមានទីតាំងស្តុក។ សូមបង្កើត Storage Location ជាមុនសិន
-                                    </p>
-                                )}
-                            </div>
-
-                            {/* Description */}
-                            <div className="lg:col-span-2">
-                                <FieldLabel>Additional Notes</FieldLabel>
-                                <EditableTextarea
-                                    name="description"
-                                    value={formData.description ?? ''}
-                                    onChange={handleChange}
-                                    placeholder="Internal notes, usage context, supplier info…"
-                                />
+                                {!loadingLocations &&
+                                    locations.length === 0 && (
+                                        <p className="mt-2 flex items-start gap-2 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                                            <AlertCircle
+                                                size={14}
+                                                className="mt-0.5 shrink-0"
+                                            />
+                                            មិនមានទីតាំងស្តុក។ សូមបង្កើត
+                                            Storage Location ជាមុនសិន
+                                        </p>
+                                    )}
                             </div>
                         </div>
                     </section>
+
+                    {/* ── Section 4: Item Properties (Checkboxes) ── */}
+                    <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+                        <h3 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-slate-500">
+                            <ShieldCheck
+                                size={15}
+                                className="text-[#1a9e52]"
+                            />
+                            លក្ខណៈសម្បត្តិទំនិញ
+                        </h3>
+
+                        <div className="grid gap-3 sm:grid-cols-2">
+                            <ToggleCheckbox
+                                checked={formData.has_warranty}
+                                onChange={(val) =>
+                                    setFormData((prev) => ({
+                                        ...prev,
+                                        has_warranty: val,
+                                    }))
+                                }
+                                icon={<ShieldCheck size={16} />}
+                                label="មានធានា (Warranty)"
+                                description="ជ្រើសរើស warranty period ពេលលក់ចេញ"
+                            />
+                            <ToggleCheckbox
+                                checked={formData.is_discountable}
+                                onChange={(val) =>
+                                    setFormData((prev) => ({
+                                        ...prev,
+                                        is_discountable: val,
+                                    }))
+                                }
+                                icon={<Percent size={16} />}
+                                label="អាចបញ្ចុះតម្លៃ (Discountable)"
+                                description="អនុញ្ញាតអោយដាក់បញ្ចុះតម្លៃពេលលក់"
+                            />
+                            <ToggleCheckbox
+                                checked={formData.is_returnable}
+                                onChange={(val) =>
+                                    setFormData((prev) => ({
+                                        ...prev,
+                                        is_returnable: val,
+                                    }))
+                                }
+                                icon={<RotateCcw size={16} />}
+                                label="អាចប្តូរវិញ (Returnable)"
+                                description="អនុញ្ញាតអោយអតិថិជនប្តូរវិញ"
+                            />
+                            <ToggleCheckbox
+                                checked={formData.is_sellable}
+                                onChange={(val) =>
+                                    setFormData((prev) => ({
+                                        ...prev,
+                                        is_sellable: val,
+                                    }))
+                                }
+                                icon={<Tag size={16} />}
+                                label="អាចលក់បាន (Sellable)"
+                                description="បង្ហាញក្នុង POS សម្រាប់លក់ចេញ"
+                            />
+                        </div>
+                    </section>
+
+                    {/* ── Section 5: Notes ── */}
+                    <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+                        <FieldLabel>កំណត់ចំណាំ (Additional Notes)</FieldLabel>
+                        <EditableTextarea
+                            name="description"
+                            value={formData.description ?? ''}
+                            onChange={handleChange}
+                            placeholder="ព័ត៌មានបន្ថែម ឧ. ពណ៌ ទំហំផ្ទុក spec ពិសេស..."
+                            rows={3}
+                        />
+                    </section>
                 </div>
 
-                {/* ── Right sidebar ── */}
-                <aside className="space-y-6">
-                    {/* Image upload */}
-                    <section>
-                        <div className="mb-4 flex items-center gap-2 text-lg font-semibold text-slate-800">
-                            <Rows3 size={18} className="text-[#1a9e52]" />
-                            រូបភាពទំនិញ
+                {/* ══════════════════════════════════════════════════════════════
+                    RIGHT SIDEBAR — Image + Summary (narrower: 280px)
+                   ══════════════════════════════════════════════════════════════ */}
+                <aside className="space-y-5">
+                    {/* Image upload — compact */}
+                    <section className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+                        <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
+                            <Rows3 size={14} className="text-[#1a9e52]" />
+                            រូបភាព
                         </div>
 
                         <div
-                            className={`cursor-pointer rounded-2xl border-2 border-dashed p-4 text-center transition-all ${
+                            className={`cursor-pointer rounded-xl border-2 border-dashed p-3 text-center transition-all ${
                                 imagePreviewUrl
                                     ? 'border-[#1a9e52]/50 bg-[#1a9e52]/5'
                                     : 'border-slate-300 hover:border-[#1a9e52] hover:bg-slate-50'
@@ -515,10 +875,10 @@ export default function StockCreateForm() {
                                     <Image
                                         src={imagePreviewUrl}
                                         alt="Preview"
-                                        width={320}
-                                        height={224}
+                                        width={240}
+                                        height={160}
                                         unoptimized
-                                        className="h-56 w-auto rounded-xl object-contain shadow-sm"
+                                        className="h-36 w-auto rounded-lg object-contain shadow-sm"
                                     />
                                     <button
                                         type="button"
@@ -528,83 +888,128 @@ export default function StockCreateForm() {
                                         }}
                                         className="absolute -right-2 -top-2 rounded-full bg-red-500 p-1 text-white shadow-md hover:bg-red-600"
                                     >
-                                        <X size={14} />
+                                        <X size={12} />
                                     </button>
                                 </div>
                             ) : (
-                                <div className="flex flex-col items-center justify-center py-10 text-slate-500">
-                                    <div className="mb-3 rounded-full bg-slate-100 p-3">
+                                <div className="flex flex-col items-center justify-center py-6 text-slate-500">
+                                    <div className="mb-2 rounded-full bg-slate-100 p-2.5">
                                         <Upload
-                                            size={24}
+                                            size={18}
                                             className="text-slate-400"
                                         />
                                     </div>
-                                    <p className="text-sm font-medium">
-                                        ចុចទីនេះ ដើម្បីជ្រើសរើសរូបភាព
+                                    <p className="text-xs font-medium">
+                                        ចុចដើម្បីជ្រើសរើសរូបភាព
                                     </p>
-                                    <p className="mt-1 text-xs text-slate-400">
-                                        PNG, JPG មិនលើសពី 32MB
+                                    <p className="mt-0.5 text-[10px] text-slate-400">
+                                        PNG, JPG — មិនលើស 32MB
                                     </p>
                                 </div>
                             )}
                         </div>
                     </section>
 
-                    {/* Summary */}
-                    <section>
-                        <h3 className="text-lg font-semibold text-slate-800">
-                            សង្ខេបទិន្នន័យ
+                    {/* Summary — compact */}
+                    <section className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+                        <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-500">
+                            សង្ខេប
                         </h3>
-                        <div className="mt-4 space-y-3 text-sm text-slate-600">
-                            <div className="flex items-center justify-between gap-4 rounded-2xl bg-white px-4 py-3">
-                                <span>Category</span>
-                                <span className="font-semibold text-slate-800">
-                                    {formData.category?.name || '-'}
-                                </span>
-                            </div>
-                            <div className="flex items-center justify-between gap-4 rounded-2xl bg-white px-4 py-3">
-                                <span>UOM</span>
-                                <span className="font-semibold uppercase text-slate-800">
-                                    {formData.uom?.name || '-'}
-                                </span>
-                            </div>
-                            <div className="flex items-center justify-between gap-4 rounded-2xl bg-white px-4 py-3">
-                                <span>Purchase Price</span>
-                                <span className="font-semibold text-slate-800">
-                                    $
-                                    {Number(formData.purchase_price).toFixed(2)}
-                                </span>
-                            </div>
-                            <div className="flex items-center justify-between gap-4 rounded-2xl bg-white px-4 py-3">
-                                <span>Sell Price</span>
-                                <span className="font-semibold text-slate-800">
-                                    ${Number(formData.sale_price).toFixed(2)}
-                                </span>
-                            </div>
-                            <div className="flex items-center justify-between gap-4 rounded-2xl bg-white px-4 py-3">
-                                <span>Initial Stock</span>
-                                <span className="font-semibold text-slate-800">
-                                    {initialQuantity || 0}
-                                </span>
-                            </div>
-                            <div className="flex items-center justify-between gap-4 rounded-2xl bg-white px-4 py-3">
-                                <span className="flex items-center gap-1.5">
-                                    <MapPin size={13} />
+                        <div className="space-y-1.5 text-xs text-slate-600">
+                            {[
+                                {
+                                    label: 'Category',
+                                    value: formData.category?.name,
+                                },
+                                {
+                                    label: 'UOM',
+                                    value: formData.uom?.name,
+                                },
+                                { label: 'Brand', value: formData.brand },
+                                {
+                                    label: 'Condition',
+                                    value:
+                                        formData.condition === 'new'
+                                            ? 'ថ្មី'
+                                            : formData.condition === 'used'
+                                              ? 'មួយទឹក'
+                                              : 'Refurbished',
+                                },
+                                {
+                                    label: 'Purchase',
+                                    value: `$${Number(formData.purchase_price).toFixed(2)}`,
+                                },
+                                {
+                                    label: 'Sale',
+                                    value: `$${Number(formData.sale_price).toFixed(2)}`,
+                                },
+                                {
+                                    label: 'Profit',
+                                    value: `$${profit.toFixed(2)} (${profitMargin}%)`,
+                                },
+                                {
+                                    label: 'Stock',
+                                    value: String(initialQuantity || 0),
+                                },
+                            ].map((row) => (
+                                <div
+                                    key={row.label}
+                                    className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2"
+                                >
+                                    <span className="text-slate-500">
+                                        {row.label}
+                                    </span>
+                                    <span className="truncate font-semibold text-slate-800">
+                                        {row.value || '-'}
+                                    </span>
+                                </div>
+                            ))}
+
+                            <div className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2">
+                                <span className="flex items-center gap-1 text-slate-500">
+                                    <MapPin size={11} />
                                     Location
                                 </span>
                                 <span className="truncate text-right font-semibold text-slate-800">
-                                    {locations.find((location) => location.id === locationId)
-                                        ?.name ?? '-'}
+                                    {locations.find(
+                                        (location) =>
+                                            location.id === locationId,
+                                    )?.name ?? '-'}
                                 </span>
                             </div>
                         </div>
 
-                        <div className="mt-6 flex flex-col-reverse gap-3">
+                        {/* Toggle badges summary */}
+                        <div className="mt-3 flex flex-wrap gap-1.5">
+                            {formData.has_warranty && (
+                                <span className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-600">
+                                    <ShieldCheck size={10} /> Warranty
+                                </span>
+                            )}
+                            {formData.is_discountable && (
+                                <span className="inline-flex items-center gap-1 rounded-md bg-purple-50 px-2 py-0.5 text-[10px] font-semibold text-purple-600">
+                                    <Percent size={10} /> Discount
+                                </span>
+                            )}
+                            {formData.is_returnable && (
+                                <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-600">
+                                    <RotateCcw size={10} /> Return
+                                </span>
+                            )}
+                            {formData.is_sellable && (
+                                <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-600">
+                                    <Tag size={10} /> Sellable
+                                </span>
+                            )}
+                        </div>
+
+                        {/* Buttons */}
+                        <div className="mt-5 flex flex-col-reverse gap-2">
                             <Link
                                 href="/inventory"
-                                className="w-full rounded-xl border border-slate-200 px-4 py-3 text-center font-medium text-slate-600 transition-colors hover:bg-slate-50"
+                                className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-center text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
                             >
-                                បោះបង់ (Cancel)
+                                បោះបង់
                             </Link>
                             <button
                                 type="submit"
@@ -613,17 +1018,15 @@ export default function StockCreateForm() {
                                     loadingLocations ||
                                     locations.length === 0
                                 }
-                                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1a9e52] px-4 py-3 font-medium text-white transition-colors hover:bg-[#158042] disabled:opacity-50"
+                                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1a9e52] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#158042] disabled:opacity-50"
                             >
                                 {isSaving ? (
                                     <Loader2
                                         className="animate-spin"
-                                        size={18}
+                                        size={16}
                                     />
                                 ) : null}
-                                {isSaving
-                                    ? 'កំពុងរក្សាទុក...'
-                                    : 'រក្សាទុក (Save)'}
+                                {isSaving ? 'កំពុងរក្សាទុក...' : 'រក្សាទុក'}
                             </button>
                         </div>
                     </section>
