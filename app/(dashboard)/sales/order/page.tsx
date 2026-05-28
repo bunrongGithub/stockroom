@@ -1,6 +1,8 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import SalesOrderClient from '@/components/forms/sales/order/SalesOrderClient';
+import { SaleService } from '@/lib/services/sale.service';
+import { ToastProvider } from '@/components/ui/Toast';
 
 export default async function SalesOrderPage() {
     const supabase = await createClient();
@@ -8,19 +10,12 @@ export default async function SalesOrderPage() {
 
     if (!user) redirect('/login');
 
-    const { data: sales } = await supabase
-        .from('sales')
-        .select(`
-            id,
-            sale_no,
-            date,
-            amount,
-            description,
-            status,
-            items,
-            customers ( name, phone )
-        `)
-        .order('created_at', { ascending: false });
+    const saleService = SaleService.getInstance();
+    const sales = await saleService.getAll();
 
-    return <SalesOrderClient initialSales={sales || []} />;
+    return (
+        <ToastProvider>
+            <SalesOrderClient initialSales={sales} />
+        </ToastProvider>
+    );
 }

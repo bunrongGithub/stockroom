@@ -1,6 +1,8 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import ShipmentClient from '@/components/forms/sales/shipment/ShipmentClient';
+import { SaleService } from '@/lib/services/sale.service';
+import { ToastProvider } from '@/components/ui/Toast';
 
 export default async function ShipmentPage() {
     const supabase = await createClient();
@@ -8,19 +10,12 @@ export default async function ShipmentPage() {
 
     if (!user) redirect('/login');
 
-    const { data: sales } = await supabase
-        .from('sales')
-        .select(`
-            id,
-            sale_no,
-            date,
-            amount,
-            description,
-            status,
-            items,
-            customers ( name, phone, address )
-        `)
-        .order('created_at', { ascending: false });
+    const saleService = SaleService.getInstance();
+    const sales = await saleService.getAll();
 
-    return <ShipmentClient initialSales={sales || []} />;
+    return (
+        <ToastProvider>
+            <ShipmentClient initialSales={sales} />
+        </ToastProvider>
+    );
 }

@@ -8,7 +8,7 @@ async function page() {
     const json = await res.json();
     const uomLIst = json.data;
 
-    return <UomListForm uoms={uomLIst.data} />;
+    return <UomListForm uoms={uomLIst || []} />;
 }
 
 export default page;

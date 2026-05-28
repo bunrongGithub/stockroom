@@ -1,6 +1,7 @@
 import POSClient from '@/components/forms/sales/pos/POSClient';
 import { createClient } from '@/lib/supabase/server';
 import { notFound, redirect } from 'next/navigation';
+import { ToastProvider } from '@/components/ui/Toast';
 
 export default async function POSPage() {
     const supabase = await createClient();
@@ -32,5 +33,9 @@ export default async function POSPage() {
 
     const branches = branchData ?? [];
 
-    return <POSClient items={items} branches={branches} />;
+    return (
+        <ToastProvider>
+            <POSClient items={items} branches={branches} />
+        </ToastProvider>
+    );
 }

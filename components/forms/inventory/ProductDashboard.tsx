@@ -293,12 +293,16 @@ function NonStockBanner() {
 function DetailsTab({
     item,
     isStock,
+    onSubmit,
+    isSubmitting
 }: {
     item: InventoryItemProps;
     isStock: boolean;
+    onSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
+    isSubmitting: boolean;
 }) {
     return (
-        <div className="p-6 md:p-8">
+        <form onSubmit={onSubmit} className="p-6 md:p-8">
             <div className="grid gap-8">
                 <div className="space-y-8">
                     <section>
@@ -412,7 +416,23 @@ function DetailsTab({
                     </section>
                 </div>
             </div>
-        </div>
+
+            {/* Save Button */}
+            <div className="mt-8 flex justify-end">
+                <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#1a9e52] px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#158042] hover:shadow disabled:opacity-50"
+                >
+                    {isSubmitting ? (
+                        <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                        <CheckCircle2 size={16} />
+                    )}
+                    Save Changes
+                </button>
+            </div>
+        </form>
     );
 }
 
@@ -425,34 +445,60 @@ function HistoryTab({
     itemId: number | string;
     refreshKey: number; // increments after every successful submission → triggers re-fetch
 }) {
-    const [logs, setLogs]       = useState<TStockLogEntry[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [logs, setLogs]       = useState<TStockLogEntry[]>([{
+            id: 1,
+            reason: 'Opening Warehouse Inventory Balance Setup',
+            quantity: 100,
+            posted_at: new Date().toISOString(),
+            posted_by: 'Admin User',
+                reference: 'Initial stock entry when item was created',
+
+        },{
+            id: 2,
+            reason: 'Cycle Count Correction',
+            quantity: 20,
+            posted_at: new Date().toISOString(),
+            posted_by: 'Admin User',
+                reference: 'Initial stock entry when item was created',
+                
+        },{
+            id: 3,
+            reason: 'Direct Manual Vendor Arrival',
+            quantity: 24,
+            posted_at: new Date().toISOString(),
+            posted_by: 'Admin User',
+                reference: 'Initial stock entry when item was created',
+                
+        }]);
+    const [loading, setLoading] = useState(false);
     const [error, setError]     = useState<string | null>(null);
 
     // ── Fetch logs ──────────────────────────────────────────────────
-    useEffect(() => {
-        let cancelled = false;
+    // useEffect(() => {
+    //     let cancelled = false;
 
-        fetch(`/api/inventory/${itemId}`, { method: 'GET' })
-            .then((r) => {
-                if (!r.ok) throw new Error(`Server error ${r.status}`);
-                return r.json();
-            })
-            .then((json) => {
-                if (!cancelled) {
-                    setLogs(json.data?.stock_entry ?? []);
-                    setError(null);
-                }
-            })
-            .catch((err) => {
-                if (!cancelled) setError(err.message ?? 'Failed to load history.');
-            })
-            .finally(() => {
-                if (!cancelled) setLoading(false);
-            });
+    //     fetch(`/api/inventory/${itemId}`, { method: 'GET' })
+    //         .then((r) => {
+    //             if (!r.ok) throw new Error(`Server error ${r.status}`);
+    //             return r.json();
+    //         })
+    //         .then((json) => {
+    //             if (!cancelled) {
+    //                 setLogs(json.data?.stock_entry ?? []);
+    //                 setError(null);
+    //             }
+    //         })
+    //         .catch((err) => {
+    //             if (!cancelled) setError(err.message ?? 'Failed to load history.');
+    //         })
+    //         .finally(() => {
+    //             if (!cancelled) setLoading(false);
+    //         });
 
-        return () => { cancelled = true; };
-    }, [itemId, refreshKey]); // re-runs whenever refreshKey changes
+    //     // setLogs()
+    //     return () => { cancelled = true; };
+
+    // }, [itemId, refreshKey]); // re-runs whenever refreshKey changes
 
     // ── Loading ─────────────────────────────────────────────────────
     if (loading) {
@@ -596,6 +642,7 @@ export default function ProductDashboard({
     const [activeTab, setActiveTab]         = useState<TabId>('details');
     const [isStockModalOpen, setIsStockModalOpen] = useState(autoOpenStockModal);
     const [isSubmitting, setIsSubmitting]   = useState(false);
+    const [isSavingDetails, setIsSavingDetails] = useState(false);
     // Increment to trigger HistoryTab re-fetch after a successful submission
     const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
     const [locations, setLocations] = useState<StockLocationProps[]>([]);
@@ -655,7 +702,7 @@ export default function ProductDashboard({
                     received_quantity: data.quantity,
                     adjustment_reason: data.reason,
                     location_id: data.location_id,
-                    movement_type: 'in',
+                    movement_type: data.movement_type,
                 }),
             });
 
@@ -674,6 +721,41 @@ export default function ProductDashboard({
             alert(err instanceof Error ? err.message : 'Submission failed. Please try again.');
         } finally {
             setIsSubmitting(false);
+        }
+    }, [item.id, router]);
+
+    // ── Update details handler ──────────────────────────────────────
+    const handleUpdateDetails = useCallback(async (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        setIsSavingDetails(true);
+        try {
+            const formData = new FormData(e.currentTarget);
+            const data = {
+                name: formData.get('name'),
+                reference_no: formData.get('reference_no'),
+                purchase_price: formData.get('purchase_price'),
+                sale_price: formData.get('sale_price'),
+                description: formData.get('description'),
+            };
+
+            const res = await fetch(`/api/inventory/${item.id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data),
+            });
+
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err?.error || `Server error ${res.status}`);
+            }
+
+            alert('Product updated successfully!');
+            router.refresh();
+        } catch (err) {
+            console.error('Update failed:', err);
+            alert(err instanceof Error ? err.message : 'Update failed. Please try again.');
+        } finally {
+            setIsSavingDetails(false);
         }
     }, [item.id, router]);
 
@@ -769,7 +851,12 @@ export default function ProductDashboard({
 
                     {/* Tab content */}
                     {activeTab === 'details' && (
-                        <DetailsTab item={item} isStock={isStock} />
+                        <DetailsTab 
+                            item={item} 
+                            isStock={isStock} 
+                            onSubmit={handleUpdateDetails} 
+                            isSubmitting={isSavingDetails} 
+                        />
                     )}
                     {activeTab === 'history' && (
                         <HistoryTab

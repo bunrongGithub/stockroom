@@ -29,7 +29,8 @@ export class UOMService {
     // -------------------------------------------------------------------------
 
     async getAll(): Promise<TUom[]> {
-        return await this.uomRepo.findAll();
+        const result = await this.uomRepo.findAll();
+        return result.data || [];
     }
 
     async getById(id: number): Promise<TUom> {

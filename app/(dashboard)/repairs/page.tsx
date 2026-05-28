@@ -1,6 +1,6 @@
 'use client';
 
-import { supabase } from '@/supabase/supabase';
+import { supabase } from '@/lib/supabase/client';
 import {
     Edit,
     Loader2,

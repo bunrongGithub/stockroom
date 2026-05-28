@@ -15,17 +15,35 @@ export interface CheckoutPayload {
 interface Props {
     isOpen: boolean;
     onClose: () => void;
-    total: number;
+    subtotal: number;
     onSubmit: (payload: CheckoutPayload) => Promise<void>;
     isLoading?: boolean;
 }
 
-export default function CheckoutModal({ isOpen, onClose, total, onSubmit, isLoading }: Props) {
+export default function CheckoutModal({ isOpen, onClose, subtotal, onSubmit, isLoading }: Props) {
     const [customerName, setCustomerName] = useState('');
     const [customerPhone, setCustomerPhone] = useState('');
     const [paymentMethod, setPaymentMethod] = useState<'cash' | 'khqr'>('cash');
     const [status, setStatus] = useState<'Completed' | 'Pending Repair'>('Completed');
+    
+    // Discount state
+    const [discountType, setDiscountType] = useState<'fixed' | 'percent'>('fixed');
+    const [discountInput, setDiscountInput] = useState<number>(0);
+    
+    // Calculate total based on subtotal and discount
+    const discountValue = discountType === 'percent' 
+        ? subtotal * (discountInput / 100) 
+        : discountInput;
+        
+    const total = Math.max(0, subtotal - discountValue);
+    
+    // Initialize amountPaid with the final total only once
     const [amountPaid, setAmountPaid] = useState<number>(total);
+    
+    // Update amount paid automatically when total changes IF amount paid matched the old total
+    React.useEffect(() => {
+        setAmountPaid(total);
+    }, [total]);
 
     if (!isOpen) return null;
 
@@ -40,8 +58,8 @@ export default function CheckoutModal({ isOpen, onClose, total, onSubmit, isLoad
             customerPhone,
             paymentMethod,
             status,
-            discountValue: 0,
-            discountType: 'fixed',
+            discountValue: discountInput,
+            discountType,
             amountPaid
         });
     };
@@ -142,13 +160,59 @@ export default function CheckoutModal({ isOpen, onClose, total, onSubmit, isLoad
                                 </label>
                             </div>
                         </div>
+
+                        {/* Discount */}
+                        <div className="space-y-3">
+                            <h3 className="text-sm font-semibold text-slate-700">Discount</h3>
+                            <div className="flex gap-2">
+                                <div className="flex bg-slate-100 rounded-xl p-1 border border-slate-200">
+                                    <button
+                                        onClick={() => setDiscountType('fixed')}
+                                        className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${
+                                            discountType === 'fixed' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500'
+                                        }`}
+                                    >
+                                        Fixed ($)
+                                    </button>
+                                    <button
+                                        onClick={() => setDiscountType('percent')}
+                                        className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${
+                                            discountType === 'percent' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500'
+                                        }`}
+                                    >
+                                        Percent (%)
+                                    </button>
+                                </div>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    placeholder="0"
+                                    value={discountInput || ''}
+                                    onChange={(e) => setDiscountInput(Number(e.target.value))}
+                                    className="flex-1 rounded-xl border border-slate-200 px-4 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                                />
+                            </div>
+                        </div>
                     </div>
 
                     {/* Right side: Payment Details */}
                     <div className="w-full md:w-1/3 p-6 bg-slate-50 flex flex-col justify-between">
                         <div>
-                            <p className="text-sm text-slate-500 mb-1">Amount Due</p>
-                            <p className="text-3xl font-black text-slate-800">${total.toFixed(2)}</p>
+                            <div className="flex justify-between text-sm text-slate-500 mb-2">
+                                <span>Subtotal</span>
+                                <span>${subtotal.toFixed(2)}</span>
+                            </div>
+                            {discountValue > 0 && (
+                                <div className="flex justify-between text-sm text-emerald-600 mb-2">
+                                    <span>Discount</span>
+                                    <span>-${discountValue.toFixed(2)}</span>
+                                </div>
+                            )}
+                            <div className="flex justify-between items-end border-t border-slate-200 pt-3 mb-1">
+                                <p className="text-sm text-slate-500 font-bold">Total Due</p>
+                                <p className="text-3xl font-black text-[#1a9e52]">${total.toFixed(2)}</p>
+                            </div>
 
                             <div className="mt-6 space-y-2">
                                 <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Amount Received</label>

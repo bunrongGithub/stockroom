@@ -301,7 +301,7 @@ export default function NoneStockCreateForm() {
                                     type="number"
                                     min={0}
                                     step="0.01"
-                                    value={formData.labor_cost}
+                                    value={formData.labor_cost ?? ''}
                                     onChange={handleChange}
                                 />
                             </div>

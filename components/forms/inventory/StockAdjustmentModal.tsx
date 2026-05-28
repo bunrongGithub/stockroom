@@ -8,6 +8,7 @@ export interface StockAdjustmentData {
     quantity: number;
     reason: string;
     location_id: number;
+    movement_type: 'in' | 'out';
 }
 
 interface StockAdjustmentModalProps {
@@ -31,6 +32,7 @@ export default function StockAdjustmentModal({
         quantity: 1,
         reason: DEFAULT_REASON,
         location_id: 0,
+        movement_type: 'in',
     });
     const [errors, setErrors] = useState<
         Partial<Record<keyof StockAdjustmentData, string>>
@@ -77,17 +79,26 @@ export default function StockAdjustmentModal({
 
     if (!isOpen) return null;
 
-    const reasonOptions = [
-        {
-            value: DEFAULT_REASON,
-            label: 'Opening Warehouse Inventory Balance Setup',
-        },
-        { value: 'Cycle Count Correction', label: 'Cycle Count Correction' },
-        {
-            value: 'Direct Manual Vendor Arrival',
-            label: 'Direct Manual Vendor Arrival',
-        },
-    ];
+    const reasonOptions = {
+        in: [
+            {
+                value: DEFAULT_REASON,
+                label: 'Opening Warehouse Inventory Balance Setup',
+            },
+            { value: 'Cycle Count Correction (Positive)', label: 'Cycle Count Correction (Add Stock)' },
+            {
+                value: 'Direct Manual Vendor Arrival',
+                label: 'Direct Manual Vendor Arrival',
+            },
+            { value: 'Customer Return', label: 'Customer Return' },
+        ],
+        out: [
+            { value: 'Cycle Count Correction (Negative)', label: 'Cycle Count Correction (Remove Stock)' },
+            { value: 'Damaged / Broken', label: 'Damaged / Broken Item' },
+            { value: 'Lost / Missing', label: 'Lost / Missing Item' },
+            { value: 'Internal Use', label: 'Internal Use' },
+        ]
+    };
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -122,9 +133,37 @@ export default function StockAdjustmentModal({
 
                 {/* Form */}
                 <form onSubmit={handleSubmit} className="px-6 py-6 space-y-5">
+                    
+                    {/* Movement Type */}
+                    <div>
+                        <FieldLabel>Movement Type *</FieldLabel>
+                        <div className="flex gap-4">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input 
+                                    type="radio" 
+                                    name="movement_type" 
+                                    checked={formData.movement_type === 'in'} 
+                                    onChange={() => setFormData(prev => ({ ...prev, movement_type: 'in', reason: reasonOptions.in[0].value }))}
+                                    className="text-emerald-500 focus:ring-emerald-500"
+                                />
+                                <span className="text-sm font-medium text-slate-700">Stock In (+)</span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input 
+                                    type="radio" 
+                                    name="movement_type" 
+                                    checked={formData.movement_type === 'out'} 
+                                    onChange={() => setFormData(prev => ({ ...prev, movement_type: 'out', reason: reasonOptions.out[0].value }))}
+                                    className="text-red-500 focus:ring-red-500"
+                                />
+                                <span className="text-sm font-medium text-slate-700">Stock Out (-)</span>
+                            </label>
+                        </div>
+                    </div>
+
                     {/* Quantity */}
                     <div>
-                        <FieldLabel>Received Quantity *</FieldLabel>
+                        <FieldLabel>Adjustment Quantity *</FieldLabel>
                         <EditableInput
                             type="number"
                             min="1"
@@ -201,7 +240,7 @@ export default function StockAdjustmentModal({
                             }`}
                         >
                             <option value="">Select a reason...</option>
-                            {reasonOptions.map((option) => (
+                            {reasonOptions[formData.movement_type].map((option) => (
                                 <option key={option.value} value={option.value}>
                                     {option.label}
                                 </option>

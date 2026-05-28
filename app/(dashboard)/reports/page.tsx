@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 // Import matching your existing files
-import { supabase } from '@/supabase/supabase';
+import { supabase } from '@/lib/supabase/client';
 
 export default function IncomeSummaryPage() {
     // States for all raw data

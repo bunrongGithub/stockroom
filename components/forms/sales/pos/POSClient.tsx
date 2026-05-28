@@ -5,6 +5,7 @@ import { Package, Search, Plus, Minus, Trash2, ShieldCheck, Printer, MapPin } fr
 import { InventoryItemProps } from '@/types/inventory/item';
 import { BranchProps } from '@/types/branch';
 import CheckoutModal, { CheckoutPayload } from './CheckoutModal';
+import { useToast } from '@/components/ui/Toast';
 
 interface CartItem {
     id: string; // unique cart id
@@ -27,6 +28,7 @@ export default function POSClient({ items, branches }: Props) {
     const [cart, setCart] = useState<CartItem[]>([]);
     const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
     const [isCheckingOut, setIsCheckingOut] = useState(false);
+    const { success, error: showError } = useToast();
     
     // Select default location
     const defaultLocation = useMemo(() => {
@@ -56,10 +58,22 @@ export default function POSClient({ items, branches }: Props) {
     const total = subtotal - discount;
 
     const addToCart = (item: InventoryItemProps) => {
+        const stockAvailable = item.item_class === 'stock' 
+            ? Number(item.stock_balances?.find(b => b.location_id === selectedLocationId)?.quantity || 0) 
+            : undefined;
+
         setCart(prev => {
             const existing = prev.find(i => i.item_id === item.id);
             if (existing) {
+                if (stockAvailable !== undefined && existing.qty >= stockAvailable) {
+                    showError('Not enough stock available!');
+                    return prev;
+                }
                 return prev.map(i => i.item_id === item.id ? { ...i, qty: i.qty + 1 } : i);
+            }
+            if (stockAvailable !== undefined && stockAvailable < 1) {
+                showError('Item is out of stock!');
+                return prev;
             }
             return [...prev, {
                 id: Date.now().toString(),
@@ -67,7 +81,7 @@ export default function POSClient({ items, branches }: Props) {
                 name: item.name,
                 price: Number(item.sale_price) || 0,
                 qty: 1,
-                is_service: item.item_class === 'none_stock',
+                is_service: item.item_class === 'service' || item.item_class === 'non_stock',
                 stock_available: item.item_class === 'stock' 
                     ? Number(item.stock_balances?.find(b => b.location_id === selectedLocationId)?.quantity || 0) 
                     : undefined,
@@ -83,7 +97,7 @@ export default function POSClient({ items, branches }: Props) {
                 if (newQty < 1) return item;
                 // Check stock if it's a physical item
                 if (!item.is_service && item.stock_available !== undefined && newQty > item.stock_available) {
-                    alert('Not enough stock available!');
+                    showError('Not enough stock available!');
                     return item;
                 }
                 return { ...item, qty: newQty };
@@ -130,9 +144,9 @@ export default function POSClient({ items, branches }: Props) {
             setTimeout(() => {
                 window.location.reload();
             }, 500);
-        } catch (error: any) {
+            } catch (error: any) {
             console.error('Checkout error:', error);
-            alert(error.message || 'Failed to complete sale');
+            showError(error.message || 'Failed to complete sale');
         } finally {
             setIsCheckingOut(false);
         }
@@ -173,7 +187,7 @@ export default function POSClient({ items, branches }: Props) {
                             return (
                                 <div 
                                     key={item.id} 
-                                    className="bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col p-3 transition-all hover:shadow-md h-[260px]"
+                                    className="bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col p-3 transition-all hover:shadow-md h-full min-h-[280px]"
                                 >
                                     {/* Image Section */}
                                     <div 
@@ -190,7 +204,7 @@ export default function POSClient({ items, branches }: Props) {
                                     {/* Info Section */}
                                     <div className="flex flex-col flex-1 px-1">
                                         <p className="text-xs text-slate-400 font-medium mb-1 truncate">
-                                            {item.category?.name || (item.item_class === 'none_stock' ? 'Service' : 'Category')}
+                                            {item.category?.name || (item.item_class === 'service' || item.item_class === 'non_stock' ? 'Service/Non-Stock' : 'Category')}
                                         </p>
                                         <p className="text-sm font-bold text-slate-700 line-clamp-2 leading-snug">
                                             {item.name}
@@ -200,6 +214,22 @@ export default function POSClient({ items, branches }: Props) {
                                             {/* Separator */}
                                             <div className="border-t border-dashed border-slate-200 w-full mb-3 mt-2"></div>
 
+                                            <div className="flex items-center gap-2 mb-2">
+                                                {item.item_class === 'stock' ? (
+                                                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
+                                                        (item.stock_balances?.find(b => b.location_id === selectedLocationId)?.quantity || 0) <= 0 
+                                                            ? 'bg-red-100 text-red-700' 
+                                                            : 'bg-emerald-100 text-emerald-700'
+                                                    }`}>
+                                                        {item.stock_balances?.find(b => b.location_id === selectedLocationId)?.quantity || 0} in stock
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-[10px] px-1.5 py-0.5 rounded font-bold bg-blue-100 text-blue-700">
+                                                        Service
+                                                    </span>
+                                                )}
+                                            </div>
+                                            
                                             {/* Footer */}
                                             <div className="flex items-center justify-between">
                                                 <p className="text-base font-black text-slate-800">
@@ -211,22 +241,22 @@ export default function POSClient({ items, branches }: Props) {
                                                     <button 
                                                         onClick={(e) => {
                                                             e.stopPropagation();
-                                                            addToCart(item);
-                                                        }}
-                                                        className="h-6 w-6 rounded-full bg-white shadow-sm flex items-center justify-center text-slate-600 hover:bg-slate-50 transition-colors"
-                                                    >
-                                                        <Plus size={14} strokeWidth={3} />
-                                                    </button>
-                                                    <span className="text-xs font-bold w-3 text-center text-slate-700">{qtyInCart}</span>
-                                                    <button 
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
                                                             if (cartItem) updateQty(cartItem.id, -1);
                                                         }}
                                                         disabled={qtyInCart === 0}
                                                         className="h-6 w-6 rounded-full bg-white shadow-sm flex items-center justify-center text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-50"
                                                     >
                                                         <Minus size={14} strokeWidth={3} />
+                                                    </button>
+                                                    <span className="text-xs font-bold w-3 text-center text-slate-700">{qtyInCart}</span>
+                                                    <button 
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            addToCart(item);
+                                                        }}
+                                                        className="h-6 w-6 rounded-full bg-white shadow-sm flex items-center justify-center text-slate-600 hover:bg-slate-50 transition-colors"
+                                                    >
+                                                        <Plus size={14} strokeWidth={3} />
                                                     </button>
                                                 </div>
                                             </div>
@@ -332,7 +362,7 @@ export default function POSClient({ items, branches }: Props) {
             <CheckoutModal 
                 isOpen={isCheckoutOpen} 
                 onClose={() => setIsCheckoutOpen(false)} 
-                total={total} 
+                subtotal={subtotal} 
                 onSubmit={handleCheckoutSubmit}
                 isLoading={isCheckingOut}
             />
