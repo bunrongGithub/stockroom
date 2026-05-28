@@ -18,10 +18,12 @@ export function FieldLabel({
 export function EditableInput(
     props: React.InputHTMLAttributes<HTMLInputElement>,
 ) {
+    const { className = '', ...rest } = props;
+
     return (
         <input
-            {...props}
-            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 placeholder-slate-300 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            {...rest}
+            className={`w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 placeholder-slate-300 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 ${className}`.trim()}
         />
     );
 }
@@ -29,11 +31,13 @@ export function EditableInput(
 export function EditableTextarea(
     props: React.TextareaHTMLAttributes<HTMLTextAreaElement>,
 ) {
+    const { className = '', ...rest } = props;
+
     return (
         <textarea
             rows={3}
-            {...props}
-            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 placeholder-slate-300 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 resize-none"
+            {...rest}
+            className={`w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 placeholder-slate-300 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 ${className}`.trim()}
         />
     );
 }

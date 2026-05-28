@@ -156,7 +156,7 @@ export default function StockCreateForm() {
     const router = useRouter();
 
     const [isSaving, setIsSaving] = useState(false);
-    const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [isUploadingImage, setIsUploadingImage] = useState(false);
     const [imagePreviewUrl, setImagePreviewUrl] = useState<string>('');
     const [error, setError] = useState('');
     const [locations, setLocations] = useState<StockLocationProps[]>([]);
@@ -285,7 +285,7 @@ export default function StockCreateForm() {
         }));
     };
 
-    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
@@ -294,14 +294,38 @@ export default function StockCreateForm() {
             return;
         }
 
+        const previewUrl = URL.createObjectURL(file);
         setError('');
-        setSelectedFile(file);
-        setImagePreviewUrl(URL.createObjectURL(file));
+        setUploadedImageUrl('');
+        setPreviewUrl(previewUrl);
+        setIsUploadingImage(true);
+
+        try {
+            const imageUrl = await uploadImage(file);
+            setUploadedImageUrl(imageUrl);
+            setFormData((prev) => ({
+                ...prev,
+                images_url: [imageUrl],
+            }));
+        } catch (uploadError) {
+            removeImage();
+            const message =
+                uploadError instanceof Error
+                    ? uploadError.message
+                    : 'មានបញ្ហាក្នុងការអាប់ឡូតរូបភាព។';
+            setError(message);
+        } finally {
+            setIsUploadingImage(false);
+        }
     };
 
     const removeImage = () => {
-        setImagePreviewUrl('');
-        setSelectedFile(null);
+        setPreviewUrl('');
+        setUploadedImageUrl('');
+        setFormData((prev) => ({
+            ...prev,
+            images_url: [],
+        }));
         if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
@@ -564,7 +588,10 @@ export default function StockCreateForm() {
                                     label="ប្រភេទ"
                                     placeholder="ជ្រើសរើសប្រភេទ..."
                                     apiUrl="/api/category"
-                                    value={formData.category?.name ?? ''}
+                                    value={formData.category_id}
+                                    selectedLabel={formData.category?.name ?? ''}
+                                    popupTitle="ប្រភេទ"
+                                    enablePopupSearch
                                     onChange={handleCategoryChange}
                                     required
                                 />
@@ -576,7 +603,10 @@ export default function StockCreateForm() {
                                     label="Unit of Measurement"
                                     placeholder="ជ្រើសរើស UOM..."
                                     apiUrl="/api/uom"
-                                    value={formData.uom?.name ?? ''}
+                                    value={formData.uom_id}
+                                    selectedLabel={formData.uom?.name ?? ''}
+                                    popupTitle="Unit of Measurement"
+                                    enablePopupSearch
                                     onChange={handleUomChange}
                                     required
                                 />
@@ -886,10 +916,20 @@ export default function StockCreateForm() {
                                             e.stopPropagation();
                                             removeImage();
                                         }}
+                                        disabled={isUploadingImage}
                                         className="absolute -right-2 -top-2 rounded-full bg-red-500 p-1 text-white shadow-md hover:bg-red-600"
                                     >
                                         <X size={12} />
                                     </button>
+                                    {isUploadingImage ? (
+                                        <div className="absolute inset-x-3 bottom-3 flex items-center justify-center gap-2 rounded-full bg-slate-900/75 px-3 py-2 text-xs font-medium text-white">
+                                            <Loader2
+                                                size={14}
+                                                className="animate-spin"
+                                            />
+                                            កំពុងអាប់ឡូតរូបភាព...
+                                        </div>
+                                    ) : null}
                                 </div>
                             ) : (
                                 <div className="flex flex-col items-center justify-center py-6 text-slate-500">
@@ -908,6 +948,11 @@ export default function StockCreateForm() {
                                 </div>
                             )}
                         </div>
+                        {uploadedImageUrl ? (
+                            <p className="mt-2 text-xs text-[#1a9e52]">
+                                រូបភាពត្រូវបានអាប់ឡូតរួចរាល់ ហើយនឹងភ្ជាប់ជាមួយទំនិញនេះ។
+                            </p>
+                        ) : null}
                     </section>
 
                     {/* Summary — compact */}

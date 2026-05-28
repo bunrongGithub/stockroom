@@ -1,12 +1,18 @@
 'use client';
 
-import { Search, ChevronDown, Loader2 } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { ChevronDown, Loader2, Search } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { FieldLabel } from './FieldLabel';
+import PopUpSearch from './PopUpSearch';
 
 type Option = {
     value: string | number;
     label: string;
+};
+
+type SearchApiItem = {
+    id: string | number;
+    name: string;
 };
 
 type AsyncSearchSelectProps = {
@@ -22,6 +28,9 @@ type AsyncSearchSelectProps = {
     ) => void;
 
     required?: boolean;
+    selectedLabel?: string;
+    popupTitle?: string;
+    enablePopupSearch?: boolean;
 };
 
 export default function AsyncSearchSelect({
@@ -31,18 +40,20 @@ export default function AsyncSearchSelect({
     value,
     onChange,
     required,
+    selectedLabel: selectedLabelProp = '',
+    popupTitle,
+    enablePopupSearch = false,
 }: AsyncSearchSelectProps) {
     const containerRef = useRef<HTMLDivElement>(null);
 
     const [open, setOpen] = useState(false);
+    const [popupOpen, setPopupOpen] = useState(false);
     const [loading, setLoading] = useState(false);
     const [search, setSearch] = useState('');
     const [options, setOptions] = useState<Option[]>([]);
-    // Keep the display label separately so it survives options list changes
-    const [selectedLabel, setSelectedLabel] = useState<string>('');
 
     // ───────────────── Fetch Data ─────────────────
-    const fetchOptions = async (keyword = '') => {
+    const fetchOptions = useCallback(async (keyword = '') => {
         try {
             setLoading(true);
             const res = await fetch(
@@ -55,17 +66,17 @@ export default function AsyncSearchSelect({
                 data: { data: data },
             } = items;
             setOptions(
-                data.map((item: any) => ({
+                data.map((item: SearchApiItem) => ({
                     value: item.id,
                     label: item.name,
                 })),
             );
-        } catch (error) {
-            console.error(error);
+        } catch {
+            setOptions([]);
         } finally {
             setLoading(false);
         }
-    };
+    }, [apiUrl]);
 
     // ───────────────── Open Dropdown ─────────────────
     const handleOpen = () => {
@@ -78,7 +89,7 @@ export default function AsyncSearchSelect({
         if (!open) return;
         const timeout = setTimeout(() => fetchOptions(search), 300);
         return () => clearTimeout(timeout);
-    }, [search, open]);
+    }, [fetchOptions, search, open]);
 
     // ───────────────── Close on Outside Click ─────────────────
     useEffect(() => {
@@ -96,7 +107,6 @@ export default function AsyncSearchSelect({
     }, []);
 
     const handleSelect = (option: Option) => {
-        setSelectedLabel(option.label);
         onChange({ id: option.value, name: option.label });
         setOpen(false);
         setSearch('');
@@ -114,10 +124,12 @@ export default function AsyncSearchSelect({
             >
                 <span
                     className={
-                        selectedLabel ? 'text-slate-700' : 'text-slate-400'
+                        selectedLabelProp
+                            ? 'text-slate-700'
+                            : 'text-slate-400'
                     }
                 >
-                    {selectedLabel || placeholder}
+                    {selectedLabelProp || placeholder}
                 </span>
                 <ChevronDown size={18} className="text-slate-400" />
             </button>
@@ -139,12 +151,25 @@ export default function AsyncSearchSelect({
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                             placeholder="Search..."
-                            className="w-full rounded-lg border border-slate-200 py-2 pl-3 pr-10 text-sm focus:border-[#1a9e52] focus:outline-none focus:ring-2 focus:ring-[#1a9e52]/20"
+                            className="w-full rounded-lg border border-slate-200 py-2 pl-3 pr-12 text-sm focus:border-[#1a9e52] focus:outline-none focus:ring-2 focus:ring-[#1a9e52]/20"
                         />
-                        <Search
-                            size={16}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
-                        />
+                        <button
+                            type="button"
+                            onClick={() => {
+                                if (!enablePopupSearch) return;
+                                setOpen(false);
+                                setPopupOpen(true);
+                            }}
+                            disabled={!enablePopupSearch}
+                            className={`absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 transition ${
+                                enablePopupSearch
+                                    ? 'text-slate-400 hover:bg-slate-100 hover:text-[#1a9e52]'
+                                    : 'cursor-default text-slate-300'
+                            }`}
+                            aria-label={`Open ${popupTitle ?? label} popup search`}
+                        >
+                            <Search size={16} />
+                        </button>
                     </div>
                 </div>
 
@@ -190,6 +215,21 @@ export default function AsyncSearchSelect({
                     aria-hidden="true"
                 />
             )}
+
+            <PopUpSearch
+                open={popupOpen}
+                title={popupTitle ?? label}
+                apiUrl={apiUrl}
+                selectedValue={value}
+                placeholder={placeholder}
+                onClose={() => setPopupOpen(false)}
+                onSelect={(selected) => {
+                    handleSelect({
+                        value: selected.id,
+                        label: selected.name,
+                    });
+                }}
+            />
         </div>
     );
 }

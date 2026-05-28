@@ -1,5 +1,5 @@
 import { TMenuItem } from '@/types';
-import { LayoutList, LocationEditIcon, Package } from 'lucide-react';
+import { LayoutList, Package, WarehouseIcon } from 'lucide-react';
 import { categoryActions, uomAction } from './categoryMenu';
 import { noneStockMenuAction } from './noneStockMenu';
 import { stockMenuAction } from './stockMenu';
@@ -26,11 +26,11 @@ export const inventoryMenuItem: TMenuItem[] = [
     {
     ordering: 3,
     icon: null,
-    label: 'Stock Adjustment',  
+    label: 'Stock Adjustment',
     href: '/inventory/stock_adjust',
     type: 'menu',
     action: null,
-    children: [],               
+    children: [],
     },
     {
         ordering: 1,
@@ -52,8 +52,8 @@ export const inventoryMenuItem: TMenuItem[] = [
     },
     {
         ordering: 2,
-        icon: LocationEditIcon,
-        label: 'Stock Location',
+        icon: WarehouseIcon,
+        label: 'Warehouse & Location',
         href: '/inventory/configurations/location',
         children: [],
         type: 'configuration',

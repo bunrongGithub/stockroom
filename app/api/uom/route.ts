@@ -2,9 +2,13 @@ import { createUomSchema } from '@/lib/validations/uom.schema';
 import { NextRequest, NextResponse } from 'next/server';
 import { service } from '.';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
     try {
-        const items = await service.getAll();
+        const searchParams = request.nextUrl.searchParams;
+        const page = Number(searchParams.get('page') || 1);
+        const limit = Number(searchParams.get('limit') || 10);
+        const search = searchParams.get('search') ?? '';
+        const items = await service.getAll({ page, limit, search });
         return NextResponse.json({ data: items }, { status: 200 });
     } catch (error) {
         const message =

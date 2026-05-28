@@ -1,7 +1,9 @@
-import { createClient } from '@/lib/supabase/server';
-import { BranchProps } from '@/types/branch';
-import { redirect } from 'next/navigation';
-import BranchPageClient from './BranchPageClient';
+import LocationForm from '@/components/forms/inventory/location/LocationForm';
+import { notFound } from 'next/navigation';
+
+interface PageProps {
+    searchParams: Promise<{ page?: string; limit?: string; search?: string }>;
+}
 
 export default async function BranchPage() {
     const supabase = await createClient();

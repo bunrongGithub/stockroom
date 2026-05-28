@@ -1,0 +1,211 @@
+# =============================================================================
+# SUPABASE LOCAL DEV CONFIG
+# Docs: https://supabase.com/docs/guides/cli/config
+#
+# This file controls your LOCAL Supabase stack (Docker).
+# Your CLOUD project is separate — link it with:
+#   supabase link --project-ref <your-ref-id>
+# =============================================================================
+
+# A short name to identify this project locally.
+# Does NOT have to match your cloud project ref.
+project_id = "pos"
+
+# =============================================================================
+# [api]  —  PostgREST (the auto-generated REST API over your Postgres tables)
+# =============================================================================
+[api]
+enabled = true
+
+# Local port for the API. Your app calls http://127.0.0.1:54321 locally.
+port = 54321
+
+# Which Postgres schemas to expose as REST endpoints.
+# Tables/views in these schemas get automatic GET/POST/PATCH/DELETE routes.
+schemas = ["public", "graphql_public"]
+
+# These schemas are added to every request's search_path so Postgres
+# can find functions/extensions without you qualifying names.
+extra_search_path = ["public", "extensions"]
+
+# Hard cap on rows returned per request. Prevents accidental huge payloads.
+max_rows = 1000
+
+[api.tls]
+# Keep false locally — HTTPS is not needed for 127.0.0.1 dev.
+enabled = false
+
+# =============================================================================
+# [db]  —  Local Postgres instance (runs in Docker)
+# =============================================================================
+[db]
+# Port your app uses to connect directly to Postgres.
+# Connection string: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+port = 54322
+
+# A temporary second Postgres used by `supabase db diff` to compare schemas.
+shadow_port = 54320
+
+# Must match the Postgres major version on your CLOUD project.
+# Run this on your cloud DB to check: SHOW server_version;
+major_version = 15
+
+[db.pooler]
+# PgBouncer connection pooler. Keep disabled unless you hit connection limits.
+enabled = false
+port = 54329
+# "transaction" = one connection per query (best for serverless/Next.js)
+# "session"     = one connection per client (for long-lived connections)
+# mode = "transaction"   # uncomment if your CLI version supports it
+default_pool_size = 20
+max_client_conn = 100
+
+# =============================================================================
+# [realtime]  —  Supabase Realtime (websocket subscriptions)
+# =============================================================================
+[realtime]
+enabled = true
+# ip_version = "IPv6"   # uncomment if you need IPv6
+
+# =============================================================================
+# [studio]  —  Supabase Studio UI (the dashboard, runs at localhost:54323)
+# =============================================================================
+[studio]
+enabled = true
+
+# Port for the Studio web interface.
+port = 54323
+
+# Studio needs to know where the API is so it can talk to it.
+api_url = "http://127.0.0.1"
+
+# Uncomment and add your OpenAI key to enable the AI assistant in Studio.
+# openai_api_key = "env(OPENAI_API_KEY)"
+
+# =============================================================================
+# [inbucket]  —  Local email testing server
+# Emails (confirmations, password resets) are caught here, NOT actually sent.
+# Open http://127.0.0.1:54324 to read them.
+# =============================================================================
+[inbucket]
+enabled = true
+port = 54324
+# smtp_port = 54325   # uncomment to test apps that send their own emails
+# pop3_port = 54326
+
+# =============================================================================
+# [storage]  —  Supabase Storage (file uploads)
+# =============================================================================
+[storage]
+enabled = true
+
+# Max file size allowed per upload.
+file_size_limit = "50MiB"
+
+[storage.image_transformation]
+# Enables on-the-fly image resizing via the /storage/v1/render/image endpoint.
+enabled = true
+
+# =============================================================================
+# [auth]  —  Supabase Auth (users, sessions, JWT)
+# =============================================================================
+[auth]
+enabled = true
+
+# The URL of your local Next.js app.
+# Auth uses this as the allowed redirect base and for building email links.
+site_url = "http://127.0.0.1:3000"
+
+# Extra URLs auth can redirect to after login (e.g. staging URLs).
+additional_redirect_urls = ["https://127.0.0.1:3000"]
+
+# How long access tokens (JWTs) are valid in seconds. Default = 1 hour.
+jwt_expiry = 3600
+
+# When true, each refresh rotates the token (more secure).
+enable_refresh_token_rotation = true
+
+# How many seconds after expiry a refresh token can still be reused.
+# Prevents logout when two requests fire at the same time.
+refresh_token_reuse_interval = 10
+
+# Allow new users to sign up. Set false to lock signups.
+enable_signup = true
+
+# Allow sign-ins without an account (anonymous users).
+enable_anonymous_sign_ins = false
+
+# Allow manually linking OAuth accounts to existing users.
+enable_manual_linking = false
+
+# ---- Email auth ----
+[auth.email]
+enable_signup = true
+
+# Require confirmation on BOTH old and new email when user changes email.
+double_confirm_changes = true
+
+# Require users to verify their email before they can sign in.
+# Set true in production. Keep false locally so testing is easier.
+enable_confirmations = false
+
+secure_password_change = false
+
+# Minimum time between sending confirmation/reset emails.
+max_frequency = "1s"
+
+# OTP (one-time password) length and expiry for email magic links.
+otp_length = 6
+otp_expiry = 3600
+
+# ---- SMS auth (disabled by default) ----
+[auth.sms]
+enable_signup = true
+enable_confirmations = false
+template = "Your code is {{ .Code }} ."
+max_frequency = "5s"
+
+# ---- MFA (Multi-Factor Authentication) ----
+[auth.mfa]
+# Max number of MFA factors a single user can enroll.
+max_enrolled_factors = 10
+
+[auth.mfa.totp]
+# TOTP = authenticator apps like Google Authenticator.
+enroll_enabled = true
+verify_enabled = true
+
+[auth.mfa.phone]
+# SMS-based MFA. Requires an SMS provider configured above.
+enroll_enabled = false
+verify_enabled = false
+otp_length = 6
+template = "Your code is {{ .Code }}"
+max_frequency = "5s"
+
+# ---- OAuth providers ----
+# Uncomment and fill in to enable social login.
+# Full provider list: apple, azure, github, google, discord, etc.
+[auth.external.google]
+enabled = false
+client_id = "env(SUPABASE_AUTH_GOOGLE_CLIENT_ID)"
+secret = "env(SUPABASE_AUTH_GOOGLE_SECRET)"
+skip_nonce_check = false
+
+# =============================================================================
+# [edge_runtime]  —  Runs Supabase Edge Functions locally (Deno)
+# =============================================================================
+[edge_runtime]
+enabled = true
+# "oneshot" = restart on every request (good for dev/hot-reload)
+# "per_worker" = reuse workers (good for load testing)
+policy = "oneshot"
+inspector_port = 8083
+
+# =============================================================================
+# [analytics]  —  Query analytics (tracks slow queries, usage)
+# =============================================================================
+[analytics]
+enabled = true
+port = 54327
+backend = "postgres"
