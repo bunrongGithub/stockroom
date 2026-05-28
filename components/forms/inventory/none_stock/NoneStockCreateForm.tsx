@@ -22,6 +22,9 @@ import {
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { Plus } from 'lucide-react';
+import DeviceCreateModal from './DeviceCreateModal';
+import CategoryCreateModal from './CategoryCreateModal';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface ServiceDevice {
@@ -110,6 +113,20 @@ export default function NoneStockCreateForm() {
         difficulty: 'normal',
         description: '',
     });
+
+    // Modal state
+    const [isDeviceModalOpen, setIsDeviceModalOpen] = useState(false);
+    const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+
+    const handleDeviceCreated = (newDevice: ServiceDevice) => {
+        setDevices((prev) => [...prev, newDevice].sort((a, b) => (a.brand || '').localeCompare(b.brand || '') || a.name.localeCompare(b.name)));
+        setForm((prev) => ({ ...prev, device_id: newDevice.id }));
+    };
+
+    const handleCategoryCreated = (newCategory: ServiceCategory) => {
+        setCategories((prev) => [...prev, newCategory].sort((a, b) => a.name.localeCompare(b.name)));
+        setForm((prev) => ({ ...prev, category_id: newCategory.id }));
+    };
 
     // Load devices & categories
     useEffect(() => {
@@ -284,7 +301,16 @@ export default function NoneStockCreateForm() {
 
                             {/* Device */}
                             <div>
-                                <FieldLabel>ឧបករណ៍ (Device)</FieldLabel>
+                                <div className="mb-1.5 flex items-center justify-between">
+                                    <FieldLabel className="mb-0">ឧបករណ៍ (Device)</FieldLabel>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsDeviceModalOpen(true)}
+                                        className="flex items-center gap-1 rounded bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600 transition-colors hover:bg-slate-200"
+                                    >
+                                        <Plus size={12} /> ថ្មី
+                                    </button>
+                                </div>
                                 <select
                                     value={form.device_id ?? ''}
                                     onChange={(e) =>
@@ -319,7 +345,16 @@ export default function NoneStockCreateForm() {
 
                             {/* Category */}
                             <div>
-                                <FieldLabel>ប្រភេទសេវាកម្ម (Category)</FieldLabel>
+                                <div className="mb-1.5 flex items-center justify-between">
+                                    <FieldLabel className="mb-0">ប្រភេទសេវាកម្ម (Category)</FieldLabel>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsCategoryModalOpen(true)}
+                                        className="flex items-center gap-1 rounded bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600 transition-colors hover:bg-slate-200"
+                                    >
+                                        <Plus size={12} /> ថ្មី
+                                    </button>
+                                </div>
                                 <select
                                     value={form.category_id ?? ''}
                                     onChange={(e) =>
@@ -636,6 +671,19 @@ export default function NoneStockCreateForm() {
                     </section>
                 </aside>
             </form>
+
+            <DeviceCreateModal
+                open={isDeviceModalOpen}
+                onOpenChange={setIsDeviceModalOpen}
+                onSuccess={handleDeviceCreated}
+            />
+
+            <CategoryCreateModal
+                open={isCategoryModalOpen}
+                onOpenChange={setIsCategoryModalOpen}
+                topCategories={topCategories}
+                onSuccess={handleCategoryCreated}
+            />
         </div>
     );
 }

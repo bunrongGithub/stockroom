@@ -1,12 +1,14 @@
 export function FieldLabel({
     children,
     required,
+    className = "",
 }: {
     children: React.ReactNode;
     required?: boolean;
+    className?: string;
 }) {
     return (
-        <label className="mb-1.5 block text-xs font-semibold uppercase tracking-widest text-slate-400">
+        <label className={`mb-1.5 block text-xs font-semibold uppercase tracking-widest text-slate-400 ${className}`}>
             {children}
             {required && <span className="ml-0.5 text-blue-500">*</span>}
         </label>
