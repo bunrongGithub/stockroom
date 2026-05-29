@@ -1,8 +1,10 @@
+import { TAuthUserRole } from '@/service/apps/base/auth/constant';
+
 /** Decoded JWT payload — embedded in every server request via middleware */
 export interface SessionPayload {
     userId: string;
     companyId: string;
-    role: UserRole;
+    role: TAuthUserRole;
     email: string;
     iat: number;
     exp: number;
@@ -12,20 +14,6 @@ export interface SessionPayload {
 export interface RequestContext {
     userId: string;
     companyId: string;
-    role: UserRole;
+    role: TAuthUserRole;
     email: string;
 }
-
-// ── Inventory ────────────────────────────────────────────────
-
-export type ProductStatus = 'active' | 'inactive' | 'discontinued';
-export type StockMovementType = 'in' | 'out' | 'adjustment' | 'transfer';
-export type UnitOfMeasure =
-    | 'pcs'
-    | 'kg'
-    | 'g'
-    | 'l'
-    | 'ml'
-    | 'box'
-    | 'pack'
-    | 'set';
