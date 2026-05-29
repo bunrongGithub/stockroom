@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase';
 import { branchCreateSchema } from '@/lib/validations/branch.schema';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -6,21 +6,30 @@ import { NextRequest, NextResponse } from 'next/server';
 export async function GET() {
     try {
         const supabase = await createClient();
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        const {
+            data: { user },
+        } = await supabase.auth.getUser();
+        if (!user)
+            return NextResponse.json(
+                { error: 'Unauthorized' },
+                { status: 401 },
+            );
 
         const { data, error } = await supabase
             .from('branch')
-            .select(`
+            .select(
+                `
                 *,
                 user_branch!inner(user_id, role),
                 stock_location(*)
-            `)
+            `,
+            )
             .eq('user_branch.user_id', user.id)
             .order('is_default', { ascending: false })
             .order('name');
 
-        if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+        if (error)
+            return NextResponse.json({ error: error.message }, { status: 500 });
         return NextResponse.json({ data }, { status: 200 });
     } catch (err) {
         const msg = err instanceof Error ? err.message : 'Unexpected error';
@@ -32,9 +41,14 @@ export async function GET() {
 export async function POST(req: NextRequest) {
     try {
         const supabase = await createClient();
-        const { data: { user } } = await supabase.auth.getUser();
+        const {
+            data: { user },
+        } = await supabase.auth.getUser();
         if (!user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+            return NextResponse.json(
+                { error: 'Unauthorized' },
+                { status: 401 },
+            );
         }
 
         const body = await req.json();
@@ -85,7 +99,10 @@ export async function POST(req: NextRequest) {
             return NextResponse.json(
                 {
                     error: 'No company found in system. Please create a company first.',
-                    debug: { user_id: user.id, user_branches_count: userBranches?.length ?? 0 },
+                    debug: {
+                        user_id: user.id,
+                        user_branches_count: userBranches?.length ?? 0,
+                    },
                 },
                 { status: 400 },
             );
@@ -107,7 +124,10 @@ export async function POST(req: NextRequest) {
             .single();
 
         if (insErr) {
-            return NextResponse.json({ error: insErr.message }, { status: 500 });
+            return NextResponse.json(
+                { error: insErr.message },
+                { status: 500 },
+            );
         }
 
         // Auto-create Main Storage

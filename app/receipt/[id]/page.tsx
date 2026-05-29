@@ -1,17 +1,23 @@
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase';
 import { notFound } from 'next/navigation';
 import ReceiptClient from './ReceiptClient';
 
-export default async function ReceiptPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ReceiptPage({
+    params,
+}: {
+    params: Promise<{ id: string }>;
+}) {
     const { id } = await params;
     const supabase = await createClient();
 
     const { data: sale } = await supabase
         .from('sales')
-        .select(`
+        .select(
+            `
             *,
             customers ( name, phone )
-        `)
+        `,
+        )
         .eq('sale_no', id)
         .single();
 

@@ -1,5 +1,5 @@
-import { createClient } from '@/lib/supabase/server';
 import { SaleService } from '@/lib/services/sale.service';
+import { createClient } from '@/lib/supabase';
 import { NextRequest, NextResponse } from 'next/server';
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -30,7 +30,10 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
             data: { user },
         } = await supabase.auth.getUser();
         if (!user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+            return NextResponse.json(
+                { error: 'Unauthorized' },
+                { status: 401 },
+            );
         }
 
         const body = await req.json();
@@ -56,7 +59,10 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
             data: { user },
         } = await supabase.auth.getUser();
         if (!user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+            return NextResponse.json(
+                { error: 'Unauthorized' },
+                { status: 401 },
+            );
         }
 
         const service = SaleService.getInstance();

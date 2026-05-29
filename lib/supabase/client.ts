@@ -1,13 +1,27 @@
-import { createBrowserClient } from '@supabase/ssr';
+// ─────────────────────────────────────────────────────────────
+// Supabase Browser Client
+//
+// Uses ANON key — safe to expose to the client.
+// Used only for reading public data or auth UI flows.
+// All sensitive queries go through server-side API routes.
+// ─────────────────────────────────────────────────────────────
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+import { createClient } from '@supabase/supabase-js';
 
-if (!supabaseUrl || !supabaseAnonKey) {
-    console.error(
-        'Supabase URL or Anon Key is missing! Check your .env.local file.',
-    );
+let _browserClient: ReturnType<typeof createClient> | null = null;
+
+export function getBrowserClient() {
+    if (_browserClient) return _browserClient;
+
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    if (!url || !key) {
+        throw new Error(
+            'Missing Supabase env vars: NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY',
+        );
+    }
+
+    _browserClient = createClient(url, key);
+    return _browserClient;
 }
-
-// ប្រើ createBrowserClient ជំនួស createClient ចាស់
-export const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey);

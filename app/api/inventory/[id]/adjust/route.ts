@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase';
 import { itemIdSchema } from '@/lib/validations/inventory.schema';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';

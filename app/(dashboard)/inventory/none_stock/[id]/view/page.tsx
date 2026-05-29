@@ -1,7 +1,13 @@
-import { notFound, redirect } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase';
+import {
+    ArrowLeft,
+    DollarSign,
+    Edit2,
+    ShieldCheck,
+    Wrench,
+} from 'lucide-react';
 import Link from 'next/link';
-import { ArrowLeft, Edit2, ShieldCheck, Wrench, DollarSign } from 'lucide-react';
+import { notFound, redirect } from 'next/navigation';
 
 interface PageProps {
     params: Promise<{ id: string }>;
@@ -11,18 +17,22 @@ export default async function NoneStockViewPage({ params }: PageProps) {
     const { id } = await params;
 
     const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
     if (!user) redirect('/login');
 
     const { data: item, error } = await supabase
         .from('repair_service')
-        .select(`
-            id, name, reference_no, device_id, category_id, labor_cost, 
-            parts_cost, sale_price, warranty_duration, has_warranty, 
+        .select(
+            `
+            id, name, reference_no, device_id, category_id, labor_cost,
+            parts_cost, sale_price, warranty_duration, has_warranty,
             difficulty, description, is_active,
             device:service_device(id, name, brand),
             category:service_category(id, name)
-        `)
+        `,
+        )
         .eq('id', id)
         .single();
 
@@ -31,7 +41,9 @@ export default async function NoneStockViewPage({ params }: PageProps) {
     }
 
     const device = Array.isArray(item.device) ? item.device[0] : item.device;
-    const category = Array.isArray(item.category) ? item.category[0] : item.category;
+    const category = Array.isArray(item.category)
+        ? item.category[0]
+        : item.category;
 
     const totalCost = Number(item.labor_cost) + Number(item.parts_cost);
     const profit = Number(item.sale_price) - totalCost;
@@ -74,20 +86,38 @@ export default async function NoneStockViewPage({ params }: PageProps) {
 
                     <div className="grid gap-6 sm:grid-cols-2">
                         <div>
-                            <p className="text-xs font-semibold text-slate-400 mb-1">ឈ្មោះសេវាកម្ម</p>
-                            <p className="text-sm font-bold text-slate-800">{item.name}</p>
+                            <p className="text-xs font-semibold text-slate-400 mb-1">
+                                ឈ្មោះសេវាកម្ម
+                            </p>
+                            <p className="text-sm font-bold text-slate-800">
+                                {item.name}
+                            </p>
                         </div>
                         <div>
-                            <p className="text-xs font-semibold text-slate-400 mb-1">កម្រិត (Difficulty)</p>
-                            <p className="text-sm font-bold text-slate-800 capitalize">{item.difficulty}</p>
+                            <p className="text-xs font-semibold text-slate-400 mb-1">
+                                កម្រិត (Difficulty)
+                            </p>
+                            <p className="text-sm font-bold text-slate-800 capitalize">
+                                {item.difficulty}
+                            </p>
                         </div>
                         <div>
-                            <p className="text-xs font-semibold text-slate-400 mb-1">ឧបករណ៍ (Device)</p>
-                            <p className="text-sm font-bold text-slate-800">{device ? `${device.brand || ''} ${device.name}` : 'ទូទៅ'}</p>
+                            <p className="text-xs font-semibold text-slate-400 mb-1">
+                                ឧបករណ៍ (Device)
+                            </p>
+                            <p className="text-sm font-bold text-slate-800">
+                                {device
+                                    ? `${device.brand || ''} ${device.name}`
+                                    : 'ទូទៅ'}
+                            </p>
                         </div>
                         <div>
-                            <p className="text-xs font-semibold text-slate-400 mb-1">ប្រភេទ (Category)</p>
-                            <p className="text-sm font-bold text-slate-800">{category?.name || 'ទូទៅ'}</p>
+                            <p className="text-xs font-semibold text-slate-400 mb-1">
+                                ប្រភេទ (Category)
+                            </p>
+                            <p className="text-sm font-bold text-slate-800">
+                                {category?.name || 'ទូទៅ'}
+                            </p>
                         </div>
                     </div>
                 </section>
@@ -101,22 +131,38 @@ export default async function NoneStockViewPage({ params }: PageProps) {
 
                     <div className="grid gap-6 sm:grid-cols-3">
                         <div>
-                            <p className="text-xs font-semibold text-slate-400 mb-1">ថ្លៃពលកម្ម ($)</p>
-                            <p className="text-sm font-bold text-slate-800">${Number(item.labor_cost).toFixed(2)}</p>
+                            <p className="text-xs font-semibold text-slate-400 mb-1">
+                                ថ្លៃពលកម្ម ($)
+                            </p>
+                            <p className="text-sm font-bold text-slate-800">
+                                ${Number(item.labor_cost).toFixed(2)}
+                            </p>
                         </div>
                         <div>
-                            <p className="text-xs font-semibold text-slate-400 mb-1">ថ្លៃគ្រឿងផ្គួប ($)</p>
-                            <p className="text-sm font-bold text-slate-800">${Number(item.parts_cost).toFixed(2)}</p>
+                            <p className="text-xs font-semibold text-slate-400 mb-1">
+                                ថ្លៃគ្រឿងផ្គួប ($)
+                            </p>
+                            <p className="text-sm font-bold text-slate-800">
+                                ${Number(item.parts_cost).toFixed(2)}
+                            </p>
                         </div>
                         <div>
-                            <p className="text-xs font-semibold text-slate-400 mb-1">តម្លៃលក់ ($)</p>
-                            <p className="text-sm font-bold text-[#1a9e52]">${Number(item.sale_price).toFixed(2)}</p>
+                            <p className="text-xs font-semibold text-slate-400 mb-1">
+                                តម្លៃលក់ ($)
+                            </p>
+                            <p className="text-sm font-bold text-[#1a9e52]">
+                                ${Number(item.sale_price).toFixed(2)}
+                            </p>
                         </div>
                     </div>
 
                     <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between">
-                        <p className="text-sm font-bold text-slate-600">ប្រាក់ចំណេញ (Profit):</p>
-                        <p className={`text-lg font-bold ${profit > 0 ? 'text-[#1a9e52]' : profit < 0 ? 'text-red-500' : 'text-slate-500'}`}>
+                        <p className="text-sm font-bold text-slate-600">
+                            ប្រាក់ចំណេញ (Profit):
+                        </p>
+                        <p
+                            className={`text-lg font-bold ${profit > 0 ? 'text-[#1a9e52]' : profit < 0 ? 'text-red-500' : 'text-slate-500'}`}
+                        >
                             ${profit.toFixed(2)}
                         </p>
                     </div>
@@ -131,13 +177,21 @@ export default async function NoneStockViewPage({ params }: PageProps) {
 
                     <div className="grid gap-6 sm:grid-cols-2">
                         <div>
-                            <p className="text-xs font-semibold text-slate-400 mb-1">មានការធានា?</p>
-                            <p className="text-sm font-bold text-slate-800">{item.has_warranty ? 'មាន' : 'គ្មាន'}</p>
+                            <p className="text-xs font-semibold text-slate-400 mb-1">
+                                មានការធានា?
+                            </p>
+                            <p className="text-sm font-bold text-slate-800">
+                                {item.has_warranty ? 'មាន' : 'គ្មាន'}
+                            </p>
                         </div>
                         {item.has_warranty && (
                             <div>
-                                <p className="text-xs font-semibold text-slate-400 mb-1">រយៈពេលធានា</p>
-                                <p className="text-sm font-bold text-blue-600">{item.warranty_duration || '-'}</p>
+                                <p className="text-xs font-semibold text-slate-400 mb-1">
+                                    រយៈពេលធានា
+                                </p>
+                                <p className="text-sm font-bold text-blue-600">
+                                    {item.warranty_duration || '-'}
+                                </p>
                             </div>
                         )}
                     </div>
@@ -149,7 +203,9 @@ export default async function NoneStockViewPage({ params }: PageProps) {
                         <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500">
                             កំណត់ចំណាំ
                         </h3>
-                        <p className="text-sm text-slate-700 whitespace-pre-wrap">{item.description}</p>
+                        <p className="text-sm text-slate-700 whitespace-pre-wrap">
+                            {item.description}
+                        </p>
                     </section>
                 )}
             </div>

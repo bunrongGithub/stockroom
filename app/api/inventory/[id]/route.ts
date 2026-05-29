@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase';
 import { itemIdSchema } from '@/lib/validations/inventory.schema';
 import { NextRequest, NextResponse } from 'next/server';
 import { service } from '..';
@@ -44,7 +44,8 @@ export async function GET(_req: NextRequest, { params }: Params) {
         const supabase = await createClient();
         const { data: balances } = await supabase
             .from('inventory_stock_balance')
-            .select(`
+            .select(
+                `
                 quantity,
                 stock_location:location_id (
                     id,
@@ -52,22 +53,25 @@ export async function GET(_req: NextRequest, { params }: Params) {
                     is_default,
                     branch:branch_id ( id, name, is_default )
                 )
-            `)
+            `,
+            )
             .eq('item_id', parsed.data.id);
 
         // 3. Pick the default location (or first available) to display
-        const rows = ((balances ?? []) as unknown as BalanceRow[]).map((row) => {
-            const location = firstRelation(row.stock_location);
-            return {
-                quantity: row.quantity,
-                stock_location: location
-                    ? {
-                          ...location,
-                          branch: firstRelation(location.branch),
-                      }
-                    : null,
-            };
-        });
+        const rows = ((balances ?? []) as unknown as BalanceRow[]).map(
+            (row) => {
+                const location = firstRelation(row.stock_location);
+                return {
+                    quantity: row.quantity,
+                    stock_location: location
+                        ? {
+                              ...location,
+                              branch: firstRelation(location.branch),
+                          }
+                        : null,
+                };
+            },
+        );
         const defaultRow =
             rows.find((row) => row.stock_location?.is_default) ??
             rows[0] ??
@@ -111,7 +115,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
             data: { user },
         } = await supabase.auth.getUser();
         if (!user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+            return NextResponse.json(
+                { error: 'Unauthorized' },
+                { status: 401 },
+            );
         }
 
         const parsed = itemIdSchema.safeParse({ id });

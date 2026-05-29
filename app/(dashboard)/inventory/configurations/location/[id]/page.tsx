@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase';
 import { redirect } from 'next/navigation';
 import BranchDetailClient from './BranchDetailClient';
 
@@ -57,14 +57,16 @@ export default async function BranchDetailPage({ params }: Params) {
     if (locationIds.length > 0) {
         const { data: balanceData, error: balErr } = await supabase
             .from('inventory_stock_balance')
-            .select(`
+            .select(
+                `
                 id,
                 quantity,
                 item_id,
                 location_id,
                 updated_at,
                 inventory_item ( id, name, sku, reference_no, price, sale_price, images_url )
-            `)
+            `,
+            )
             .in('location_id', locationIds)
             .gt('quantity', 0)
             .order('updated_at', { ascending: false });

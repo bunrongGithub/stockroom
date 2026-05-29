@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { PageActionContext } from '@/context/PageActionContext';
 import { UserProfileProvider, useUserProfile } from '@/context/UserProfileContext';
-import { supabase } from '@/lib/supabase/client';
 import { Action, TMenuItem } from '@/types';
 import { modulesList } from '@/utils/systemMenu';
 import { ChevronDown, ChevronRight, Loader2, LogOut } from 'lucide-react';

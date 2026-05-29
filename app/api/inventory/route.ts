@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase';
 import { createInventorySchema } from '@/lib/validations/inventory.schema';
 import { NextRequest, NextResponse } from 'next/server';
 import { service } from '.';
@@ -114,7 +114,8 @@ export async function GET() {
                 stock_location: defaultRow
                     ? {
                           location_id: defaultRow.stock_location?.id ?? null,
-                          location_name: defaultRow.stock_location?.name ?? null,
+                          location_name:
+                              defaultRow.stock_location?.name ?? null,
                           branch_name:
                               defaultRow.stock_location?.branch?.name ?? null,
                           quantity: Number(defaultRow.quantity ?? 0),

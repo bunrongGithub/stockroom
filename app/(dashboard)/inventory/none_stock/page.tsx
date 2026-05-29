@@ -1,6 +1,6 @@
 import NoneStockForm from '@/components/forms/inventory/none_stock/NoneStockForm';
-import { createClient } from '@/lib/supabase/server';
-import { notFound, redirect } from 'next/navigation';
+import { createClient } from '@/lib/supabase';
+import { redirect } from 'next/navigation';
 
 export default async function NoneStockPage() {
     const supabase = await createClient();
@@ -12,11 +12,13 @@ export default async function NoneStockPage() {
 
     const { data: services } = await supabase
         .from('repair_service')
-        .select(`
+        .select(
+            `
             *,
             device:service_device(id, name, brand, device_type),
             category:service_category(id, name)
-        `)
+        `,
+        )
         .eq('is_active', true)
         .order('device_id', { ascending: true })
         .order('name', { ascending: true });

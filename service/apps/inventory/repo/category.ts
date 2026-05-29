@@ -1,15 +1,9 @@
-import { createClient } from '@/lib/supabase/server';
-import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
     CreateCategoryInput,
     UpdateCategoryInput,
 } from '@/lib/validations/category.schema';
-import {
-    PaginatedResult,
-    PaginationMixin,
-    PaginationParams,
-} from '../base/pagination';
-
+import { PaginationMixin } from '@/service/core/pagination';
+import type { SupabaseClient } from '@supabase/supabase-js';
 export type Category = {
     id: number;
     name: string;
@@ -82,7 +76,9 @@ export class CategoryRepository extends PaginationMixin {
     async insertOne(input: CreateCategoryInput): Promise<Category> {
         const supabase = await this.getClient();
 
-        const { data: { user } } = await supabase.auth.getUser();
+        const {
+            data: { user },
+        } = await supabase.auth.getUser();
         if (!user) throw new Error('Not authenticated');
 
         const { data: profile } = await supabase
@@ -95,7 +91,11 @@ export class CategoryRepository extends PaginationMixin {
 
         const { data, error } = await supabase
             .from(TABLE)
-            .insert({ ...input, user_id: user.id, company_id: profile.company_id })
+            .insert({
+                ...input,
+                user_id: user.id,
+                company_id: profile.company_id,
+            })
             .select()
             .single();
 

@@ -1,5 +1,5 @@
 import StockForm from '@/components/forms/inventory/stock/StockForm';
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase';
 import { BranchProps } from '@/types/branch';
 import { notFound, redirect } from 'next/navigation';
 

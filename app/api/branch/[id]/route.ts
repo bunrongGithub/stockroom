@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase';
 import {
     branchUpdateSchema,
     idParamSchema,
@@ -56,7 +56,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
             .select('company_id')
             .eq('id', idParsed.data.id)
             .single();
-        if (!target) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+        if (!target)
+            return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
         if (parsed.data.is_default === true) {
             await supabase
@@ -73,7 +74,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
             .select()
             .single();
 
-        if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+        if (error)
+            return NextResponse.json({ error: error.message }, { status: 500 });
         return NextResponse.json({ data }, { status: 200 });
     } catch (err) {
         const msg = err instanceof Error ? err.message : 'Unexpected error';
@@ -100,7 +102,9 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
 
         if (balances && balances.length > 0) {
             return NextResponse.json(
-                { error: 'Cannot delete branch with stock on hand. Transfer stock out first.' },
+                {
+                    error: 'Cannot delete branch with stock on hand. Transfer stock out first.',
+                },
                 { status: 409 },
             );
         }
@@ -110,7 +114,8 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
             .delete()
             .eq('id', idParsed.data.id);
 
-        if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+        if (error)
+            return NextResponse.json({ error: error.message }, { status: 500 });
         return NextResponse.json({ success: true }, { status: 200 });
     } catch (err) {
         const msg = err instanceof Error ? err.message : 'Unexpected error';

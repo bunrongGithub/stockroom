@@ -1,22 +1,28 @@
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET() {
     try {
         const supabase = await createClient();
-        
-        const { data: userData, error: authError } = await supabase.auth.getUser();
+
+        const { data: userData, error: authError } =
+            await supabase.auth.getUser();
         if (authError || !userData?.user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+            return NextResponse.json(
+                { error: 'Unauthorized' },
+                { status: 401 },
+            );
         }
 
         const { data, error } = await supabase
             .from('repair_service')
-            .select(`
+            .select(
+                `
                 *,
                 device:service_device(id, name, brand, device_type),
                 category:service_category(id, name)
-            `)
+            `,
+            )
             .eq('is_active', true)
             .order('device_id', { ascending: true })
             .order('name', { ascending: true });
@@ -27,7 +33,8 @@ export async function GET() {
 
         return NextResponse.json({ data }, { status: 200 });
     } catch (error) {
-        const message = error instanceof Error ? error.message : 'Unexpected error';
+        const message =
+            error instanceof Error ? error.message : 'Unexpected error';
         return NextResponse.json({ error: message }, { status: 500 });
     }
 }
@@ -35,17 +42,24 @@ export async function GET() {
 export async function POST(req: NextRequest) {
     try {
         const supabase = await createClient();
-        
-        const { data: userData, error: authError } = await supabase.auth.getUser();
+
+        const { data: userData, error: authError } =
+            await supabase.auth.getUser();
         if (authError || !userData?.user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+            return NextResponse.json(
+                { error: 'Unauthorized' },
+                { status: 401 },
+            );
         }
 
         const body = await req.json();
 
         // Validation for required fields
         if (!body.name || body.sale_price === undefined) {
-            return NextResponse.json({ error: 'Name and sale_price are required' }, { status: 400 });
+            return NextResponse.json(
+                { error: 'Name and sale_price are required' },
+                { status: 400 },
+            );
         }
 
         // Generate reference_no: SVC-000001
@@ -55,7 +69,10 @@ export async function POST(req: NextRequest) {
             .select('*', { count: 'exact', head: true });
 
         if (countError) {
-            return NextResponse.json({ error: countError.message }, { status: 500 });
+            return NextResponse.json(
+                { error: countError.message },
+                { status: 500 },
+            );
         }
 
         const nextNumber = (count ?? 0) + 1;
@@ -89,7 +106,8 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({ data }, { status: 201 });
     } catch (error) {
-        const message = error instanceof Error ? error.message : 'Unexpected error';
+        const message =
+            error instanceof Error ? error.message : 'Unexpected error';
         return NextResponse.json({ error: message }, { status: 500 });
     }
 }

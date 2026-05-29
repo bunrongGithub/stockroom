@@ -1,7 +1,7 @@
 import ProductDashboard, {
     StockBalanceWithLocation,
 } from '@/components/forms/inventory/ProductDashboard';
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase';
 import { notFound } from 'next/navigation';
 
 type RawWarehouse = { id: number; name: string };

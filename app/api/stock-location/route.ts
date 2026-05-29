@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase';
 import { stockLocationCreateSchema } from '@/lib/validations/branch.schema';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -16,7 +16,10 @@ export async function GET(req: NextRequest) {
             data: { user },
         } = await supabase.auth.getUser();
         if (!user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+            return NextResponse.json(
+                { error: 'Unauthorized' },
+                { status: 401 },
+            );
         }
 
         const branchId = req.nextUrl.searchParams.get('branch_id');
@@ -27,7 +30,10 @@ export async function GET(req: NextRequest) {
             .eq('user_id', user.id);
 
         if (branchErr) {
-            return NextResponse.json({ error: branchErr.message }, { status: 500 });
+            return NextResponse.json(
+                { error: branchErr.message },
+                { status: 500 },
+            );
         }
 
         const branchIds = ((userBranches ?? []) as UserBranchRow[])
@@ -79,8 +85,14 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
     try {
         const supabase = await createClient();
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        const {
+            data: { user },
+        } = await supabase.auth.getUser();
+        if (!user)
+            return NextResponse.json(
+                { error: 'Unauthorized' },
+                { status: 401 },
+            );
 
         const body = await req.json();
         const parsed = stockLocationCreateSchema.safeParse(body);
@@ -99,7 +111,10 @@ export async function POST(req: NextRequest) {
             .eq('branch_id', parsed.data.branch_id)
             .maybeSingle();
         if (!access) {
-            return NextResponse.json({ error: 'No access to this branch' }, { status: 403 });
+            return NextResponse.json(
+                { error: 'No access to this branch' },
+                { status: 403 },
+            );
         }
 
         if (parsed.data.is_default) {
@@ -115,7 +130,8 @@ export async function POST(req: NextRequest) {
             .select()
             .single();
 
-        if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+        if (error)
+            return NextResponse.json({ error: error.message }, { status: 500 });
         return NextResponse.json({ data }, { status: 201 });
     } catch (err) {
         const msg = err instanceof Error ? err.message : 'Unexpected error';

@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase';
 import { NextRequest, NextResponse } from 'next/server';
 
 // POST /api/stock-transfer
@@ -8,15 +8,19 @@ export async function POST(req: NextRequest) {
     const {
         data: { user },
     } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!user)
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await req.json();
-    const { item_id, from_location_id, to_location_id, quantity, reason } = body;
+    const { item_id, from_location_id, to_location_id, quantity, reason } =
+        body;
 
     // ── Validation ──
     if (!item_id || !from_location_id || !to_location_id || !quantity) {
         return NextResponse.json(
-            { error: 'item_id, from_location_id, to_location_id, and quantity are required.' },
+            {
+                error: 'item_id, from_location_id, to_location_id, and quantity are required.',
+            },
             { status: 400 },
         );
     }
@@ -29,7 +33,10 @@ export async function POST(req: NextRequest) {
     }
 
     if (quantity <= 0) {
-        return NextResponse.json({ error: 'Quantity must be greater than 0.' }, { status: 400 });
+        return NextResponse.json(
+            { error: 'Quantity must be greater than 0.' },
+            { status: 400 },
+        );
     }
 
     // ── Check source balance ──
@@ -62,7 +69,10 @@ export async function POST(req: NextRequest) {
         .eq('id', srcBalance.id);
 
     if (deductErr) {
-        return NextResponse.json({ error: 'Failed to deduct from source.' }, { status: 500 });
+        return NextResponse.json(
+            { error: 'Failed to deduct from source.' },
+            { status: 500 },
+        );
     }
 
     // ── Add to destination (upsert) ──
@@ -88,21 +98,29 @@ export async function POST(req: NextRequest) {
                 .from('inventory_stock_balance')
                 .update({ quantity: srcBalance.quantity })
                 .eq('id', srcBalance.id);
-            return NextResponse.json({ error: 'Failed to add to destination.' }, { status: 500 });
+            return NextResponse.json(
+                { error: 'Failed to add to destination.' },
+                { status: 500 },
+            );
         }
     } else {
-        const { error: insertErr } = await supabase.from('inventory_stock_balance').insert({
-            item_id,
-            location_id: to_location_id,
-            quantity,
-        });
+        const { error: insertErr } = await supabase
+            .from('inventory_stock_balance')
+            .insert({
+                item_id,
+                location_id: to_location_id,
+                quantity,
+            });
 
         if (insertErr) {
             await supabase
                 .from('inventory_stock_balance')
                 .update({ quantity: srcBalance.quantity })
                 .eq('id', srcBalance.id);
-            return NextResponse.json({ error: 'Failed to create destination balance.' }, { status: 500 });
+            return NextResponse.json(
+                { error: 'Failed to create destination balance.' },
+                { status: 500 },
+            );
         }
     }
 
@@ -117,5 +135,8 @@ export async function POST(req: NextRequest) {
         user_id: user.id,
     });
 
-    return NextResponse.json({ success: true, message: 'Stock transferred successfully.' });
+    return NextResponse.json({
+        success: true,
+        message: 'Stock transferred successfully.',
+    });
 }

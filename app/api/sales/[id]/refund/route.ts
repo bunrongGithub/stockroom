@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase';
 import { SaleService } from '@/lib/services/sale.service';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -36,7 +36,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
             : error.message?.includes('already been refunded')
               ? 400
               : 500;
-              
+
         return NextResponse.json(
             { error: error.message || 'Internal Server Error' },
             { status },

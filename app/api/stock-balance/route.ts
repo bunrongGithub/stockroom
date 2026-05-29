@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase';
 import { NextRequest, NextResponse } from 'next/server';
 
 // GET /api/stock-balance?branch_id=1  or  ?location_id=5
@@ -7,14 +7,16 @@ export async function GET(req: NextRequest) {
     const {
         data: { user },
     } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!user)
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const branchId = req.nextUrl.searchParams.get('branch_id');
     const locationId = req.nextUrl.searchParams.get('location_id');
 
     let query = supabase
         .from('inventory_stock_balance')
-        .select(`
+        .select(
+            `
             id,
             quantity,
             item_id,
@@ -22,7 +24,8 @@ export async function GET(req: NextRequest) {
             updated_at,
             inventory_item ( id, name, sku, reference_no, images_url, price, sale_price ),
             stock_location ( id, name, code, branch_id )
-        `)
+        `,
+        )
         .gt('quantity', 0);
 
     if (locationId) {
@@ -40,7 +43,9 @@ export async function GET(req: NextRequest) {
     }
 
     // Filter out rows where stock_location is null (branch_id filter via nested)
-    const filtered = branchId ? data?.filter((d: any) => d.stock_location !== null) : data;
+    const filtered = branchId
+        ? data?.filter((d: any) => d.stock_location !== null)
+        : data;
 
     return NextResponse.json(filtered ?? []);
 }

@@ -1,14 +1,14 @@
 import POSClient from '@/components/forms/sales/pos/POSClient';
-import { createClient } from '@/lib/supabase/server';
-import { notFound, redirect } from 'next/navigation';
 import { ToastProvider } from '@/components/ui/Toast';
+import { createClient } from '@/lib/supabase';
+import { notFound, redirect } from 'next/navigation';
 
 export default async function POSPage() {
     const supabase = await createClient();
     const {
         data: { user },
     } = await supabase.auth.getUser();
-    
+
     if (!user) redirect('/login');
 
     const API_URL = `${process.env.NEXT_PUBLIC_APP_URL}/api/inventory`;
