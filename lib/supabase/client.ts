@@ -25,3 +25,9 @@ export function getBrowserClient() {
     _browserClient = createClient(url, key);
     return _browserClient;
 }
+
+// Named export for convenience — lazily returns the singleton browser client.
+export const supabase = new Proxy(
+    {} as ReturnType<typeof createClient>,
+    { get: (_, prop) => (getBrowserClient() as Record<string | symbol, unknown>)[prop] },
+);

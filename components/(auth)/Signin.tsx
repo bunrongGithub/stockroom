@@ -5,12 +5,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { supabase } from '@/lib/supabase/client';
 import { AlertCircle, Loader2, Lock, Mail } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
-export default function LoginPage() {
+export default function Sigin() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
@@ -18,13 +17,11 @@ export default function LoginPage() {
     const router = useRouter();
 
     useEffect(() => {
-        const checkUser = async () => {
-            const {
-                data: { session },
-            } = await supabase.auth.getSession();
-            if (session) router.push('/');
-        };
-        checkUser();
+        fetch('/api/auth/me')
+            .then((res) => {
+                if (res.ok) router.push('/');
+            })
+            .catch(() => {});
     }, [router]);
 
     const handleLogin = async (e: { preventDefault(): void }) => {

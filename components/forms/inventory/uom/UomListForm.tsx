@@ -203,7 +203,7 @@ export default function UomListForm({
                 <div
                     className={`bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden transition-opacity duration-200 ${isPending ? 'opacity-60 pointer-events-none' : ''}`}
                 >
-                    <div className="overflow-x-auto min-h-64">
+                    <div className="overflow-x-auto">
                         <table className="min-w-full divide-y divide-slate-100">
                             <thead className="bg-slate-50">
                                 <tr>

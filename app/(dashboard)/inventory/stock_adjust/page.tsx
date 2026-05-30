@@ -1,9 +1,10 @@
 import { InventoryItemProps } from '@/types/inventory/item';
+import { serverFetch } from '@/lib/server-fetch';
 import { notFound } from 'next/navigation';
 import StockAdjustPageClient from './StockAdjustPageClient';
 
 export default async function StockAdjustPage() {
-    const res = await fetch(
+    const res = await serverFetch(
         `${process.env.NEXT_PUBLIC_APP_URL}/api/inventory`,
         { cache: 'no-store' },
     );
@@ -12,7 +13,6 @@ export default async function StockAdjustPage() {
     const json = await res.json();
     const items: InventoryItemProps[] = json.data ?? [];
 
-    // Only stock-class items can have their stock adjusted
     const stockItems = items.filter((i) => i.item_class === 'stock');
 
     return <StockAdjustPageClient items={stockItems} />;

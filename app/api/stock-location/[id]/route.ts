@@ -1,14 +1,16 @@
-import { createClient } from '@/lib/supabase';
-import {
-    idParamSchema,
-    stockLocationUpdateSchema,
-} from '@/lib/validations/branch.schema';
+import { idParamSchema, stockLocationUpdateSchema } from '@/service/schema/branch.schema';
 import { NextRequest, NextResponse } from 'next/server';
+import { getRequestContext } from '@/lib/request-context';
+import { StockLocationRepository } from '@/service/apps/inventory/repo/location';
+import { z } from 'zod';
+
+const service = StockLocationRepository.getInstance();
 
 type Params = { params: Promise<{ id: string }> };
 
 export async function PATCH(req: NextRequest, { params }: Params) {
     try {
+        const ctx = getRequestContext(req);
         const { id } = await params;
         const idParsed = idParamSchema.safeParse({ id });
         if (!idParsed.success) {
@@ -19,80 +21,34 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         const parsed = stockLocationUpdateSchema.safeParse(body);
         if (!parsed.success) {
             return NextResponse.json(
-                { error: parsed.error.flatten().fieldErrors },
+                { error: z.flattenError(parsed.error).fieldErrors },
                 { status: 422 },
             );
         }
 
-        const supabase = await createClient();
-
-        const { data: target } = await supabase
-            .from('stock_location')
-            .select('branch_id')
-            .eq('id', idParsed.data.id)
-            .single();
-        if (!target)
-            return NextResponse.json({ error: 'Not found' }, { status: 404 });
-
-        if (parsed.data.is_default === true) {
-            await supabase
-                .from('stock_location')
-                .update({ is_default: false })
-                .eq('branch_id', target.branch_id)
-                .neq('id', idParsed.data.id);
-        }
-
-        const { data, error } = await supabase
-            .from('stock_location')
-            .update(parsed.data)
-            .eq('id', idParsed.data.id)
-            .select()
-            .single();
-
-        if (error)
-            return NextResponse.json({ error: error.message }, { status: 500 });
-        return NextResponse.json({ data }, { status: 200 });
-    } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Unexpected error';
-        return NextResponse.json({ error: msg }, { status: 500 });
+        const item = await service.updateOne(ctx, idParsed.data.id, parsed.data);
+        return NextResponse.json({ data: item }, { status: 200 });
+    } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unexpected error';
+        const status = message.includes('not found') ? 404 : message.includes('denied') ? 403 : 500;
+        return NextResponse.json({ error: message }, { status });
     }
 }
 
-export async function DELETE(_req: NextRequest, { params }: Params) {
+export async function DELETE(req: NextRequest, { params }: Params) {
     try {
+        const ctx = getRequestContext(req);
         const { id } = await params;
         const idParsed = idParamSchema.safeParse({ id });
         if (!idParsed.success) {
             return NextResponse.json({ error: 'Invalid ID' }, { status: 400 });
         }
 
-        const supabase = await createClient();
-
-        const { data: bal } = await supabase
-            .from('inventory_stock_balance')
-            .select('id')
-            .eq('location_id', idParsed.data.id)
-            .gt('quantity', 0);
-
-        if (bal && bal.length > 0) {
-            return NextResponse.json(
-                {
-                    error: 'Location has stock. Transfer it elsewhere before deleting.',
-                },
-                { status: 409 },
-            );
-        }
-
-        const { error } = await supabase
-            .from('stock_location')
-            .delete()
-            .eq('id', idParsed.data.id);
-
-        if (error)
-            return NextResponse.json({ error: error.message }, { status: 500 });
-        return NextResponse.json({ success: true }, { status: 200 });
-    } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Unexpected error';
-        return NextResponse.json({ error: msg }, { status: 500 });
+        await service.deleteOne(ctx, idParsed.data.id);
+        return NextResponse.json({ message: 'Location deleted successfully' }, { status: 200 });
+    } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unexpected error';
+        const status = message.includes('stock') ? 409 : message.includes('denied') ? 403 : 500;
+        return NextResponse.json({ error: message }, { status });
     }
 }

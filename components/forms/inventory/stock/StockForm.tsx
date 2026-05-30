@@ -145,7 +145,7 @@ function PropertyBadges({ item }: { item: InventoryItemProps }) {
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-export default function StockForm({ inv_items, branches = [] }: Props) {
+export default function StockForm({ inv_items }: Props) {
     const [searchQuery, setSearchQuery] = useState('');
     const [filterBranchId, setFilterBranchId] = useState<number | 'all'>('all');
     const [filterLocationId, setFilterLocationId] = useState<number | 'all'>(
@@ -157,27 +157,6 @@ export default function StockForm({ inv_items, branches = [] }: Props) {
 
     const staticActions = pageAction?.actions.filter((a) => !a.dynamic) ?? [];
     const dynamicActions = pageAction?.actions.filter((a) => a.dynamic) ?? [];
-
-    const allLocations = useMemo(
-        () =>
-            branches.flatMap((branch) =>
-                (branch.stock_location ?? []).map((location) => ({
-                    ...location,
-                    branch_name: branch.name,
-                })),
-            ),
-        [branches],
-    );
-
-    const branchLocations = useMemo(
-        () =>
-            filterBranchId === 'all'
-                ? allLocations
-                : allLocations.filter(
-                      (location) => location.branch_id === filterBranchId,
-                  ),
-        [allLocations, filterBranchId],
-    );
 
     const filteredItems = useMemo(() => {
         const q = searchQuery.trim().toLowerCase();
@@ -224,7 +203,9 @@ export default function StockForm({ inv_items, branches = [] }: Props) {
         } else if (typeof item.stock === 'number') {
             total = item.stock;
         }
-        return ext.min_stock != null && ext.min_stock > 0 && total <= ext.min_stock;
+        return (
+            ext.min_stock != null && ext.min_stock > 0 && total <= ext.min_stock
+        );
     }).length;
 
     return (
@@ -284,55 +265,6 @@ export default function StockForm({ inv_items, branches = [] }: Props) {
                         <option value="used">មួយទឹក (Used)</option>
                         <option value="refurbished">Refurbished</option>
                     </select>
-
-                    {branches.length > 1 && (
-                        <select
-                            value={filterBranchId}
-                            onChange={(e) => {
-                                setFilterBranchId(
-                                    e.target.value === 'all'
-                                        ? 'all'
-                                        : Number(e.target.value),
-                                );
-                                setFilterLocationId('all');
-                            }}
-                            className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                        >
-                            <option value="all">All Branches</option>
-                            {branches.map((branch) => (
-                                <option key={branch.id} value={branch.id}>
-                                    {branch.name}
-                                </option>
-                            ))}
-                        </select>
-                    )}
-
-                    {branchLocations.length > 0 && (
-                        <select
-                            value={filterLocationId}
-                            onChange={(e) =>
-                                setFilterLocationId(
-                                    e.target.value === 'all'
-                                        ? 'all'
-                                        : Number(e.target.value),
-                                )
-                            }
-                            className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                        >
-                            <option value="all">All Locations</option>
-                            {branchLocations.map((location) => (
-                                <option key={location.id} value={location.id}>
-                                    {location.code
-                                        ? `[${location.code}] `
-                                        : ''}
-                                    {location.name}
-                                    {branches.length > 1
-                                        ? ` - ${location.branch_name}`
-                                        : ''}
-                                </option>
-                            ))}
-                        </select>
-                    )}
                 </div>
 
                 {/* Stats bar */}
@@ -385,10 +317,11 @@ export default function StockForm({ inv_items, branches = [] }: Props) {
                             </thead>
                             <tbody className="bg-white divide-y divide-slate-100">
                                 {filteredItems.map((item) => {
-                                    const extItem = item as InventoryItemProps & {
-                                        condition?: string;
-                                        brand?: string;
-                                    };
+                                    const extItem =
+                                        item as InventoryItemProps & {
+                                            condition?: string;
+                                            brand?: string;
+                                        };
 
                                     return (
                                         <tr
@@ -496,8 +429,7 @@ export default function StockForm({ inv_items, branches = [] }: Props) {
                                                                 );
 
                                                             if (
-                                                                action.label
-                                                                    .toLowerCase() ===
+                                                                action.label.toLowerCase() ===
                                                                 'delete'
                                                             ) {
                                                                 return (

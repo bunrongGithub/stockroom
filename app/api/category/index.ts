@@ -1,3 +1,3 @@
-import { CategoryService } from '@/lib/services/category.service';
+import { CategoryRepository } from '@/service/apps/inventory/repo/category';
 
-export const service = CategoryService.getInstance();
+export const service = CategoryRepository.getInstance();

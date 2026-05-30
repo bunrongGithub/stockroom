@@ -1,4 +1,5 @@
 import UomListForm from '@/components/forms/inventory/uom/UomListForm';
+import { serverFetch } from '@/lib/server-fetch';
 import { notFound } from 'next/navigation';
 
 interface PageProps {
@@ -11,7 +12,9 @@ async function page({ searchParams }: PageProps) {
     const params = new URLSearchParams({ page, limit, search });
     const API_URL = `${process.env.NEXT_PUBLIC_APP_URL}/api/uom?${params}`;
 
-    const res = await fetch(API_URL, { cache: 'no-store' });
+    const res = await serverFetch(API_URL, { cache: 'no-store' });
+    console.log(res);
+
     if (!res.ok) notFound();
 
     const json = await res.json();

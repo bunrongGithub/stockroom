@@ -1,22 +1,21 @@
 import StockForm from '@/components/forms/inventory/stock/StockForm';
-import { createClient } from '@/lib/supabase';
+import { serverFetch } from '@/lib/server-fetch';
+import { getSession } from '@/lib/auth';
+import { getServerClient } from '@/lib/supabase/server';
 import { BranchProps } from '@/types/branch';
 import { notFound, redirect } from 'next/navigation';
 
 async function page() {
-    const supabase = await createClient();
-    const {
-        data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) redirect('/login');
+    const session = await getSession();
+    if (!session) redirect('/signin');
 
     const API_URL = `${process.env.NEXT_PUBLIC_APP_URL}/api/inventory`;
-
-    const res = await fetch(API_URL, { cache: 'no-store' });
+    const res = await serverFetch(API_URL, { cache: 'no-store' });
     if (!res.ok) notFound();
     const json = await res.json();
     const items = json.data;
 
+    const supabase = getServerClient();
     const { data: branchData } = await supabase
         .from('warehouse')
         .select(
@@ -26,7 +25,7 @@ async function page() {
             stock_location(*)
         `,
         )
-        .eq('user_branch.user_id', user.id)
+        .eq('user_branch.user_id', session.userId)
         .eq('is_active', true)
         .order('name');
 

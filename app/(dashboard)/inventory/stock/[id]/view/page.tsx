@@ -1,7 +1,8 @@
 import ProductDashboard, {
     StockBalanceWithLocation,
 } from '@/components/forms/inventory/ProductDashboard';
-import { createClient } from '@/lib/supabase';
+import { serverFetch } from '@/lib/server-fetch';
+import { getServerClient } from '@/lib/supabase/server';
 import { notFound } from 'next/navigation';
 
 type RawWarehouse = { id: number; name: string };
@@ -33,18 +34,18 @@ interface PageProps {
 
 async function page({ params, searchParams }: PageProps) {
     const { id } = await params;
-    const { create_success, stock } = await searchParams; // 👈 await it
+    const { create_success, stock } = await searchParams;
 
     const isNewStock = create_success === 'true' && stock === 'true';
 
     const API_URL = `${process.env.NEXT_PUBLIC_APP_URL}/api/inventory/${id}`;
-    const res = await fetch(API_URL);
+    const res = await serverFetch(API_URL);
     if (!res.ok) notFound();
 
     const json = await res.json();
     const item = json.data;
 
-    const supabase = await createClient();
+    const supabase = getServerClient();
     const { data: stockBalances } = await supabase
         .from('inventory_stock_balance')
         .select(

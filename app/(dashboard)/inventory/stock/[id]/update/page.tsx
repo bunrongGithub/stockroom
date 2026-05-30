@@ -1,8 +1,8 @@
 import StockUpdateForm, {
     StockUpdateItemData,
 } from '@/components/forms/inventory/stock/StockUpdateForm';
-import { createClient } from '@/lib/supabase';
-import { notFound, redirect } from 'next/navigation';
+import { serverFetch } from '@/lib/server-fetch';
+import { notFound } from 'next/navigation';
 
 interface PageProps {
     params: Promise<{ id: string }>;
@@ -11,14 +11,8 @@ interface PageProps {
 export default async function StockUpdatePage({ params }: PageProps) {
     const { id } = await params;
 
-    const supabase = await createClient();
-    const {
-        data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) redirect('/login');
-
     const API_URL = `${process.env.NEXT_PUBLIC_APP_URL}/api/inventory/${id}`;
-    const res = await fetch(API_URL, { cache: 'no-store' });
+    const res = await serverFetch(API_URL, { cache: 'no-store' });
     if (!res.ok) notFound();
 
     const json = await res.json();

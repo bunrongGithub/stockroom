@@ -1,19 +1,17 @@
-import { createClient } from '@/lib/supabase';
-import { itemIdSchema } from '@/lib/validations/inventory.schema';
+import { itemIdSchema, updateInventorySchema } from '@/service/schema/inventory.schema';
 import { NextRequest, NextResponse } from 'next/server';
+import { getRequestContext } from '@/lib/request-context';
+import { getServerClient } from '@/lib/supabase/server';
+import { z } from 'zod';
 import { service } from '..';
 
 type Params = { params: Promise<{ id: string }> };
-type BranchRelation = {
-    id: number | null;
-    name: string | null;
-    is_default?: boolean | null;
-};
+type BranchJoin = { id: number | null; name: string | null; is_default?: boolean | null };
 type StockLocationRelation = {
     id: number | null;
     name: string | null;
     is_default: boolean | null;
-    branch: BranchRelation | BranchRelation[] | null;
+    branch: BranchJoin | BranchJoin[] | null;
 };
 type BalanceRow = {
     quantity: number | string | null;
@@ -25,152 +23,92 @@ function firstRelation<T>(value: T | T[] | null | undefined): T | null {
     return value ?? null;
 }
 
-export async function GET(_req: NextRequest, { params }: Params) {
+export async function GET(req: NextRequest, { params }: Params) {
     try {
+        const ctx = getRequestContext(req);
         const { id } = await params;
 
         const parsed = itemIdSchema.safeParse({ id });
         if (!parsed.success) {
-            return NextResponse.json(
-                { error: 'Invalid ID format' },
-                { status: 400 },
-            );
+            return NextResponse.json({ error: 'Invalid ID format' }, { status: 400 });
         }
 
-        // 1. Existing item data (unchanged)
-        const item = await service.getById(parsed.data.id);
+        const item = await service.findOne(ctx, parsed.data.id);
+        if (!item) {
+            return NextResponse.json({ error: 'Item not found' }, { status: 404 });
+        }
 
-        // 2. NEW: fetch stock balances per location for this item
-        const supabase = await createClient();
+        const supabase = getServerClient();
         const { data: balances } = await supabase
             .from('inventory_stock_balance')
             .select(
-                `
-                quantity,
+                `quantity,
                 stock_location:location_id (
-                    id,
-                    name,
-                    is_default,
+                    id, name, is_default,
                     branch:branch_id ( id, name, is_default )
-                )
-            `,
+                )`,
             )
             .eq('item_id', parsed.data.id);
 
-        // 3. Pick the default location (or first available) to display
-        const rows = ((balances ?? []) as unknown as BalanceRow[]).map(
-            (row) => {
-                const location = firstRelation(row.stock_location);
-                return {
-                    quantity: row.quantity,
-                    stock_location: location
-                        ? {
-                              ...location,
-                              branch: firstRelation(location.branch),
-                          }
-                        : null,
-                };
-            },
-        );
+        const rows = ((balances ?? []) as unknown as BalanceRow[]).map((row) => {
+            const location = firstRelation(row.stock_location);
+            const branch = firstRelation(location?.branch);
+            return {
+                quantity: row.quantity,
+                stock_location: location ? { ...location, branch } : null,
+            };
+        });
+
         const defaultRow =
-            rows.find((row) => row.stock_location?.is_default) ??
-            rows[0] ??
-            null;
+            rows.find((r) => r.stock_location?.is_default) ?? rows[0] ?? null;
 
-        const stock_location = defaultRow
-            ? {
-                  location_id: defaultRow.stock_location?.id ?? null,
-                  location_name: defaultRow.stock_location?.name ?? null,
-                  branch_name: defaultRow.stock_location?.branch?.name ?? null,
-                  quantity: Number(defaultRow.quantity ?? 0),
-              }
-            : null;
-
-        // 4. Merge: keep all existing item fields, attach location info
-        const enriched = {
-            ...item,
-            stock_location,
-            // also expose total on-hand from balances (sum across locations)
-            stock_balances: rows.map((row) => ({
-                location_name: row.stock_location?.name ?? '—',
-                branch_name: row.stock_location?.branch?.name ?? '—',
-                quantity: Number(row.quantity ?? 0),
-            })),
-        };
-
-        return NextResponse.json({ data: enriched }, { status: 200 });
+        return NextResponse.json({
+            data: {
+                ...item,
+                stock_location: defaultRow
+                    ? {
+                          location_id: defaultRow.stock_location?.id ?? null,
+                          location_name: defaultRow.stock_location?.name ?? null,
+                          branch_name: defaultRow.stock_location?.branch?.name ?? null,
+                          quantity: Number(defaultRow.quantity ?? 0),
+                      }
+                    : null,
+                stock_balances: rows.map((r) => ({
+                    location_name: r.stock_location?.name ?? '—',
+                    branch_name: r.stock_location?.branch?.name ?? '—',
+                    quantity: Number(r.quantity ?? 0),
+                })),
+            },
+        }, { status: 200 });
     } catch (error) {
-        const message =
-            error instanceof Error ? error.message : 'Unexpected error';
-        const status = message.includes('not found') ? 404 : 500;
-        return NextResponse.json({ error: message }, { status });
+        const message = error instanceof Error ? error.message : 'Unexpected error';
+        return NextResponse.json({ error: message }, { status: 500 });
     }
 }
 
 export async function PATCH(req: NextRequest, { params }: Params) {
     try {
+        const ctx = getRequestContext(req);
         const { id } = await params;
-        const supabase = await createClient();
-        const {
-            data: { user },
-        } = await supabase.auth.getUser();
-        if (!user) {
-            return NextResponse.json(
-                { error: 'Unauthorized' },
-                { status: 401 },
-            );
-        }
 
         const parsed = itemIdSchema.safeParse({ id });
         if (!parsed.success) {
-            return NextResponse.json(
-                { error: 'Invalid ID format' },
-                { status: 400 },
-            );
+            return NextResponse.json({ error: 'Invalid ID format' }, { status: 400 });
         }
 
         const body = await req.json();
-        const {
-            name,
-            purchase_price,
-            sale_price,
-            description,
-            category_id,
-            uom_id,
-        } = body;
-
-        if (!name?.trim()) {
+        const bodyParsed = updateInventorySchema.safeParse(body);
+        if (!bodyParsed.success) {
             return NextResponse.json(
-                { error: 'Name is required' },
-                { status: 400 },
+                { error: z.flattenError(bodyParsed.error).fieldErrors },
+                { status: 422 },
             );
         }
 
-        const salePrice = Number(sale_price) || 0;
-        const { data, error } = await supabase
-            .from('inventory_item')
-            .update({
-                name: name.trim(),
-                purchase_price: Number(purchase_price) || 0,
-                sale_price: salePrice,
-                price: salePrice,
-                description: description ?? null,
-                category_id: category_id ? Number(category_id) : null,
-                uom_id: uom_id ? Number(uom_id) : null,
-                updated_at: new Date().toISOString(),
-            })
-            .eq('id', parsed.data.id)
-            .select()
-            .single();
-
-        if (error) {
-            return NextResponse.json({ error: error.message }, { status: 500 });
-        }
-
-        return NextResponse.json({ data }, { status: 200 });
+        const item = await service.updateOne(ctx, parsed.data.id, bodyParsed.data);
+        return NextResponse.json({ data: item }, { status: 200 });
     } catch (error) {
-        const message =
-            error instanceof Error ? error.message : 'Unexpected error';
+        const message = error instanceof Error ? error.message : 'Unexpected error';
         const status = message.includes('not found')
             ? 404
             : message.includes('already exists')
@@ -180,26 +118,20 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
 }
 
-export async function DELETE(_req: NextRequest, { params }: Params) {
+export async function DELETE(req: NextRequest, { params }: Params) {
     try {
+        const ctx = getRequestContext(req);
         const { id } = await params;
 
         const parsed = itemIdSchema.safeParse({ id });
         if (!parsed.success) {
-            return NextResponse.json(
-                { error: 'Invalid ID format' },
-                { status: 400 },
-            );
+            return NextResponse.json({ error: 'Invalid ID format' }, { status: 400 });
         }
 
-        await service.delete(parsed.data.id);
-        return NextResponse.json(
-            { message: 'Item deleted successfully' },
-            { status: 200 },
-        );
+        await service.deleteOne(ctx, parsed.data.id);
+        return NextResponse.json({ message: 'Item deleted successfully' }, { status: 200 });
     } catch (error) {
-        const message =
-            error instanceof Error ? error.message : 'Unexpected error';
+        const message = error instanceof Error ? error.message : 'Unexpected error';
         const status = message.includes('not found') ? 404 : 500;
         return NextResponse.json({ error: message }, { status });
     }

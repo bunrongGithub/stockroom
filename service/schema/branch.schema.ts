@@ -6,6 +6,7 @@ export const idParamSchema = z.object({
 
 export const branchCreateSchema = z.object({
     name: z.string({ error: 'Branch name is required' }).min(1).max(255),
+    reference_no: z.string().min(1).max(50),
     code: z.string().max(50).optional().nullable(),
     address: z.string().optional().nullable(),
     phone: z.string().max(50).optional().nullable(),
@@ -27,3 +28,8 @@ export const stockLocationCreateSchema = z.object({
 export const stockLocationUpdateSchema = stockLocationCreateSchema
     .partial()
     .extend({ is_active: z.boolean().optional() });
+
+export type BranchCreateInput = z.infer<typeof branchCreateSchema>;
+export type BranchUpdateInput = z.infer<typeof branchUpdateSchema>;
+export type StockLocationCreateInput = z.infer<typeof stockLocationCreateSchema>;
+export type StockLocationUpdateInput = z.infer<typeof stockLocationUpdateSchema>;

@@ -1,118 +1,54 @@
-// ─────────────────────────────────────────────────────────────
-// Auth Utilities
-// JWT sign/verify using jose (Edge-compatible)
-// ─────────────────────────────────────────────────────────────
+import bcrypt from 'bcryptjs';
+import { lookupUser } from './repo/user.repo';
+import { signToken } from '@/lib/auth';
+import { UnauthorizedError } from '@/service/core/api-response';
+import type { LoginInput, SignupInput } from '@/service/schema/auth.schema';
+import { getServerClient } from '@/lib/supabase/server';
 
-import { SignJWT, jwtVerify } from 'jose';
-import { cookies } from 'next/headers';
-import { NextRequest, NextResponse } from 'next/server';
-import type { SessionPayload, RequestContext } from '@/types/request-context';
+// ── Login ─────────────────────────────────────────────────────
+// 1. lookupUser(email)         → SELECT from users table
+// 2. bcrypt.compare(pw, hash)  → credential verification
+// 3. signToken(payload)        → jwt.sign({ userId, companyId, role })
+export async function login(input: LoginInput): Promise<string> {
+    const userRecord = await lookupUser(input.email);
 
-const SESSION_COOKIE = 'erp_session';
-const SESSION_DURATION = 60 * 60 * 8; // 8 hours in seconds
+    if (!userRecord) throw new UnauthorizedError('Invalid login credentials');
 
-function getJwtSecret(): Uint8Array {
-    const secret = process.env.JWT_SECRET;
-    if (!secret) throw new Error('JWT_SECRET env var is not set');
-    return new TextEncoder().encode(secret);
-}
+    const valid = await bcrypt.compare(input.password, userRecord.password_hash);
+    if (!valid) throw new UnauthorizedError('Invalid login credentials');
 
-// ── Token Operations ──────────────────────────────────────────
-
-export async function signToken(
-    payload: Omit<SessionPayload, 'iat' | 'exp'>,
-): Promise<string> {
-    return new SignJWT(payload as Record<string, unknown>)
-        .setProtectedHeader({ alg: 'HS256' })
-        .setIssuedAt()
-        .setExpirationTime(`${SESSION_DURATION}s`)
-        .sign(getJwtSecret());
-}
-
-export async function verifyToken(
-    token: string,
-): Promise<SessionPayload | null> {
-    try {
-        const { payload } = await jwtVerify(token, getJwtSecret());
-        return payload as unknown as SessionPayload;
-    } catch {
-        return null;
-    }
-}
-
-// ── Cookie Operations ─────────────────────────────────────────
-
-export function setSessionCookie(response: NextResponse, token: string): void {
-    response.cookies.set(SESSION_COOKIE, token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: SESSION_DURATION,
-        path: '/',
+    return signToken({
+        userId: userRecord.id,
+        companyId: userRecord.company_id,
+        role: userRecord.role,
+        email: userRecord.email,
     });
 }
 
-export function clearSessionCookie(response: NextResponse): void {
-    response.cookies.delete(SESSION_COOKIE);
-}
+// ── Sign Up ───────────────────────────────────────────────────
+// Creates a Supabase auth user then inserts a row in the public
+// users table with a bcrypt-hashed password for this auth flow.
+export async function signup(input: SignupInput): Promise<{ requiresConfirmation: boolean }> {
+    const supabase = getServerClient();
 
-// ── Server-side session reading ───────────────────────────────
+    const { data, error } = await supabase.auth.admin.createUser({
+        email: input.email,
+        password: input.password,
+        email_confirm: false,
+    });
 
-/** Read and verify session from server component (uses next/headers) */
-export async function getSession(): Promise<SessionPayload | null> {
-    const cookieStore = await cookies();
-    const token = cookieStore.get(SESSION_COOKIE)?.value;
-    if (!token) return null;
-    return verifyToken(token);
-}
+    if (error) throw new Error(error.message);
 
-/** Read and verify session from a NextRequest (middleware / API route) */
-export async function getSessionFromRequest(
-    req: NextRequest,
-): Promise<SessionPayload | null> {
-    const token = req.cookies.get(SESSION_COOKIE)?.value;
-    if (!token) return null;
-    return verifyToken(token);
-}
+    const password_hash = await bcrypt.hash(input.password, 12);
 
-/** Convert SessionPayload → RequestContext (drops JWT-specific fields) */
-export function toRequestContext(session: SessionPayload): RequestContext {
-    return {
-        userId: session.userId,
-        companyId: session.companyId,
-        role: session.role,
-        email: session.email,
-    };
-}
+    const { error: insertError } = await supabase.from('users').insert({
+        id: data.user.id,
+        email: input.email,
+        password_hash,
+        role: 'user',
+    });
 
-// ── Role guards ───────────────────────────────────────────────
+    if (insertError) throw new Error(insertError.message);
 
-import { TAuthUserRole } from './constant';
-import { ForbiddenError } from '@/service/core/api-response';
-
-const ROLE_HIERARCHY: Record<TAuthUserRole, number> = {
-    super_admin: 100,
-    admin: 80,
-    member: 50,
-    user: 10,
-};
-
-/** Returns true if userRole meets the minimum required role */
-export function hasRole(
-    userRole: TAuthUserRole,
-    requiredRole: TAuthUserRole,
-): boolean {
-    return ROLE_HIERARCHY[userRole] >= ROLE_HIERARCHY[requiredRole];
-}
-
-/** Throws a structured 403 response if role is insufficient */
-export function assertRole(
-    ctx: RequestContext,
-    requiredRole: TAuthUserRole,
-): void {
-    if (!hasRole(ctx.role, requiredRole)) {
-        throw new ForbiddenError(
-            `Access denied: requires role '${requiredRole}' or higher`,
-        );
-    }
+    return { requiresConfirmation: !data.user.email_confirmed_at };
 }

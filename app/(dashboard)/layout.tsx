@@ -6,6 +6,7 @@ import { PageActionContext } from '@/context/PageActionContext';
 import { UserProfileProvider, useUserProfile } from '@/context/UserProfileContext';
 import { Action, TMenuItem } from '@/types';
 import { modulesList } from '@/utils/systemMenu';
+import { supabase } from '@/lib/supabase/client';
 import { ChevronDown, ChevronRight, Loader2, LogOut } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -33,11 +34,9 @@ export default function DashboardLayout({
     const [isLoggingOut, setIsLoggingOut] = useState(false);
 
     useEffect(() => {
-        supabase.auth
-            .getUser()
-            .then(({ data: { user } }) =>
-                setUserEmail(user?.email ?? 'មិនមានគណនី'),
-            )
+        fetch('/api/auth/me')
+            .then((res) => (res.ok ? res.json() : null))
+            .then((data) => setUserEmail(data?.email ?? 'មិនមានគណនី'))
             .catch(() => setUserEmail('Error'));
     }, []);
 
@@ -103,7 +102,7 @@ export default function DashboardLayout({
     const handleLogout = async () => {
         setIsLoggingOut(true);
         try {
-            await supabase.auth.signOut();
+            await fetch('/api/auth/logout', { method: 'POST' });
             window.location.href = '/login';
         } catch {
             setIsLoggingOut(false);

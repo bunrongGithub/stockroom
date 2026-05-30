@@ -81,10 +81,10 @@ export default function LocationForm({ branches }: Props) {
                     <div>
                         <h2 className="flex items-center gap-2 text-2xl font-bold text-slate-800">
                             <Building2 className="text-blue-600" />
-                            Branches
+                            Warehouse
                         </h2>
                         <p className="mt-1 text-sm text-slate-500">
-                            គ្រប់គ្រងសាខានៃអាជីវកម្ម — ហាង​ និង​​ឃ្លាំង
+                            Manage your warehouse and location to organize your inventory effectively.
                         </p>
                     </div>
                     <div className="flex items-center gap-2">

@@ -1,96 +1,47 @@
-import { createServerClient, type CookieOptions } from '@supabase/ssr';
-import { NextResponse, type NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { getSessionFromRequest } from '@/lib/auth';
 
-/**
- * ឯកសារនេះត្រូវដាក់នៅ Root Folder (ក្រៅគេបង្អស់)
- * ទីតាំង៖ ICASE-POS/middleware.ts
- */
+const PUBLIC_PATHS = [
+    '/signin',
+    '/api/auth/login',
+    '/api/auth/signup',
+    '/_next',
+    '/favicon.ico',
+];
 
-export async function proxy(request: NextRequest) {
-  let response = NextResponse.next({
-    request: {
-      headers: request.headers,
-    },
-  });
+function isPublicPath(pathname: string): boolean {
+    return PUBLIC_PATHS.some((p) => pathname.startsWith(p));
+}
 
-  // ទាញយកព័ត៌មានពី Environment Variables
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+export async function proxy(req: NextRequest) {
+    const { pathname } = req.nextUrl;
 
-  // បញ្ឈប់ការដាច់កម្មវិធី ប្រសិនបើរកមិនឃើញ Key
-  if (!supabaseUrl || !supabaseAnonKey) {
-    console.error("❌ Error: រកមិនឃើញ Supabase URL ឬ Key ក្នុងឯកសារ .env.local ទេ។ សូមពិនិត្យមើលម្ដងទៀត!");
-    return response;
-  }
+    if (isPublicPath(pathname)) return NextResponse.next();
 
-  const supabase = createServerClient(
-    supabaseUrl,
-    supabaseAnonKey,
-    {
-      cookies: {
-        get(name: string) {
-          return request.cookies.get(name)?.value;
-        },
-        set(name: string, value: string, options: CookieOptions) {
-          request.cookies.set({
-            name,
-            value,
-            ...options,
-          });
-          response = NextResponse.next({
-            request: {
-              headers: request.headers,
-            },
-          });
-          response.cookies.set({
-            name,
-            value,
-            ...options,
-          });
-        },
-        remove(name: string, options: CookieOptions) {
-          request.cookies.set({
-            name,
-            value: '',
-            ...options,
-          });
-          response = NextResponse.next({
-            request: {
-              headers: request.headers,
-            },
-          });
-          response.cookies.set({
-            name,
-            value: '',
-            ...options,
-          });
-        },
-      },
+    const session = await getSessionFromRequest(req);
+
+    if (!session) {
+        if (pathname.startsWith('/api/')) {
+            return NextResponse.json(
+                { error: 'Unauthorized', code: 'UNAUTHENTICATED' },
+                { status: 401 },
+            );
+        }
+        const loginUrl = new URL('/signin', req.url);
+        loginUrl.searchParams.set('redirect', pathname);
+        return NextResponse.redirect(loginUrl);
     }
-  );
 
-  // ផ្ទៀងផ្ទាត់ User Session
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    // Inject tenant context headers so every API handler gets userId/companyId/role
+    const requestHeaders = new Headers(req.headers);
+    requestHeaders.set('x-user-id', session.userId);
+    requestHeaders.set('x-company-id', session.companyId);
+    requestHeaders.set('x-user-role', session.role);
+    requestHeaders.set('x-user-email', session.email);
 
-  const isLoginPage = request.nextUrl.pathname === '/login';
-
-  // បើមិនទាន់ Login ហើយព្យាយាមចូលទៅកាន់ Dashboard
-  if (!user && !isLoginPage) {
-    return NextResponse.redirect(new URL('/login', request.url));
-  }
-
-  // បើ Login រួចហើយ មិនឱ្យចូលទំព័រ Login ទៀតទេ
-  if (user && isLoginPage) {
-    return NextResponse.redirect(new URL('/', request.url));
-  }
-
-  return response;
+    return NextResponse.next({ request: { headers: requestHeaders } });
 }
 
 export const config = {
-  matcher: [
-    '/((?!api|_next/static|_next/image|favicon.ico).*)',
-  ],
+    matcher: ['/((?!_next/static|_next/image|images|icons|fonts).*)'],
 };

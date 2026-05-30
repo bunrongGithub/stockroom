@@ -1,24 +1,20 @@
-import type {
-    CreateCategoryInput,
-    UpdateCategoryInput,
-} from '@/lib/validations/category.schema';
-import { PaginationMixin } from '@/service/core/pagination';
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { CreateCategoryInput, UpdateCategoryInput } from '@/service/schema/category.schema';
+import { type PaginationParams, type PaginatedResult } from '@/service/core/pagination';
+import { BaseRepository } from '@/service/core/base-repository';
+import type { RequestContext } from '@/types/request-context';
+
 export type Category = {
     id: number;
     name: string;
-    reference_no: string;
+    reference_no: string | null;
     user_id: string | null;
     company_id: number | null;
 };
 
 const TABLE = 'inventory_item_category' as const;
 
-export class CategoryRepository extends PaginationMixin {
+export class CategoryRepository extends BaseRepository {
     private static instance: CategoryRepository;
-
-    // Cached per-request Supabase client (React.cache handles dedup)
-    private clientPromise: Promise<SupabaseClient> | null = null;
 
     private constructor() {
         super();
@@ -31,94 +27,62 @@ export class CategoryRepository extends PaginationMixin {
         return CategoryRepository.instance;
     }
 
-    // -------------------------------------------------------------------------
-    // Internal helper — resolves the Supabase client once per request
-    // -------------------------------------------------------------------------
-
-    private getClient(): Promise<SupabaseClient> {
-        if (!this.clientPromise) {
-            this.clientPromise = createClient();
-        }
-        return this.clientPromise;
-    }
-
-    // -------------------------------------------------------------------------
-    // Query methods
-    // -------------------------------------------------------------------------
-
     async findAll(
-        params: PaginationParams = {},
+        ctx: RequestContext,
+        params: PaginationParams,
     ): Promise<PaginatedResult<Category>> {
-        const supabase = await this.getClient();
-        const query = supabase.from(TABLE).select('*', { count: 'exact' });
+        const query = this.applyScope(
+            this.db.from(TABLE).select('*', { count: 'exact' }),
+            ctx,
+        );
         return this.paginate(query, params);
     }
 
-    async findOne(id: number): Promise<Category | null> {
-        const supabase = await this.getClient();
-        const { data, error } = await supabase
-            .from(TABLE)
-            .select('*')
-            .eq('id', id)
-            .single();
+    async findOne(ctx: RequestContext, id: number): Promise<Category | null> {
+        const { data, error } = await this.applyScope(
+            this.db.from(TABLE).select('*').eq('id', id),
+            ctx,
+        ).single();
 
         if (error) {
-            if (error.code === 'PGRST116') return null; // row not found
+            if (error.code === 'PGRST116') return null;
             throw new Error(error.message);
         }
         return data;
     }
 
-    // -------------------------------------------------------------------------
-    // Mutation methods
-    // -------------------------------------------------------------------------
-
-    async insertOne(input: CreateCategoryInput): Promise<Category> {
-        const supabase = await this.getClient();
-
-        const {
-            data: { user },
-        } = await supabase.auth.getUser();
-        if (!user) throw new Error('Not authenticated');
-
-        const { data: profile } = await supabase
-            .from('profiles')
-            .select('company_id')
-            .eq('id', user.id)
-            .single();
-
-        if (!profile) throw new Error('User profile not found');
-
-        const { data, error } = await supabase
+    async insertOne(ctx: RequestContext, input: CreateCategoryInput): Promise<Category> {
+        const { data, error } = await this.scopedDb(Number(ctx.companyId))
             .from(TABLE)
-            .insert({
-                ...input,
-                user_id: user.id,
-                company_id: profile.company_id,
-            })
+            .insert({ ...input, user_id: ctx.userId })
             .select()
             .single();
 
         if (error) throw new Error(error.message);
-        return data;
+        return data as Category;
     }
 
-    async updateOne(id: number, input: UpdateCategoryInput): Promise<Category> {
-        const supabase = await this.getClient();
-        const { data, error } = await supabase
-            .from(TABLE)
-            .update({ ...input })
-            .eq('id', id)
+    async updateOne(
+        ctx: RequestContext,
+        id: number,
+        input: UpdateCategoryInput,
+    ): Promise<Category> {
+        const { data, error } = await this.applyScope(
+            this.db.from(TABLE).update({ ...input }).eq('id', id),
+            ctx,
+        )
             .select()
             .single();
 
         if (error) throw new Error(error.message);
-        return data;
+        return data as Category;
     }
 
-    async deleteOne(id: number): Promise<void> {
-        const supabase = await this.getClient();
-        const { error } = await supabase.from(TABLE).delete().eq('id', id);
+    async deleteOne(ctx: RequestContext, id: number): Promise<void> {
+        const { error } = await this.applyScope(
+            this.db.from(TABLE).delete().eq('id', id),
+            ctx,
+        );
 
         if (error) throw new Error(error.message);
     }

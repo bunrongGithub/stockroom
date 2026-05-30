@@ -1,3 +1,3 @@
-import { UOMService } from '@/lib/services/uom.service';
+import { UomRepository } from '@/service/apps/inventory/repo/uom';
 
-export const service = UOMService.getInstance();
+export const service = UomRepository.getInstance();

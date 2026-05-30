@@ -1,11 +1,14 @@
-import { loginSchema } from '@/lib/validations/auth.schema';
 import { NextRequest, NextResponse } from 'next/server';
-import { service } from '.';
+import { loginSchema } from '@/service/schema/auth.schema';
+import { login } from '@/service/apps/base/auth';
+import { setSessionCookie } from '@/lib/auth';
+import { ApiError } from '@/service/core/api-response';
 
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
         const parsed = loginSchema.safeParse(body);
+
         if (!parsed.success) {
             return NextResponse.json(
                 { error: parsed.error.issues },
@@ -13,12 +16,17 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        const result = await service.login(parsed.data);
-        return NextResponse.json({ data: result }, { status: 200 });
+        const token = await login(parsed.data);
+        const response = NextResponse.json(
+            { data: { success: true } },
+            { status: 200 },
+        );
+        setSessionCookie(response, token);
+        return response;
     } catch (error) {
+        if (error instanceof ApiError) return error.toResponse();
         const message =
             error instanceof Error ? error.message : 'Unexpected error';
-        const status = message === 'Invalid login credentials' ? 401 : 500;
-        return NextResponse.json({ error: message }, { status });
+        return NextResponse.json({ error: message }, { status: 500 });
     }
 }

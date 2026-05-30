@@ -1,3 +1,3 @@
-import { InventoryItemService } from '@/lib/services/inventory.service';
+import { InventoryRepository } from '@/service/apps/inventory/repo/stock';
 
-export const service = InventoryItemService.getInstance();
+export const service = InventoryRepository.getInstance();

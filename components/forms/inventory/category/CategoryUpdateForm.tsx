@@ -7,6 +7,7 @@ import React, { useState } from 'react';
 // ─── Types ────────────────────────────────────────────────────────────────────
 type FormState = {
     name: string;
+    reference_no: string;
 };
 
 type Props = {
@@ -19,7 +20,8 @@ function CategoryUpdateForm({ id, defaultValues }: Props) {
     const router = useRouter();
 
     const [form, setForm] = useState<FormState>({
-        name: defaultValues.name ?? null,
+        name: defaultValues.name ?? '',
+        reference_no: defaultValues.reference_no ?? '',
     });
     const [errors, setErrors] = useState<Partial<FormState>>({});
     const [saving, setSaving] = useState(false);
@@ -62,6 +64,7 @@ function CategoryUpdateForm({ id, defaultValues }: Props) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     name: form.name.trim(),
+                    reference_no: form.reference_no.trim() || undefined,
                 }),
             });
 
@@ -161,6 +164,15 @@ function CategoryUpdateForm({ id, defaultValues }: Props) {
                                 (optional)
                             </span>
                         </label>
+                        <input
+                            id="reference_no"
+                            name="reference_no"
+                            type="text"
+                            value={form.reference_no}
+                            onChange={handleChange}
+                            placeholder="e.g. CAT-001"
+                            className="block w-full px-3.5 py-2.5 rounded-xl border text-sm transition-all focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 border-slate-200 bg-slate-50 focus:bg-white"
+                        />
                     </div>
 
                     {/* Actions */}
