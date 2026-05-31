@@ -1,19 +1,15 @@
 'use client';
 
-import BranchForm from '@/components/forms/inventory/configurations/BranchForm';
-import { BranchProps } from '@/types/branch';
-import {
-    Building2,
-    Edit2,
-    MapPin,
-    Plus,
-    Search,
-    Trash2,
-    Warehouse,
-} from 'lucide-react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { Building2, Edit2, MapPin, Plus, Trash2, Warehouse } from 'lucide-react';
+
+import { BranchProps } from '@/types/branch';
+import { DataTable, type DataTableColumn } from '@/components/ui/DataTable';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import BranchForm from '@/components/forms/inventory/configurations/BranchForm';
 
 interface Props {
     branches: BranchProps[];
@@ -21,7 +17,6 @@ interface Props {
 
 export default function LocationForm({ branches }: Props) {
     const router = useRouter();
-    const [search, setSearch] = useState('');
     const [showForm, setShowForm] = useState(false);
     const [editing, setEditing] = useState<BranchProps | null>(null);
     const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
@@ -31,30 +26,112 @@ export default function LocationForm({ branches }: Props) {
         setTimeout(() => setToast(null), 3000);
     };
 
-    const filtered = branches.filter(
-        (b) =>
-            b.name.toLowerCase().includes(search.toLowerCase()) ||
-            b.reference_no.toLowerCase().includes(search.toLowerCase()),
-    );
-
     const onDelete = async (id: number) => {
-        if (!confirm('Delete this branch? This cannot be undone.')) return;
+        if (!confirm('Delete this warehouse? This cannot be undone.')) return;
         try {
             const res = await fetch(`/api/branch/${id}`, { method: 'DELETE' });
             const json = await res.json();
             if (!res.ok) throw new Error(json.error ?? 'Delete failed');
-            showToast('Branch deleted.', 'success');
+            showToast('Warehouse deleted.', 'success');
             router.refresh();
-        } catch (err: any) {
-            showToast(err.message, 'error');
+        } catch (err: unknown) {
+            showToast(err instanceof Error ? err.message : 'Delete failed', 'error');
         }
     };
+
+    const columns: DataTableColumn<BranchProps>[] = [
+        {
+            key: 'name',
+            header: 'Warehouse',
+            cell: (b) => (
+                <div>
+                    <p className="font-medium text-foreground">{b.name}</p>
+                    <p className="text-xs text-muted-foreground">{b.reference_no}</p>
+                </div>
+            ),
+        },
+        {
+            key: 'address',
+            header: 'Address',
+            cell: (b) =>
+                b.address ? (
+                    <span className="text-sm text-muted-foreground">{b.address}</span>
+                ) : (
+                    <span className="text-xs text-muted-foreground/50">—</span>
+                ),
+        },
+        {
+            key: 'locations',
+            header: 'Locations',
+            headerClassName: 'text-center',
+            cellClassName: 'text-center',
+            cell: (b) => {
+                const count = b.stock_location?.length ?? 0;
+                return (
+                    <div className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 px-2.5 py-1 text-xs font-medium text-primary">
+                        <MapPin className="size-3 shrink-0" />
+                        {count}
+                    </div>
+                );
+            },
+        },
+        {
+            key: 'status',
+            header: 'Status',
+            cell: (b) =>
+                b.is_active ? (
+                    <Badge variant="secondary" className="text-emerald-700 border-emerald-200">
+                        Active
+                    </Badge>
+                ) : (
+                    <Badge variant="outline">Inactive</Badge>
+                ),
+        },
+        {
+            key: 'actions',
+            header: '',
+            headerClassName: 'w-0',
+            cell: (b) => (
+                <div className="flex items-center justify-end gap-1.5">
+                    <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => setEditing(b)}
+                        title="Edit"
+                        className="text-muted-foreground hover:text-foreground"
+                    >
+                        <Edit2 className="size-3.5" />
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => onDelete(b.id)}
+                        title="Delete"
+                        className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                    >
+                        <Trash2 className="size-3.5" />
+                    </Button>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        asChild
+                        className="border-primary/30 text-primary hover:bg-primary/5 hover:text-primary"
+                    >
+                        <Link href={`/inventory/configurations/location/${b.id}`}>
+                            <Warehouse className="size-3.5" />
+                            Locations
+                        </Link>
+                    </Button>
+                </div>
+            ),
+        },
+    ];
 
     return (
         <>
             {toast && (
                 <div
-                    className={`fixed right-4 top-4 z-[60] rounded-xl px-4 py-3 text-sm font-medium shadow-lg ${
+                    className={`fixed right-4 top-4 z-60 rounded-xl px-4 py-3 text-sm font-medium shadow-lg ${
                         toast.type === 'success' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'
                     }`}
                 >
@@ -70,118 +147,48 @@ export default function LocationForm({ branches }: Props) {
                         setEditing(null);
                     }}
                     onSuccess={() => {
-                        showToast(editing ? 'Branch updated.' : 'Branch created.', 'success');
+                        showToast(editing ? 'Warehouse updated.' : 'Warehouse created.', 'success');
                         router.refresh();
                     }}
                 />
             )}
 
-            <div className="mx-auto space-y-8 animate-in fade-in duration-500 p-4 md:p-8">
-                <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div className="space-y-6 p-4 md:p-8">
+                <div className="flex items-start justify-between">
                     <div>
-                        <h2 className="flex items-center gap-2 text-2xl font-bold text-slate-800">
-                            <Building2 className="text-blue-600" />
-                            Warehouse
+                        <h2 className="flex items-center gap-2 text-xl font-semibold">
+                            <Building2 className="size-5 text-primary" />
+                            Warehouses
                         </h2>
-                        <p className="mt-1 text-sm text-slate-500">
-                            Manage your warehouse and location to organize your inventory effectively.
+                        <p className="mt-1 text-sm text-muted-foreground">
+                            Manage warehouses and their storage locations.
                         </p>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <div className="relative max-w-sm">
-                            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                            <input
-                                type="text"
-                                placeholder="Search by name or ref…"
-                                value={search}
-                                onChange={(e) => setSearch(e.target.value)}
-                                className="w-full rounded-lg border border-gray-200 bg-white py-2.5 pl-10 pr-4 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                            />
-                        </div>
-                        <button
-                            type="button"
-                            onClick={() => setShowForm(true)}
-                            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700"
-                        >
-                            <Plus size={16} />
-                            New Branch
-                        </button>
-                    </div>
+                    <Button onClick={() => setShowForm(true)}>
+                        <Plus />
+                        New Warehouse
+                    </Button>
                 </div>
 
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {filtered.length === 0 ? (
-                        <div className="col-span-full rounded-2xl border border-dashed border-slate-200 bg-white py-16 text-center">
-                            <Building2 className="mx-auto h-10 w-10 text-slate-300" />
-                            <p className="mt-3 text-sm text-slate-400">No branches found.</p>
-                        </div>
-                    ) : (
-                        filtered.map((b) => {
-                            const locationCount = b.stock_location?.length ?? 0;
-
-                            return (
-                                <div
-                                    key={b.id}
-                                    className="group rounded-2xl border border-slate-100 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
-                                >
-                                    <div className="flex items-start justify-between">
-                                        <div className="min-w-0">
-                                            <div className="flex items-center gap-2">
-                                                <h3 className="truncate text-base font-semibold text-slate-800">
-                                                    {b.name}
-                                                </h3>
-                                                {!b.is_active && (
-                                                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
-                                                        Inactive
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <span className="mt-1 inline-block rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
-                                                {b.reference_no}
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    <div className="mt-3 space-y-1.5 text-sm text-slate-600">
-                                        <div className="flex items-center gap-2">
-                                            <Warehouse size={14} className="shrink-0 text-slate-400" />
-                                            <span>
-                                                {locationCount} storage location{locationCount !== 1 ? 's' : ''}
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
-                                        <Link
-                                            href={`/inventory/configurations/location/${b.id}`}
-                                            className="text-xs font-medium text-blue-600 hover:underline"
-                                        >
-                                            Manage Storage Locations →
-                                        </Link>
-                                        <div className="flex items-center gap-1">
-                                            <button
-                                                type="button"
-                                                onClick={() => setEditing(b)}
-                                                className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-blue-50 hover:text-blue-600"
-                                                aria-label="Edit"
-                                            >
-                                                <Edit2 size={14} />
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => onDelete(b.id)}
-                                                className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600"
-                                                aria-label="Delete"
-                                            >
-                                                <Trash2 size={14} />
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })
-                    )}
-                </div>
+                <DataTable
+                    columns={columns}
+                    data={branches}
+                    keyExtractor={(b) => b.id}
+                    searchFn={(b, q) =>
+                        b.name.toLowerCase().includes(q) ||
+                        b.reference_no.toLowerCase().includes(q)
+                    }
+                    searchPlaceholder="Search by name or reference..."
+                    emptyIcon={<Building2 className="size-8" />}
+                    emptyTitle="No warehouses yet"
+                    emptyDescription="Create your first warehouse to start managing stock."
+                    emptyAction={
+                        <Button size="sm" onClick={() => setShowForm(true)}>
+                            <Plus />
+                            New Warehouse
+                        </Button>
+                    }
+                />
             </div>
         </>
     );

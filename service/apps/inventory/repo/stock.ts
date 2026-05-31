@@ -1,27 +1,39 @@
-import type { CreateInventoryInput, UpdateInventoryInput } from '@/service/schema/inventory.schema';
-import { type PaginationParams, type PaginatedResult } from '@/service/core/pagination';
+import type {
+    CreateInventoryInput,
+    UpdateInventoryInput,
+} from '@/service/schema/inventory.schema';
+import {
+    type PaginationParams,
+    type PaginatedResult,
+} from '@/service/core/pagination';
 import { BaseRepository } from '@/service/core/base-repository';
 import type { RequestContext } from '@/types/request-context';
+import { generateSequenNumbering } from '@/lib/utils/sequenumbering';
 
 export type InventoryItem = {
     id: number;
     name: string;
     reference_no: string | null;
     sku: string | null;
+    description: string | null;
+    item_class: string;
     price: number;
-    sale_price: number;
-    purchase_price: number;
-    stock: number | null;
-    category_id: number | null;
-    uom_id: number | null;
+    min_price: number | null;
+    max_price: number | null;
+    cost: number | null;
     is_variant: boolean;
     is_discount: boolean;
-    item_class: string;
     images_url: string[] | null;
+    warranty_duration: string | null;
+    category_id: number | null;
+    uom_id: number | null;
     user_id: string | null;
     company_id: number | null;
     created_at: string;
     updated_at: string;
+    category: { id: number; name: string; reference_no: string } | null;
+    uom: { id: number; name: string } | null;
+    company: { id: number; name: string } | null;
 };
 
 const TABLE = 'inventory_item' as const;
@@ -45,15 +57,28 @@ export class InventoryRepository extends BaseRepository {
         params: PaginationParams,
     ): Promise<PaginatedResult<InventoryItem>> {
         const query = this.applyScope(
-            this.db.from(TABLE).select('*', { count: 'exact' }),
+            this.db
+                .from(TABLE)
+                .select(
+                    '*, category:inventory_item_category(id, name, reference_no), uom:inventory_item_uom(id, name), company:company(id, name)',
+                    { count: 'exact' },
+                ),
             ctx,
         );
         return this.paginate(query, params);
     }
 
-    async findOne(ctx: RequestContext, id: number): Promise<InventoryItem | null> {
+    async findOne(
+        ctx: RequestContext,
+        id: number,
+    ): Promise<InventoryItem | null> {
         const { data, error } = await this.applyScope(
-            this.db.from(TABLE).select('*').eq('id', id),
+            this.db
+                .from(TABLE)
+                .select(
+                    '*, category:inventory_item_category(id, name, reference_no), uom:inventory_item_uom(id, name), company:company(id, name)',
+                )
+                .eq('id', id),
             ctx,
         ).single();
 
@@ -64,10 +89,18 @@ export class InventoryRepository extends BaseRepository {
         return data;
     }
 
-    async insertOne(ctx: RequestContext, input: CreateInventoryInput): Promise<InventoryItem> {
+    async insertOne(
+        ctx: RequestContext,
+        input: CreateInventoryInput,
+    ): Promise<InventoryItem> {
+        const referenceNo = generateSequenNumbering('STCK');
         const { data, error } = await this.scopedDb(Number(ctx.companyId))
             .from(TABLE)
-            .insert({ ...input, user_id: ctx.userId })
+            .insert({
+                ...input,
+                user_id: ctx.userId,
+                reference_no: referenceNo,
+            })
             .select()
             .single();
 
@@ -81,7 +114,10 @@ export class InventoryRepository extends BaseRepository {
         input: UpdateInventoryInput,
     ): Promise<InventoryItem> {
         const { data, error } = await this.applyScope(
-            this.db.from(TABLE).update({ ...input, updated_at: new Date().toISOString() }).eq('id', id),
+            this.db
+                .from(TABLE)
+                .update({ ...input, updated_at: new Date().toISOString() })
+                .eq('id', id),
             ctx,
         )
             .select()

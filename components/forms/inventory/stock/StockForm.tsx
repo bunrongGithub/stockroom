@@ -17,7 +17,7 @@ import Link from 'next/link';
 import { useMemo, useState } from 'react';
 
 interface Props {
-    inv_items: Array<InventoryItemProps>;
+    items: Array<InventoryItemProps>;
     branches?: BranchProps[];
 }
 
@@ -47,7 +47,7 @@ function ConditionBadge({ condition }: { condition?: string }) {
 
 // ─── Stock Qty Cell ───────────────────────────────────────────────────────────
 function StockQtyCell({ item }: { item: InventoryItemProps }) {
-    const extItem = item as InventoryItemProps & { min_stock?: number | null };
+    const extItem = item;
 
     if (item.item_class !== 'stock') {
         return <span className="text-xs text-slate-300">—</span>;
@@ -97,15 +97,9 @@ function StockQtyCell({ item }: { item: InventoryItemProps }) {
 
 // ─── Property Badges ──────────────────────────────────────────────────────────
 function PropertyBadges({ item }: { item: InventoryItemProps }) {
-    const extItem = item as InventoryItemProps & {
-        has_warranty?: boolean;
-        is_discount?: boolean;
-        is_returnable?: boolean;
-    };
-
     const badges = [];
 
-    if (extItem.has_warranty) {
+    if (item.has_warranty) {
         badges.push(
             <span
                 key="w"
@@ -116,7 +110,7 @@ function PropertyBadges({ item }: { item: InventoryItemProps }) {
             </span>,
         );
     }
-    if (extItem.is_discount) {
+    if (item.is_discount) {
         badges.push(
             <span
                 key="d"
@@ -127,7 +121,7 @@ function PropertyBadges({ item }: { item: InventoryItemProps }) {
             </span>,
         );
     }
-    if (extItem.is_returnable) {
+    if (item.is_returnable) {
         badges.push(
             <span
                 key="r"
@@ -145,7 +139,7 @@ function PropertyBadges({ item }: { item: InventoryItemProps }) {
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-export default function StockForm({ inv_items }: Props) {
+export default function StockForm({ items }: Props) {
     const [searchQuery, setSearchQuery] = useState('');
     const [filterBranchId, setFilterBranchId] = useState<number | 'all'>('all');
     const [filterLocationId, setFilterLocationId] = useState<number | 'all'>(
@@ -161,18 +155,13 @@ export default function StockForm({ inv_items }: Props) {
     const filteredItems = useMemo(() => {
         const q = searchQuery.trim().toLowerCase();
 
-        return inv_items.filter((item) => {
-            const extItem = item as InventoryItemProps & {
-                condition?: string;
-                brand?: string;
-            };
-
+        return items.filter((item) => {
             const matchesSearch =
                 !q ||
                 item.name.toLowerCase().includes(q) ||
                 (item.reference_no ?? '').toLowerCase().includes(q) ||
                 (item.category?.name ?? '').toLowerCase().includes(q) ||
-                (extItem.brand ?? '').toLowerCase().includes(q);
+                (item.brand ?? '').toLowerCase().includes(q);
 
             const matchesLocation =
                 filterLocationId === 'all' ||
@@ -183,16 +172,15 @@ export default function StockForm({ inv_items }: Props) {
 
             const matchesCondition =
                 filterCondition === 'all' ||
-                (extItem.condition ?? 'new') === filterCondition;
+                (item.condition ?? 'new') === filterCondition;
 
             return matchesSearch && matchesLocation && matchesCondition;
         });
-    }, [filterLocationId, filterCondition, inv_items, searchQuery]);
+    }, [filterLocationId, filterCondition, items, searchQuery]);
 
     // Stats
     const totalItems = filteredItems.length;
     const lowStockCount = filteredItems.filter((item) => {
-        const ext = item as any;
         if (item.item_class !== 'stock') return false;
         let total = 0;
         if (item.stock_balances?.length) {
@@ -204,7 +192,9 @@ export default function StockForm({ inv_items }: Props) {
             total = item.stock;
         }
         return (
-            ext.min_stock != null && ext.min_stock > 0 && total <= ext.min_stock
+            item.min_stock != null &&
+            item.min_stock > 0 &&
+            total <= item.min_stock
         );
     }).length;
 
@@ -269,12 +259,6 @@ export default function StockForm({ inv_items }: Props) {
 
                 {/* Stats bar */}
                 <div className="mb-4 flex items-center gap-4 text-xs text-slate-500">
-                    <span>
-                        ទំនិញសរុប:{' '}
-                        <span className="font-bold text-slate-700">
-                            {totalItems}
-                        </span>
-                    </span>
                     {lowStockCount > 0 && (
                         <span className="flex items-center gap-1 text-amber-600">
                             <AlertTriangle size={12} />
@@ -285,7 +269,7 @@ export default function StockForm({ inv_items }: Props) {
                 </div>
 
                 <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden relative">
-                    <div className="overflow-x-auto min-h-75">
+                    <div className="overflow-x-auto">
                         <table className="min-w-full divide-y divide-slate-200">
                             <thead className="bg-slate-50">
                                 <tr>
@@ -304,11 +288,9 @@ export default function StockForm({ inv_items }: Props) {
                                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                                         Condition
                                     </th>
+
                                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                                        Stock
-                                    </th>
-                                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                                        Sale Price
+                                        Pricing{' '}
                                     </th>
                                     <th className="px-6 py-4 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
                                         Actions
@@ -317,12 +299,6 @@ export default function StockForm({ inv_items }: Props) {
                             </thead>
                             <tbody className="bg-white divide-y divide-slate-100">
                                 {filteredItems.map((item) => {
-                                    const extItem =
-                                        item as InventoryItemProps & {
-                                            condition?: string;
-                                            brand?: string;
-                                        };
-
                                     return (
                                         <tr
                                             key={item.id}
@@ -380,7 +356,7 @@ export default function StockForm({ inv_items }: Props) {
                                             {/* Brand */}
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <span className="text-xs font-medium text-gray-700">
-                                                    {extItem.brand || '—'}
+                                                    {item.brand || '—'}
                                                 </span>
                                             </td>
 
@@ -395,22 +371,49 @@ export default function StockForm({ inv_items }: Props) {
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <ConditionBadge
                                                     condition={
-                                                        extItem.condition
+                                                        item.condition as string
                                                     }
                                                 />
-                                            </td>
-
-                                            {/* Stock Qty */}
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                <StockQtyCell item={item} />
                                             </td>
 
                                             {/* Sale Price */}
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <span className="text-sm font-semibold text-gray-900">
                                                     $
-                                                    {item.sale_price.toFixed(2)}
+                                                    {(
+                                                        item.price ??
+                                                        item.sale_price ??
+                                                        0
+                                                    ).toFixed(2)}
                                                 </span>
+                                                {(item.min_price != null ||
+                                                    item.max_price != null) && (
+                                                    <div className="mt-0.5 text-[10px] text-slate-400">
+                                                        {item.min_price !=
+                                                            null && (
+                                                            <>
+                                                                Min: $
+                                                                {Number(
+                                                                    item.min_price,
+                                                                ).toFixed(2)}
+                                                            </>
+                                                        )}
+                                                        {item.min_price !=
+                                                            null &&
+                                                            item.max_price !=
+                                                                null &&
+                                                            ' · '}
+                                                        {item.max_price !=
+                                                            null && (
+                                                            <>
+                                                                Max: $
+                                                                {Number(
+                                                                    item.max_price,
+                                                                ).toFixed(2)}
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                )}
                                             </td>
 
                                             {/* Actions */}

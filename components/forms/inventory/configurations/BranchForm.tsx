@@ -70,7 +70,7 @@ export default function BranchForm({ branch, onClose, onSuccess }: Props) {
 
                 <div className="border-b border-slate-100 px-6 py-5">
                     <h2 className="text-lg font-semibold text-slate-800">
-                        {isEdit ? 'Edit Branch' : 'Create New Branch'}
+                        {isEdit ? 'Warehouse' : 'Add Warehouse'}
                     </h2>
                     <p className="mt-0.5 text-sm text-slate-500">
                         {isEdit

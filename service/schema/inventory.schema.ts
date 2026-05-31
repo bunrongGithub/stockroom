@@ -1,13 +1,7 @@
 import { z } from 'zod';
 
-/**
- * Common enums
- */
-export const itemClassEnum = z.enum(['stock', 'service', 'consumable']);
+export const itemClassEnum = z.enum(['stock', 'non_stock', 'service', 'consumable']);
 
-/**
- * Shared base schema
- */
 const inventoryBaseSchema = {
     name: z
         .string()
@@ -17,103 +11,78 @@ const inventoryBaseSchema = {
 
     reference_no: z
         .string()
-        .max(100, 'Reference number must be less than 100 characters')
+        .max(100)
         .trim()
         .optional()
         .nullable(),
 
     sku: z
         .string()
-        .max(100, 'SKU must be less than 100 characters')
+        .max(100)
         .trim()
         .optional()
         .nullable(),
 
-    price: z.coerce.number().min(0, 'Price cannot be negative'),
-
-    sale_price: z.coerce.number().min(0, 'Sale price cannot be negative'),
-
-    purchase_price: z.coerce
-        .number()
-        .min(0, 'Purchase price cannot be negative'),
-
-    stock: z.coerce
-        .number()
-        .min(0, 'Stock cannot be negative')
-        .optional()
-        .nullable(),
-
-    category_id: z.coerce
-        .number({
-            error: 'Category is required',
-        })
-        .int()
-        .positive('Invalid category'),
-
-    is_variant: z.boolean().default(false),
-
-    is_discount: z.boolean().default(false),
+    description: z.string().optional().nullable(),
 
     item_class: itemClassEnum.default('stock'),
 
-    images_url: z
-        .array(z.string().url('Invalid image URL'))
-        .optional()
-        .nullable(),
+    /** Default selling price */
+    price: z.coerce.number().min(0, 'Price cannot be negative'),
+
+    /** Minimum selling price */
+    min_price: z.coerce.number().min(0).optional().nullable(),
+
+    /** Maximum selling price */
+    max_price: z.coerce.number().min(0).optional().nullable(),
+
+    /** Purchase / landed cost */
+    cost: z.coerce.number().min(0, 'Cost cannot be negative').optional().nullable(),
+
+    is_variant: z.boolean().default(false),
+    is_discount: z.boolean().default(false),
+
+    images_url: z.array(z.string()).optional().nullable(),
+
+    warranty_duration: z.string().max(100).optional().nullable(),
+
+    category_id: z.coerce
+        .number({ error: 'Category is required' })
+        .int()
+        .positive('Invalid category'),
+
     uom_id: z
         .number({ error: 'UOM is required' })
         .int()
         .positive('Invalid UOM'),
 };
 
-/**
- * Create schema
- */
 export const createInventorySchema = z.object({
     ...inventoryBaseSchema,
 });
 
-/**
- * Update schema
- */
 export const updateInventorySchema = z.object({
     name: inventoryBaseSchema.name.optional(),
-
     reference_no: inventoryBaseSchema.reference_no,
-
     sku: inventoryBaseSchema.sku,
-
-    price: inventoryBaseSchema.price.optional(),
-
-    sale_price: inventoryBaseSchema.sale_price.optional(),
-
-    purchase_price: inventoryBaseSchema.purchase_price.optional(),
-
-    stock: inventoryBaseSchema.stock,
-
-    category_id: inventoryBaseSchema.category_id.optional(),
-
-    is_variant: inventoryBaseSchema.is_variant.optional(),
-
-    is_discount: inventoryBaseSchema.is_discount.optional(),
-
+    description: inventoryBaseSchema.description,
     item_class: inventoryBaseSchema.item_class.optional(),
-
+    price: inventoryBaseSchema.price.optional(),
+    min_price: inventoryBaseSchema.min_price,
+    max_price: inventoryBaseSchema.max_price,
+    cost: inventoryBaseSchema.cost,
+    is_variant: inventoryBaseSchema.is_variant.optional(),
+    is_discount: inventoryBaseSchema.is_discount.optional(),
     images_url: inventoryBaseSchema.images_url,
+    warranty_duration: inventoryBaseSchema.warranty_duration,
+    category_id: inventoryBaseSchema.category_id.optional(),
+    uom_id: inventoryBaseSchema.uom_id.optional(),
 });
 
-/**
- * Params schema
- */
 export const itemIdSchema = z.object({
     id: z.coerce.number().int().positive(),
 });
 
-/**
- * Types
- */
 export type CreateInventoryInput = z.infer<typeof createInventorySchema>;
-
 export type UpdateInventoryInput = z.infer<typeof updateInventorySchema>;
-
 export type ItemIdInput = z.infer<typeof itemIdSchema>;

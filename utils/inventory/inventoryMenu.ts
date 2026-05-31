@@ -1,5 +1,5 @@
 import { TMenuItem } from '@/types';
-import { LayoutList, Package, WarehouseIcon } from 'lucide-react';
+import { Boxes, LayoutList, Package, WarehouseIcon } from 'lucide-react';
 import { categoryActions, uomAction } from './categoryMenu';
 import { noneStockMenuAction } from './noneStockMenu';
 import { stockMenuAction } from './stockMenu';
@@ -7,33 +7,33 @@ import { stockMenuAction } from './stockMenu';
 export const inventoryMenuItem: TMenuItem[] = [
     {
         ordering: 1,
-        icon: null,
+        icon: Package,
         label: 'None Stock',
-        href: '/inventory/none_stock',
+        href: '/inventory/configurations/none_stock',
         children: [],
         action: noneStockMenuAction,
-        type: 'menu',
+        type: 'configuration',
     },
     {
         ordering: 2,
-        icon: null,
+        icon: Boxes,
         label: 'Stock',
-        href: '/inventory/stock',
-        type: 'menu',
+        href: '/inventory/configurations/stock',
+        type: 'configuration',
         action: stockMenuAction,
         children: [],
     },
     {
-    ordering: 3,
-    icon: null,
-    label: 'Stock Adjustment',
-    href: '/inventory/stock_adjust',
-    type: 'menu',
-    action: null,
-    children: [],
+        ordering: 3,
+        icon: null,
+        label: 'Stock Adjustment',
+        href: '/inventory/stock_adjust',
+        type: 'menu',
+        action: null,
+        children: [],
     },
     {
-        ordering: 1,
+        ordering: 3,
         icon: LayoutList,
         label: 'Category',
         href: '/inventory/configurations/category',

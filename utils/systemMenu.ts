@@ -1,12 +1,12 @@
 import { TModule } from '@/types';
-import { BadgePercent, Boxes } from 'lucide-react';
+import { BadgePercent, Box } from 'lucide-react';
 import { inventoryMenuItem } from './inventory/inventoryMenu';
 import { saleMenu } from './saleMenu';
 
 export const modulesList: TModule = [
     {
         ordering: 1,
-        icon: Boxes,
+        icon: Box,
         label: 'Inventory',
         parent: null,
         href: '/inventory',

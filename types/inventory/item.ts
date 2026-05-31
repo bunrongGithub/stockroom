@@ -5,8 +5,13 @@ export interface InventoryItemProps {
     name: string;
     item_class: InventoryItemClass;
     reference_no: string;
+    // Backend returns `price` / `cost`; form state uses `sale_price` / `purchase_price`
+    price?: number | null;
+    cost?: number | null;
     purchase_price: number;
     sale_price: number;
+    min_price?: number | null;
+    max_price?: number | null;
     description: string | null;
     stock: number | TStockQuantity | null;
     stock_entry: TStockLogEntry[] | null;
@@ -20,6 +25,19 @@ export interface InventoryItemProps {
     warranty_duration?: string | null;
     labor_cost?: number | null;
     estimated_duration?: string | null;
+    // Extra fields returned by backend list/detail endpoints
+    sku?: string | null;
+    brand?: string | null;
+    condition?: string | null;
+    min_stock?: number | null;
+    has_warranty?: boolean;
+    is_discount?: boolean;
+    is_discountable?: boolean;
+    is_returnable?: boolean;
+    is_sellable?: boolean;
+    supplier?: string | null;
+    barcode?: string | null;
+    difficulty?: string | null;
 }
 
 export type TCategory = {

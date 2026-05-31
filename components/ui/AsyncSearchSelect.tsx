@@ -4,6 +4,7 @@ import { ChevronDown, Loader2, Search } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { FieldLabel } from './FieldLabel';
 import PopUpSearch from './PopUpSearch';
+import { PopUpSearchTable } from './PopUpSearchTable';
 
 type Option = {
     value: string | number;
@@ -219,17 +220,35 @@ export default function AsyncSearchSelect({
             <PopUpSearch
                 open={popupOpen}
                 title={popupTitle ?? label}
-                apiUrl={apiUrl}
-                selectedValue={value}
                 placeholder={placeholder}
                 onClose={() => setPopupOpen(false)}
-                onSelect={(selected) => {
-                    handleSelect({
-                        value: selected.id,
-                        label: selected.name,
-                    });
-                }}
-            />
+            >
+                <PopUpSearchTable<{ id: string | number; name: string } & Record<string, unknown>>
+                    apiUrl={apiUrl}
+                    selectedId={value}
+                    onRowSelect={(row) => {
+                        handleSelect({
+                            value: row.id,
+                            label: String(row.name ?? ''),
+                        });
+                        setPopupOpen(false);
+                    }}
+                    columns={[
+                        {
+                            key: 'id',
+                            header: '#',
+                            getValue: (r) => String(r.id),
+                            className: 'text-slate-400',
+                        },
+                        {
+                            key: 'name',
+                            header: label,
+                            filterable: true,
+                            getValue: (r) => String(r.name ?? ''),
+                        },
+                    ]}
+                />
+            </PopUpSearch>
         </div>
     );
 }
