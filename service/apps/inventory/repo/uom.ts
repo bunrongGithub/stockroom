@@ -56,7 +56,7 @@ export class UomRepository extends BaseRepository {
         const reference_no = generateSequenNumbering('UOM');
         const { data, error } = await this.scopedDb(Number(ctx.companyId))
             .from(TABLE)
-            .insert({ ...input, reference_no, user_id: ctx.userId })
+            .insert({ ...input, reference_no })
             .select()
             .single();
 

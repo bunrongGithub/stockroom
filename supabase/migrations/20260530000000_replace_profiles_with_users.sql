@@ -19,7 +19,7 @@ drop policy if exists "tenant_isolation" on public.inventory_item_category;
 drop table if exists public.profiles cascade;
 
 -- 4. Create the new users table
-create table public.users (
+create table if not exists public.users (
     id            uuid        primary key default gen_random_uuid(),
     email         text        not null unique,
     password_hash text        not null,
@@ -31,7 +31,7 @@ create table public.users (
 );
 
 -- 5. Index for the login lookup (lookupUser queries by email)
-create index users_email_idx on public.users (email);
+create index if not exists users_email_idx on public.users (email);
 
 -- 6. Re-add tenant isolation on inventory_item_category using app-layer
 --    company_id column instead of the dropped my_company_id() function.

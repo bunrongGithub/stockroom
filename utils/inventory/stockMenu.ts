@@ -11,7 +11,7 @@ export const stockMenuAction: Action = [
     },
     {
         label: 'Update',
-        href: '/inventory/configurations/stock/:id/update', // :id resolved per row
+        href: '/inventory/configurations/stock/:id/edit', // :id resolved per row
         type: 'user_action',
         dynamic: true,
         icon: Edit2,

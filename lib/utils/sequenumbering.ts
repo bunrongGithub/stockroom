@@ -16,3 +16,8 @@ function preview(prefix: string): string {
 
 export const generateSequenNumbering = (prefix: string): string =>
     preview(prefix);
+
+export const generateSKU = (prefix: string): string => {
+    const randomNum = Math.floor(10000000 + Math.random() * 90000000);
+    return `${prefix}-${randomNum}`;
+};

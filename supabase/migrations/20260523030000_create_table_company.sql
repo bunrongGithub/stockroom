@@ -7,3 +7,9 @@ create table public.company (
   constraint company_pkey primary key (id),
   constraint company_name_key unique (name)
 ) TABLESPACE pg_default;
+
+
+insert into public.company (name, domain) values ('Default Company', 'default');
+insert into public.company (name, domain) values ('Acme Corporation', 'acme');
+insert into public.company (name, domain) values ('Globex Corporation', 'globex');
+insert into public.company (name, domain) values ('Initech', 'initech');    

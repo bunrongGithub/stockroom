@@ -44,6 +44,8 @@ export type StockEditItem = {
     cost: number | null;
     is_variant: boolean;
     is_discount: boolean;
+    is_warranty: boolean;
+    is_sellable: boolean;
     images_url: string[] | null;
     warranty_duration: string | null;
     category_id: number | null;
@@ -111,7 +113,11 @@ function ToggleCheckbox({
             </div>
             <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                    <span className={checked ? 'text-blue-600' : 'text-slate-400'}>{icon}</span>
+                    <span
+                        className={checked ? 'text-blue-600' : 'text-slate-400'}
+                    >
+                        {icon}
+                    </span>
                     <span
                         className={`text-sm font-semibold ${checked ? 'text-blue-800' : 'text-slate-700'}`}
                     >
@@ -155,7 +161,7 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
         uom: item.uom ?? { id: null, name: '' },
         is_discount: item.is_discount,
         is_variant: item.is_variant,
-        has_warranty: !!item.warranty_duration,
+        is_warranty: !!item.warranty_duration,
         warranty_duration: item.warranty_duration ?? '',
     });
 
@@ -213,7 +219,8 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
                     { method: 'POST', body: imgFormData },
                 );
                 const imgData = await imgResponse.json();
-                if (!imgData.success) throw new Error('បរាជ័យក្នុងការ Upload រូបភាព');
+                if (!imgData.success)
+                    throw new Error('បរាជ័យក្នុងការ Upload រូបភាព');
                 finalImageUrl = imgData.data.url;
                 setUploadedImageUrl(finalImageUrl);
                 setIsUploadingImage(false);
@@ -226,14 +233,19 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
                 price: formData.sale_price,
                 cost: formData.purchase_price || null,
                 min_price:
-                    formData.min_price === '' ? null : Number(formData.min_price),
+                    formData.min_price === ''
+                        ? null
+                        : Number(formData.min_price),
                 max_price:
-                    formData.max_price === '' ? null : Number(formData.max_price),
+                    formData.max_price === ''
+                        ? null
+                        : Number(formData.max_price),
                 category_id: formData.category_id,
                 uom_id: formData.uom_id,
                 is_discount: formData.is_discount,
                 is_variant: formData.is_variant,
-                warranty_duration: formData.has_warranty
+                is_warranty: formData.is_warranty,
+                warranty_duration: formData.is_warranty
                     ? formData.warranty_duration || null
                     : null,
                 images_url: finalImageUrl ? [finalImageUrl] : [],
@@ -252,9 +264,7 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
                 );
             }
 
-            router.push(
-                `/inventory/configurations/stock/${item.id}/view`,
-            );
+            router.push(`/inventory/configurations/stock/${item.id}/view`);
             router.refresh();
         } catch (err) {
             setError(
@@ -268,7 +278,8 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
         }
     };
 
-    const profit = Number(formData.sale_price) - Number(formData.purchase_price);
+    const profit =
+        Number(formData.sale_price) - Number(formData.purchase_price);
     const profitMargin =
         Number(formData.sale_price) > 0
             ? ((profit / Number(formData.sale_price)) * 100).toFixed(1)
@@ -315,7 +326,6 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
                     LEFT SIDEBAR
                    ══════════════════════════════════ */}
                 <aside className="space-y-4 self-start xl:sticky xl:top-6">
-
                     {/* Item Info */}
                     <section className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
                         <div className="flex items-center gap-2 border-b border-slate-50 bg-slate-50/80 px-4 py-2.5">
@@ -326,7 +336,7 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
                         </div>
                         <div className="p-4">
                             <div className="flex items-center gap-3">
-                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#1a9e52] to-emerald-700 text-sm font-bold text-white shadow-sm">
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-[#1a9e52] to-emerald-700 text-sm font-bold text-white shadow-sm">
                                     {item.name?.[0]?.toUpperCase() ?? 'I'}
                                 </div>
                                 <div className="min-w-0">
@@ -411,11 +421,16 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
                             ) : (
                                 <button
                                     type="button"
-                                    onClick={() => fileInputRef.current?.click()}
+                                    onClick={() =>
+                                        fileInputRef.current?.click()
+                                    }
                                     className="flex w-full items-center gap-3 rounded-xl border border-dashed border-slate-200 px-3 py-3 text-left transition-colors hover:border-[#1a9e52]/50 hover:bg-[#1a9e52]/5"
                                 >
                                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100">
-                                        <Upload size={14} className="text-slate-400" />
+                                        <Upload
+                                            size={14}
+                                            className="text-slate-400"
+                                        />
                                     </div>
                                     <div>
                                         <p className="text-xs font-semibold text-slate-600">
@@ -429,7 +444,10 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
                             )}
                             {isUploadingImage && (
                                 <div className="mt-2 flex items-center gap-2 text-xs text-slate-500">
-                                    <Loader2 size={12} className="animate-spin" />{' '}
+                                    <Loader2
+                                        size={12}
+                                        className="animate-spin"
+                                    />{' '}
                                     Uploading...
                                 </div>
                             )}
@@ -493,7 +511,11 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
                         <div className="space-y-5 pt-5">
                             <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
                                 <h3 className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
-                                    <Package size={13} className="text-[#1a9e52]" /> ព័ត៌មានទំនិញ
+                                    <Package
+                                        size={13}
+                                        className="text-[#1a9e52]"
+                                    />{' '}
+                                    ព័ត៌មានទំនិញ
                                 </h3>
                                 <div className="grid gap-4 lg:grid-cols-2">
                                     <div>
@@ -504,7 +526,9 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
                                         />
                                     </div>
                                     <div>
-                                        <FieldLabel required>ឈ្មោះទំនិញ</FieldLabel>
+                                        <FieldLabel required>
+                                            ឈ្មោះទំនិញ
+                                        </FieldLabel>
                                         <EditableInput
                                             type="text"
                                             name="name"
@@ -520,7 +544,9 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
                                             placeholder="ជ្រើសរើសប្រភេទ..."
                                             apiUrl="/api/category"
                                             value={formData.category_id}
-                                            selectedLabel={formData.category?.name ?? ''}
+                                            selectedLabel={
+                                                formData.category?.name ?? ''
+                                            }
                                             popupTitle="ប្រភេទ"
                                             enablePopupSearch
                                             onChange={(selected) =>
@@ -531,9 +557,13 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
                                                         : null,
                                                     category: {
                                                         id: selected?.id
-                                                            ? Number(selected.id)
+                                                            ? Number(
+                                                                  selected.id,
+                                                              )
                                                             : null,
-                                                        name: selected?.name ?? '',
+                                                        name:
+                                                            selected?.name ??
+                                                            '',
                                                     },
                                                 }))
                                             }
@@ -546,7 +576,9 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
                                             placeholder="ជ្រើសរើស UOM..."
                                             apiUrl="/api/uom"
                                             value={formData.uom_id}
-                                            selectedLabel={formData.uom?.name ?? ''}
+                                            selectedLabel={
+                                                formData.uom?.name ?? ''
+                                            }
                                             popupTitle="Default UOM"
                                             enablePopupSearch
                                             onChange={(selected) =>
@@ -557,9 +589,13 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
                                                         : null,
                                                     uom: {
                                                         id: selected?.id
-                                                            ? Number(selected.id)
+                                                            ? Number(
+                                                                  selected.id,
+                                                              )
                                                             : null,
-                                                        name: selected?.name ?? '',
+                                                        name:
+                                                            selected?.name ??
+                                                            '',
                                                     },
                                                 }))
                                             }
@@ -602,11 +638,14 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
                         <div className="space-y-5 pt-5">
                             <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
                                 <h3 className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
-                                    <Tag size={13} className="text-[#1a9e52]" /> តម្លៃ
+                                    <Tag size={13} className="text-[#1a9e52]" />{' '}
+                                    តម្លៃ
                                 </h3>
                                 <div className="grid gap-4 sm:grid-cols-3">
                                     <div>
-                                        <FieldLabel>តម្លៃទិញចូល / Cost ($)</FieldLabel>
+                                        <FieldLabel>
+                                            តម្លៃទិញចូល / Cost ($)
+                                        </FieldLabel>
                                         <EditableInput
                                             name="purchase_price"
                                             type="number"
@@ -617,7 +656,9 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
                                         />
                                     </div>
                                     <div>
-                                        <FieldLabel required>តម្លៃលក់ / Sale Price ($)</FieldLabel>
+                                        <FieldLabel required>
+                                            តម្លៃលក់ / Sale Price ($)
+                                        </FieldLabel>
                                         <EditableInput
                                             name="sale_price"
                                             type="number"
@@ -629,7 +670,9 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
                                         />
                                     </div>
                                     <div>
-                                        <FieldLabel>ប្រាក់ចំណេញ (Profit)</FieldLabel>
+                                        <FieldLabel>
+                                            ប្រាក់ចំណេញ (Profit)
+                                        </FieldLabel>
                                         <div
                                             className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-sm font-semibold ${
                                                 profit > 0
@@ -639,14 +682,17 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
                                                       : 'border-slate-200 bg-slate-50 text-slate-500'
                                             }`}
                                         >
-                                            <BarChart3 size={14} />${profit.toFixed(2)}{' '}
+                                            <BarChart3 size={14} />$
+                                            {profit.toFixed(2)}{' '}
                                             <span className="text-xs font-normal opacity-70">
                                                 ({profitMargin}%)
                                             </span>
                                         </div>
                                     </div>
                                     <div>
-                                        <FieldLabel>តម្លៃអប្បបរមា (Min Price)</FieldLabel>
+                                        <FieldLabel>
+                                            តម្លៃអប្បបរមា (Min Price)
+                                        </FieldLabel>
                                         <EditableInput
                                             name="min_price"
                                             type="number"
@@ -659,7 +705,10 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
                                                     min_price:
                                                         e.target.value === ''
                                                             ? ''
-                                                            : Number(e.target.value),
+                                                            : Number(
+                                                                  e.target
+                                                                      .value,
+                                                              ),
                                                 }))
                                             }
                                             placeholder="ឧ. 0.00"
@@ -669,7 +718,9 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
                                         </p>
                                     </div>
                                     <div>
-                                        <FieldLabel>តម្លៃអតិបរមា (Max Price)</FieldLabel>
+                                        <FieldLabel>
+                                            តម្លៃអតិបរមា (Max Price)
+                                        </FieldLabel>
                                         <EditableInput
                                             name="max_price"
                                             type="number"
@@ -682,7 +733,10 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
                                                     max_price:
                                                         e.target.value === ''
                                                             ? ''
-                                                            : Number(e.target.value),
+                                                            : Number(
+                                                                  e.target
+                                                                      .value,
+                                                              ),
                                                 }))
                                             }
                                             placeholder="ឧ. 999.00"
@@ -696,10 +750,15 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
 
                             <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
                                 <h3 className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
-                                    <Truck size={13} className="text-[#1a9e52]" /> ស្តុក
+                                    <Truck
+                                        size={13}
+                                        className="text-[#1a9e52]"
+                                    />{' '}
+                                    ស្តុក
                                 </h3>
                                 <p className="text-sm text-slate-400">
-                                    ចំនួនស្តុកអាចត្រូវបានកែប្រែតាមរយៈ Stock Adjustment។
+                                    ចំនួនស្តុកអាចត្រូវបានកែប្រែតាមរយៈ Stock
+                                    Adjustment។
                                 </p>
                             </section>
 
@@ -727,15 +786,19 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
                         <div className="space-y-5 pt-5">
                             <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
                                 <h3 className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
-                                    <ShieldCheck size={13} className="text-[#1a9e52]" /> លក្ខណៈសម្បត្តិទំនិញ
+                                    <ShieldCheck
+                                        size={13}
+                                        className="text-[#1a9e52]"
+                                    />{' '}
+                                    លក្ខណៈសម្បត្តិទំនិញ
                                 </h3>
                                 <div className="grid gap-3 sm:grid-cols-2">
                                     <ToggleCheckbox
-                                        checked={formData.has_warranty}
+                                        checked={formData.is_warranty}
                                         onChange={(val) =>
                                             setFormData((prev) => ({
                                                 ...prev,
-                                                has_warranty: val,
+                                                is_warranty: val,
                                             }))
                                         }
                                         icon={<ShieldCheck size={16} />}
@@ -767,9 +830,11 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
                                         description="ទំនិញមានច្រើនជម្រើស ឧ. ពណ៌ ទំហំ"
                                     />
                                 </div>
-                                {formData.has_warranty && (
+                                {formData.is_warranty && (
                                     <div className="mt-4">
-                                        <FieldLabel>រយៈពេលធានា (Warranty Duration)</FieldLabel>
+                                        <FieldLabel>
+                                            រយៈពេលធានា (Warranty Duration)
+                                        </FieldLabel>
                                         <EditableInput
                                             type="text"
                                             name="warranty_duration"
@@ -782,7 +847,9 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
                             </section>
 
                             <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-                                <FieldLabel>កំណត់ចំណាំ (Additional Notes)</FieldLabel>
+                                <FieldLabel>
+                                    កំណត់ចំណាំ (Additional Notes)
+                                </FieldLabel>
                                 <EditableTextarea
                                     name="description"
                                     value={formData.description ?? ''}

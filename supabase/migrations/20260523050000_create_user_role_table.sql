@@ -5,12 +5,12 @@ create table public.user_role (
   description text   null,
   constraint user_role_pkey      primary key (id),
   constraint user_role_name_key  unique (name),
-  constraint user_role_name_check check (name in ('supper_user', 'admin', 'staff', 'member'))
+  constraint user_role_name_check check (name in ('super_user', 'admin', 'staff', 'member'))
 ) TABLESPACE pg_default;
 
 -- Seed the default roles
 insert into public.user_role (name, description) values
-  ('supper_user', 'Super user with full system access'),
+  ('super_user', 'Super user with full system access'),
   ('admin',       'Administrator with management access'),
   ('staff',       'Regular staff member'),
   ('member',      'Basic member with limited access');

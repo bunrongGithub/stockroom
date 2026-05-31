@@ -8,7 +8,10 @@ import {
 } from '@/service/core/pagination';
 import { BaseRepository } from '@/service/core/base-repository';
 import type { RequestContext } from '@/types/request-context';
-import { generateSequenNumbering } from '@/lib/utils/sequenumbering';
+import {
+    generateSequenNumbering,
+    generateSKU,
+} from '@/lib/utils/sequenumbering';
 
 export type InventoryItem = {
     id: number;
@@ -90,12 +93,15 @@ export class InventoryRepository extends BaseRepository {
         input: CreateInventoryInput,
     ): Promise<InventoryItem> {
         const referenceNo = generateSequenNumbering('STCK');
+        const sku = input.sku ? input.sku : generateSKU('SKU');
+
         const { data, error } = await this.scopedDb(Number(ctx.companyId))
             .from(TABLE)
             .insert({
                 ...input,
                 user_id: ctx.userId,
                 reference_no: referenceNo,
+                sku,
             })
             .select()
             .single();
@@ -109,10 +115,11 @@ export class InventoryRepository extends BaseRepository {
         id: number,
         input: UpdateInventoryInput,
     ): Promise<InventoryItem> {
+        const sku = input.sku ? input.sku : generateSKU('SKU');
         const { data, error } = await this.applyScope(
             this.db
                 .from(TABLE)
-                .update({ ...input, updated_at: new Date().toISOString() })
+                .update({ ...input, sku, updated_at: new Date().toISOString() })
                 .eq('id', id),
             ctx,
         )
