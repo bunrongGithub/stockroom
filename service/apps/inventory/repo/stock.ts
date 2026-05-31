@@ -72,13 +72,9 @@ export class InventoryRepository extends BaseRepository {
         ctx: RequestContext,
         id: number,
     ): Promise<InventoryItem | null> {
+        const query = `*, category:inventory_item_category(id, name, reference_no), uom:inventory_item_uom(id, name), company:company(id, name)`;
         const { data, error } = await this.applyScope(
-            this.db
-                .from(TABLE)
-                .select(
-                    '*, category:inventory_item_category(id, name, reference_no), uom:inventory_item_uom(id, name), company:company(id, name)',
-                )
-                .eq('id', id),
+            this.db.from(TABLE).select(query).eq('id', id),
             ctx,
         ).single();
 
