@@ -67,7 +67,7 @@ export class InventoryRepository extends BaseRepository {
                     { count: 'exact' },
                 ),
             ctx,
-        );
+        ).order('id', { ascending: false });
         return this.paginate(query, params);
     }
 

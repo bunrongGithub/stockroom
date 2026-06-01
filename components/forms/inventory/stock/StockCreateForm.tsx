@@ -13,9 +13,7 @@ import {
     ArrowLeft,
     AlertCircle,
     Loader2,
-    MapPin,
     Package,
-    Rows3,
     Upload,
     X,
     ShieldCheck,
@@ -30,12 +28,12 @@ import {
     CalendarDays,
     Clock,
     Paperclip,
-    FileText,
     ChevronRight,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
+import { useForm, Controller } from 'react-hook-form';
 
 // ─── Tab config ───────────────────────────────────────────────────────────────
 const TABS = [
@@ -44,6 +42,16 @@ const TABS = [
     { id: 'options' as const, label: 'More Options', num: 3 },
 ];
 type TabId = (typeof TABS)[number]['id'];
+
+// ─── Form values ──────────────────────────────────────────────────────────────
+// Flatten the intersection so react-hook-form can satisfy its FieldValues constraint
+type Simplify<T> = { [K in keyof T]: T[K] };
+type FormValues = Simplify<
+    InventoryItemProps & {
+        location_id: number | '';
+        initial_quantity: number | '';
+    }
+>;
 
 // ─── Toggle Checkbox ──────────────────────────────────────────────────────────
 function ToggleCheckbox({
@@ -147,7 +155,9 @@ function ConditionSelector({
                     key={opt.value}
                     type="button"
                     onClick={() => onChange(opt.value)}
-                    className={`rounded-lg border px-3.5 py-2 text-xs font-semibold transition-all ${value === opt.value ? opt.activeColor : opt.color}`}
+                    className={`rounded-lg border px-3.5 py-2 text-xs font-semibold transition-all ${
+                        value === opt.value ? opt.activeColor : opt.color
+                    }`}
                 >
                     {opt.label}
                 </button>
@@ -161,15 +171,11 @@ export default function StockCreateForm() {
     const router = useRouter();
 
     const [activeTab, setActiveTab] = useState<TabId>('details');
-    const [isSaving, setIsSaving] = useState(false);
     const [isUploadingImage, setIsUploadingImage] = useState(false);
-    const [imagePreviewUrl, setImagePreviewUrl] = useState<string>('');
-    const [uploadedImageUrl, setUploadedImageUrl] = useState<string>('');
+    const [uploadedImageUrl, setUploadedImageUrl] = useState('');
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
-    const [error, setError] = useState('');
+    const [submitError, setSubmitError] = useState('');
     const [locations, setLocations] = useState<StockLocationProps[]>([]);
-    const [locationId, setLocationId] = useState<number | ''>('');
-    const [initialQuantity, setInitialQuantity] = useState<number | ''>(0);
     const [loadingLocations, setLoadingLocations] = useState(true);
     const [currentUser, setCurrentUser] = useState<{
         email: string;
@@ -178,50 +184,55 @@ export default function StockCreateForm() {
     } | null>(null);
     const [createdAt] = useState(() => new Date());
 
-    const [formData, setFormData] = useState<
-        InventoryItemProps & {
-            condition: string;
-            brand: string;
-            supplier: string;
-            barcode: string;
-            min_stock: number | null;
-            min_price: number | null;
-            max_price: number | null;
-            is_warranty: boolean;
-            is_discount: boolean;
-            is_returnable: boolean;
-            is_sellable: boolean;
-        }
-    >({
-        id: null,
-        name: '',
-        item_class: 'stock',
-        reference_no: '',
-        purchase_price: 0,
-        sale_price: 0,
-        description: '',
-        stock: null,
-        stock_entry: null,
-        category_id: null,
-        category: { id: null, name: '' },
-        uom_id: null,
-        uom: { id: null, name: '' },
-        images_url: [],
-        condition: 'new',
-        brand: '',
-        supplier: '',
-        barcode: '',
-        min_stock: null,
-        min_price: null,
-        max_price: null,
-        is_warranty: false,
-        is_discount: true,
-        –: false,
-        is_sellable: true,
-    });
-
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    const {
+        register,
+        control,
+        handleSubmit,
+        watch,
+        setValue,
+        formState: { errors, isSubmitting },
+    } = useForm<FormValues>({
+        defaultValues: {
+            id: null,
+            name: '',
+            item_class: 'stock',
+            reference_no: '',
+            purchase_price: 0,
+            sale_price: 0,
+            description: '',
+            stock: null,
+            stock_entry: null,
+            category_id: null,
+            category: { id: null, name: '' },
+            uom_id: null,
+            uom: { id: null, name: '' },
+            images_url: [],
+            condition: 'new',
+            brand: '',
+            supplier: '',
+            barcode: '',
+            min_stock: null,
+            min_price: null,
+            max_price: null,
+            has_warranty: false,
+            is_discount: true,
+            is_returnable: false,
+            is_sellable: true,
+            location_id: '',
+            initial_quantity: 0,
+        },
+    });
+
+    const purchasePrice = watch('purchase_price');
+    const salePrice = watch('sale_price');
+
+    const profit = Number(salePrice) - Number(purchasePrice);
+    const profitMargin =
+        Number(salePrice) > 0
+            ? ((profit / Number(salePrice)) * 100).toFixed(1)
+            : '0.0';
     useEffect(() => {
         fetch('/api/auth/me')
             .then((r) => r.json())
@@ -234,7 +245,6 @@ export default function StockCreateForm() {
             )
             .catch(() => {});
     }, []);
-
     useEffect(() => {
         let cancelled = false;
         async function loadLocations() {
@@ -250,10 +260,11 @@ export default function StockCreateForm() {
                 setLocations(data);
                 const defaultLocation =
                     data.find((l) => l.is_default) ?? data[0];
-                if (defaultLocation) setLocationId(defaultLocation.id);
+                if (defaultLocation)
+                    setValue('location_id', defaultLocation.id);
             } catch (err) {
                 if (!cancelled)
-                    setError(
+                    setSubmitError(
                         err instanceof Error
                             ? err.message
                             : 'Failed to load stock locations',
@@ -266,96 +277,51 @@ export default function StockCreateForm() {
         return () => {
             cancelled = true;
         };
-    }, []);
+    }, [setValue]);
 
-    const handleChange = (
-        e: React.ChangeEvent<
-            HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
-        >,
-    ) => {
-        const { name, value } = e.target;
-        setFormData((prev) => ({
-            ...prev,
-            [name]:
-                name === 'purchase_price' || name === 'sale_price'
-                    ? Number(value)
-                    : value,
-        }));
-    };
-
-    const handleCategoryChange = (
-        selected: { id: string | number | null; name: string } | null,
-    ) => {
-        setFormData((prev) => ({
-            ...prev,
-            category_id: selected?.id ? Number(selected.id) : null,
-            category: {
-                id: selected?.id ? Number(selected.id) : null,
-                name: selected?.name ?? '',
-            },
-        }));
-    };
-
-    const handleUomChange = (
-        selected: { id: string | number | null; name: string } | null,
-    ) => {
-        setFormData((prev) => ({
-            ...prev,
-            uom_id: selected?.id ? Number(selected.id) : null,
-            uom: {
-                id: selected?.id ? Number(selected.id) : null,
-                name: selected?.name ?? '',
-            },
-        }));
-    };
-
-    const handleImageUpload = async (
-        e: React.ChangeEvent<HTMLInputElement>,
-    ) => {
+    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
         if (file.size > 32 * 1024 * 1024) {
-            setError('សូមជ្រើសរើសរូបភាពដែលមានទំហំតូចជាង 32MB');
+            setSubmitError('សូមជ្រើសរើសរូបភាពដែលមានទំហំតូចជាង 32MB');
             return;
         }
-        setError('');
+        setSubmitError('');
         setUploadedImageUrl('');
         setSelectedFile(file);
-        setImagePreviewUrl(URL.createObjectURL(file));
         setIsUploadingImage(false);
     };
 
     const removeImage = () => {
-        setImagePreviewUrl('');
         setUploadedImageUrl('');
         setSelectedFile(null);
-        setFormData((prev) => ({ ...prev, images_url: [] }));
         if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
-    const handleSave = async (e: React.SyntheticEvent) => {
-        e.preventDefault();
-        setError('');
+    const onSubmit = async (data: FormValues) => {
+        setSubmitError('');
 
-        const quantity = initialQuantity === '' ? 0 : Number(initialQuantity);
+        const quantity =
+            data.initial_quantity === '' ? 0 : Number(data.initial_quantity);
         if (Number.isNaN(quantity) || quantity < 0) {
-            setError('សូមបញ្ចូលចំនួនស្តុកដំបូងត្រឹមត្រូវ។');
+            setSubmitError('សូមបញ្ចូលចំនួនស្តុកដំបូងត្រឹមត្រូវ។');
             return;
         }
         if (loadingLocations) {
-            setError('កំពុងទាញយកទីតាំងស្តុក។ សូមរង់ចាំបន្តិច។');
+            setSubmitError('កំពុងទាញយកទីតាំងស្តុក។ សូមរង់ចាំបន្តិច។');
             return;
         }
         if (locations.length === 0) {
-            setError('មិនមានទីតាំងស្តុក។ សូមបង្កើត Storage Location ជាមុនសិន');
+            setSubmitError(
+                'មិនមានទីតាំងស្តុក។ សូមបង្កើត Storage Location ជាមុនសិន',
+            );
             return;
         }
-        if (!locationId) {
-            setError('សូមជ្រើសរើសទីតាំងស្តុក។');
+        if (!data.location_id) {
+            setSubmitError('សូមជ្រើសរើសទីតាំងស្តុក។');
             return;
         }
 
-        setIsSaving(true);
         try {
             let finalImageUrl = '';
             if (selectedFile) {
@@ -375,21 +341,21 @@ export default function StockCreateForm() {
             }
 
             const payload = {
-                name: formData.name,
-                item_class: formData.item_class,
-                reference_no: formData.reference_no,
-                cost: formData.purchase_price,
-                price: formData.sale_price,
-                description: formData.description,
-                category_id: formData.category_id,
-                uom_id: formData.uom_id,
+                name: data.name,
+                item_class: data.item_class,
+                reference_no: data.reference_no,
+                cost: data.purchase_price,
+                price: data.sale_price,
+                description: data.description,
+                category_id: data.category_id,
+                uom_id: data.uom_id,
                 images_url: finalImageUrl ? [finalImageUrl] : [],
-                sku: formData.barcode || null,
-                brand: formData.brand || null,
-                condition: formData.condition,
-                min_price: formData.min_price,
-                max_price: formData.max_price,
-                is_discount: formData.is_discountable,
+                sku: data.barcode || null,
+                brand: data.brand || null,
+                condition: data.condition,
+                min_price: data.min_price,
+                max_price: data.max_price,
+                is_discount: data.is_discount,
             };
 
             const response = await fetch('/api/inventory', {
@@ -406,8 +372,8 @@ export default function StockCreateForm() {
                 );
             }
 
-            const data = await response.json();
-            const newItemId = data.data?.id;
+            const resData = await response.json();
+            const newItemId = resData.data?.id;
 
             if (quantity > 0 && newItemId) {
                 const stockResponse = await fetch(
@@ -418,7 +384,7 @@ export default function StockCreateForm() {
                         body: JSON.stringify({
                             received_quantity: quantity,
                             adjustment_reason: 'Initial stock',
-                            location_id: locationId,
+                            location_id: data.location_id,
                             movement_type: 'in',
                         }),
                     },
@@ -436,27 +402,17 @@ export default function StockCreateForm() {
             }
 
             router.push(
-                `/inventory/configurations/stock/${data.data.id}/view?create_success=${true}&stock=${true}`,
+                `/inventory/configurations/stock/${resData.data.id}/view?create_success=${true}&stock=${true}`,
             );
             router.refresh();
         } catch (error: unknown) {
-            setError(
+            setSubmitError(
                 error instanceof Error
                     ? error.message
                     : 'មានបញ្ហាក្នុងការរក្សាទុក!',
             );
-        } finally {
-            setIsSaving(false);
         }
     };
-
-    const profit =
-        Number(formData.sale_price) - Number(formData.purchase_price);
-    const profitMargin =
-        Number(formData.sale_price) > 0
-            ? ((profit / Number(formData.sale_price)) * 100).toFixed(1)
-            : '0.0';
-    const selectedLocation = locations.find((l) => l.id === locationId);
 
     return (
         <div className="mx-auto max-w-7xl space-y-6 p-4 md:p-8">
@@ -474,16 +430,16 @@ export default function StockCreateForm() {
             </div>
 
             {/* Error banner */}
-            {error && (
+            {submitError && (
                 <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
                     <AlertCircle
                         size={18}
                         className="mt-0.5 shrink-0 text-red-500"
                     />
-                    <p className="text-sm text-red-700">{error}</p>
+                    <p className="text-sm text-red-700">{submitError}</p>
                     <button
                         type="button"
-                        onClick={() => setError('')}
+                        onClick={() => setSubmitError('')}
                         className="ml-auto shrink-0 text-red-400 hover:text-red-600"
                     >
                         <X size={16} />
@@ -492,7 +448,7 @@ export default function StockCreateForm() {
             )}
 
             <form
-                onSubmit={handleSave}
+                onSubmit={handleSubmit(onSubmit)}
                 className="grid gap-6 xl:grid-cols-[300px_minmax(0,1fr)]"
             >
                 {/* ══════════════════════════════════
@@ -557,6 +513,7 @@ export default function StockCreateForm() {
                             </div>
                         </div>
                     </section>
+
                     {/* Upload / Attachment */}
                     <section className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
                         <div className="flex items-center gap-2 border-b border-slate-50 bg-slate-50/80 px-4 py-2.5">
@@ -652,16 +609,16 @@ export default function StockCreateForm() {
                         <button
                             type="submit"
                             disabled={
-                                isSaving ||
+                                isSubmitting ||
                                 loadingLocations ||
                                 locations.length === 0
                             }
                             className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1a9e52] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#158042] disabled:opacity-50"
                         >
-                            {isSaving ? (
+                            {isSubmitting ? (
                                 <Loader2 className="animate-spin" size={16} />
                             ) : null}
-                            {isSaving ? 'កំពុងរក្សាទុក...' : 'រក្សាទុក'}
+                            {isSubmitting ? 'កំពុងរក្សាទុក...' : 'រក្សាទុក'}
                         </button>
                     </div>
                 </aside>
@@ -719,94 +676,241 @@ export default function StockCreateForm() {
                                         </FieldLabel>
                                         <EditableInput
                                             type="text"
-                                            name="name"
-                                            required
-                                            value={formData.name}
-                                            onChange={handleChange}
                                             placeholder="ឧ. iPhone 16 Pro Max..."
+                                            {...register('name', {
+                                                required: 'សូមបញ្ចូលឈ្មោះទំនិញ',
+                                            })}
                                         />
+                                        {errors.name && (
+                                            <p className="mt-1 text-xs text-red-500">
+                                                {errors.name.message}
+                                            </p>
+                                        )}
                                     </div>
                                     <div>
                                         <FieldLabel>ម៉ាក (Brand)</FieldLabel>
                                         <EditableInput
                                             type="text"
-                                            name="brand"
-                                            value={formData.brand}
-                                            onChange={handleChange}
                                             placeholder="ឧ. Apple, Samsung..."
+                                            {...register('brand')}
                                         />
                                     </div>
                                     <div>
                                         <FieldLabel>
                                             ស្ថានភាពទំនិញ (Condition)
                                         </FieldLabel>
-                                        <ConditionSelector
-                                            value={formData.condition}
-                                            onChange={(val) =>
-                                                setFormData((prev) => ({
-                                                    ...prev,
-                                                    condition: val,
-                                                }))
-                                            }
+                                        <Controller
+                                            name="condition"
+                                            control={control}
+                                            render={({ field }) => (
+                                                <ConditionSelector
+                                                    value={field.value ?? 'new'}
+                                                    onChange={field.onChange}
+                                                />
+                                            )}
                                         />
                                     </div>
                                     <div>
-                                        <AsyncSearchSelect
-                                            label="ប្រភេទ"
-                                            placeholder="ជ្រើសរើសប្រភេទ..."
-                                            apiUrl="/api/category"
-                                            value={formData.category_id}
-                                            selectedLabel={
-                                                formData.category?.name ?? ''
-                                            }
-                                            popupTitle="ប្រភេទ"
-                                            enablePopupSearch
-                                            onChange={handleCategoryChange}
-                                            required
+                                        <Controller
+                                            name="category_id"
+                                            control={control}
+                                            rules={{
+                                                required: 'សូមជ្រើសរើសប្រភេទ',
+                                            }}
+                                            render={({ field }) => (
+                                                <AsyncSearchSelect
+                                                    label="ប្រភេទ"
+                                                    placeholder="ជ្រើសរើសប្រភេទ..."
+                                                    apiUrl="/api/category"
+                                                    value={field.value}
+                                                    selectedLabel={
+                                                        watch('category')
+                                                            ?.name ?? ''
+                                                    }
+                                                    popupTitle="ប្រភេទ"
+                                                    enablePopupSearch
+                                                    onChange={(selected) => {
+                                                        field.onChange(
+                                                            selected?.id
+                                                                ? Number(
+                                                                      selected.id,
+                                                                  )
+                                                                : null,
+                                                        );
+                                                        setValue('category', {
+                                                            id: selected?.id
+                                                                ? Number(
+                                                                      selected.id,
+                                                                  )
+                                                                : null,
+                                                            name:
+                                                                selected?.name ??
+                                                                '',
+                                                        });
+                                                    }}
+                                                    required
+                                                />
+                                            )}
                                         />
+                                        {errors.category_id && (
+                                            <p className="mt-1 text-xs text-red-500">
+                                                {errors.category_id.message}
+                                            </p>
+                                        )}
                                     </div>
                                     <div>
-                                        <AsyncSearchSelect
-                                            label="Default UOM"
-                                            placeholder="ជ្រើសរើស UOM..."
-                                            apiUrl="/api/uom"
-                                            value={formData.uom_id}
-                                            selectedLabel={
-                                                formData.uom?.name ?? ''
-                                            }
-                                            popupTitle="Default UOM"
-                                            enablePopupSearch
-                                            onChange={handleUomChange}
-                                            required
+                                        <Controller
+                                            name="uom_id"
+                                            control={control}
+                                            rules={{
+                                                required: 'សូមជ្រើសរើស UOM',
+                                            }}
+                                            render={({ field }) => (
+                                                <AsyncSearchSelect
+                                                    label="Default UOM"
+                                                    placeholder="ជ្រើសរើស UOM..."
+                                                    apiUrl="/api/uom"
+                                                    value={field.value}
+                                                    selectedLabel={
+                                                        watch('uom')?.name ?? ''
+                                                    }
+                                                    popupTitle="Default UOM"
+                                                    enablePopupSearch
+                                                    onChange={(selected) => {
+                                                        field.onChange(
+                                                            selected?.id
+                                                                ? Number(
+                                                                      selected.id,
+                                                                  )
+                                                                : null,
+                                                        );
+                                                        setValue('uom', {
+                                                            id: selected?.id
+                                                                ? Number(
+                                                                      selected.id,
+                                                                  )
+                                                                : null,
+                                                            name:
+                                                                selected?.name ??
+                                                                '',
+                                                        });
+                                                    }}
+                                                    required
+                                                />
+                                            )}
                                         />
+                                        {errors.uom_id && (
+                                            <p className="mt-1 text-xs text-red-500">
+                                                {errors.uom_id.message}
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="mt-2">
+                                    <FieldLabel>
+                                        កំណត់ចំណាំ (Additional Notes)
+                                    </FieldLabel>
+                                    <EditableTextarea
+                                        placeholder="ព័ត៌មានបន្ថែម ឧ. ពណ៌ ទំហំផ្ទុក spec ពិសេស..."
+                                        rows={4}
+                                        {...register('description')}
+                                    />
+                                </div>
+                                <div className="grid gap-4 sm:grid-cols-2">
+                                    <div>
+                                        <Controller
+                                            name="uom_id"
+                                            control={control}
+                                            rules={{
+                                                required: 'Warehouse',
+                                            }}
+                                            render={({ field }) => (
+                                                <AsyncSearchSelect
+                                                    label="Warehouse"
+                                                    placeholder="ជ្រើសរើស Warehouse..."
+                                                    apiUrl="/api/uom"
+                                                    value={field.value}
+                                                    selectedLabel={
+                                                        watch('uom')?.name ?? ''
+                                                    }
+                                                    popupTitle="Warehouse"
+                                                    enablePopupSearch
+                                                    onChange={(selected) => {
+                                                        field.onChange(
+                                                            selected?.id
+                                                                ? Number(
+                                                                      selected.id,
+                                                                  )
+                                                                : null,
+                                                        );
+                                                        setValue('uom', {
+                                                            id: selected?.id
+                                                                ? Number(
+                                                                      selected.id,
+                                                                  )
+                                                                : null,
+                                                            name:
+                                                                selected?.name ??
+                                                                '',
+                                                        });
+                                                    }}
+                                                    required
+                                                />
+                                            )}
+                                        />
+                                        {errors.uom_id && (
+                                            <p className="mt-1 text-xs text-red-500">
+                                                {errors.uom_id.message}
+                                            </p>
+                                        )}
                                     </div>
                                     <div>
-                                        <FieldLabel>Barcode / SKU</FieldLabel>
-                                        <div className="relative">
-                                            <EditableInput
-                                                type="text"
-                                                name="barcode"
-                                                value={formData.barcode}
-                                                onChange={handleChange}
-                                                placeholder="Scan or type barcode..."
-                                            />
-                                            <ScanBarcode
-                                                size={16}
-                                                className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-300"
-                                            />
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <FieldLabel>
-                                            អ្នកផ្គត់ផ្គង់ (Supplier)
-                                        </FieldLabel>
-                                        <EditableInput
-                                            type="text"
-                                            name="supplier"
-                                            value={formData.supplier}
-                                            onChange={handleChange}
-                                            placeholder="ឈ្មោះអ្នកផ្គត់ផ្គង់..."
+                                        <Controller
+                                            name="uom_id"
+                                            control={control}
+                                            rules={{
+                                                required: 'សូមជ្រើសរើស UOM',
+                                            }}
+                                            render={({ field }) => (
+                                                <AsyncSearchSelect
+                                                    label="Location"
+                                                    placeholder="ជ្រើសរើស Location..."
+                                                    apiUrl="/api/uom"
+                                                    value={field.value}
+                                                    selectedLabel={
+                                                        watch('uom')?.name ?? ''
+                                                    }
+                                                    popupTitle="Location"
+                                                    enablePopupSearch
+                                                    onChange={(selected) => {
+                                                        field.onChange(
+                                                            selected?.id
+                                                                ? Number(
+                                                                      selected.id,
+                                                                  )
+                                                                : null,
+                                                        );
+                                                        setValue('uom', {
+                                                            id: selected?.id
+                                                                ? Number(
+                                                                      selected.id,
+                                                                  )
+                                                                : null,
+                                                            name:
+                                                                selected?.name ??
+                                                                '',
+                                                        });
+                                                    }}
+                                                    required
+                                                />
+                                            )}
                                         />
+                                        {errors.uom_id && (
+                                            <p className="mt-1 text-xs text-red-500">
+                                                {errors.uom_id.message}
+                                            </p>
+                                        )}
                                     </div>
                                 </div>
                             </section>
@@ -837,12 +941,16 @@ export default function StockCreateForm() {
                                             តម្លៃទិញចូល / Cost ($)
                                         </FieldLabel>
                                         <EditableInput
-                                            name="purchase_price"
                                             type="number"
                                             min={0}
                                             step="0.01"
-                                            value={formData.purchase_price}
-                                            onChange={handleChange}
+                                            {...register('purchase_price', {
+                                                valueAsNumber: true,
+                                                min: {
+                                                    value: 0,
+                                                    message: 'Must be ≥ 0',
+                                                },
+                                            })}
                                         />
                                     </div>
                                     <div>
@@ -850,13 +958,23 @@ export default function StockCreateForm() {
                                             តម្លៃលក់ / Sale Price ($)
                                         </FieldLabel>
                                         <EditableInput
-                                            name="sale_price"
                                             type="number"
                                             min={0}
                                             step="0.01"
-                                            value={formData.sale_price}
-                                            onChange={handleChange}
+                                            {...register('sale_price', {
+                                                valueAsNumber: true,
+                                                required: 'សូមបញ្ចូលតម្លៃលក់',
+                                                min: {
+                                                    value: 0,
+                                                    message: 'Must be ≥ 0',
+                                                },
+                                            })}
                                         />
+                                        {errors.sale_price && (
+                                            <p className="mt-1 text-xs text-red-500">
+                                                {errors.sale_price.message}
+                                            </p>
+                                        )}
                                     </div>
                                     <div>
                                         <FieldLabel>
@@ -883,24 +1001,14 @@ export default function StockCreateForm() {
                                             តម្លៃអប្បបរមា (Min Price)
                                         </FieldLabel>
                                         <EditableInput
-                                            name="min_price"
                                             type="number"
                                             min={0}
                                             step="0.01"
-                                            value={formData.min_price ?? ''}
-                                            onChange={(e) =>
-                                                setFormData((prev) => ({
-                                                    ...prev,
-                                                    min_price:
-                                                        e.target.value === ''
-                                                            ? null
-                                                            : Number(
-                                                                  e.target
-                                                                      .value,
-                                                              ),
-                                                }))
-                                            }
                                             placeholder="ឧ. 0.00"
+                                            {...register('min_price', {
+                                                setValueAs: (v) =>
+                                                    v === '' ? null : Number(v),
+                                            })}
                                         />
                                         <p className="mt-1 text-[10px] text-slate-400">
                                             តម្លៃទាបបំផុតដែលអាចលក់
@@ -911,24 +1019,14 @@ export default function StockCreateForm() {
                                             តម្លៃអតិបរមា (Max Price)
                                         </FieldLabel>
                                         <EditableInput
-                                            name="max_price"
                                             type="number"
                                             min={0}
                                             step="0.01"
-                                            value={formData.max_price ?? ''}
-                                            onChange={(e) =>
-                                                setFormData((prev) => ({
-                                                    ...prev,
-                                                    max_price:
-                                                        e.target.value === ''
-                                                            ? null
-                                                            : Number(
-                                                                  e.target
-                                                                      .value,
-                                                              ),
-                                                }))
-                                            }
                                             placeholder="ឧ. 999.00"
+                                            {...register('max_price', {
+                                                setValueAs: (v) =>
+                                                    v === '' ? null : Number(v),
+                                            })}
                                         />
                                         <p className="mt-1 text-[10px] text-slate-400">
                                             តម្លៃខ្ពស់បំផុតដែលអាចលក់
@@ -945,7 +1043,7 @@ export default function StockCreateForm() {
                                     />{' '}
                                     ស្តុក និងទីតាំង
                                 </h3>
-                                <div className="grid gap-4 sm:grid-cols-3">
+                                <div className="grid gap-4 sm:grid-cols-2">
                                     <div>
                                         <FieldLabel>
                                             ស្តុកដំបូង (Initial Stock)
@@ -954,17 +1052,15 @@ export default function StockCreateForm() {
                                             type="number"
                                             min={0}
                                             step={1}
-                                            value={initialQuantity}
-                                            onChange={(e) =>
-                                                setInitialQuantity(
-                                                    e.target.value === ''
-                                                        ? ''
-                                                        : Number(
-                                                              e.target.value,
-                                                          ),
-                                                )
-                                            }
                                             placeholder="0"
+                                            {...register('initial_quantity', {
+                                                setValueAs: (v) =>
+                                                    v === '' ? '' : Number(v),
+                                                min: {
+                                                    value: 0,
+                                                    message: 'Must be ≥ 0',
+                                                },
+                                            })}
                                         />
                                     </div>
                                     <div>
@@ -975,73 +1071,15 @@ export default function StockCreateForm() {
                                             type="number"
                                             min={0}
                                             step={1}
-                                            value={formData.min_stock ?? ''}
-                                            onChange={(e) =>
-                                                setFormData((prev) => ({
-                                                    ...prev,
-                                                    min_stock:
-                                                        e.target.value === ''
-                                                            ? null
-                                                            : Number(
-                                                                  e.target
-                                                                      .value,
-                                                              ),
-                                                }))
-                                            }
                                             placeholder="ឧ. 5"
+                                            {...register('min_stock', {
+                                                setValueAs: (v) =>
+                                                    v === '' ? null : Number(v),
+                                            })}
                                         />
                                         <p className="mt-1 text-[10px] text-slate-400">
                                             ជូនដំណឹងពេលស្តុកទាបជាងចំនួននេះ
                                         </p>
-                                    </div>
-                                    <div>
-                                        <FieldLabel>ទីតាំងស្តុក *</FieldLabel>
-                                        <select
-                                            value={locationId}
-                                            onChange={(e) =>
-                                                setLocationId(
-                                                    Number(e.target.value) ||
-                                                        '',
-                                                )
-                                            }
-                                            disabled={
-                                                loadingLocations ||
-                                                locations.length === 0
-                                            }
-                                            required
-                                            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50"
-                                        >
-                                            <option value="">
-                                                {loadingLocations
-                                                    ? 'កំពុងទាញយក...'
-                                                    : 'ជ្រើសរើស...'}
-                                            </option>
-                                            {locations.map((loc) => (
-                                                <option
-                                                    key={loc.id}
-                                                    value={loc.id}
-                                                >
-                                                    {loc.code
-                                                        ? `[${loc.code}] `
-                                                        : ''}
-                                                    {loc.name}
-                                                    {loc.is_default
-                                                        ? ' (Default)'
-                                                        : ''}
-                                                </option>
-                                            ))}
-                                        </select>
-                                        {!loadingLocations &&
-                                            locations.length === 0 && (
-                                                <p className="mt-2 flex items-start gap-2 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                                                    <AlertCircle
-                                                        size={14}
-                                                        className="mt-0.5 shrink-0"
-                                                    />
-                                                    មិនមានទីតាំងស្តុក។ សូមបង្កើត
-                                                    Storage Location ជាមុនសិន
-                                                </p>
-                                            )}
                                     </div>
                                 </div>
                             </section>
@@ -1077,68 +1115,59 @@ export default function StockCreateForm() {
                                     លក្ខណៈសម្បត្តិទំនិញ
                                 </h3>
                                 <div className="grid gap-3 sm:grid-cols-2">
-                                    <ToggleCheckbox
-                                        checked={formData.is_warranty}
-                                        onChange={(val) =>
-                                            setFormData((prev) => ({
-                                                ...prev,
-                                                is_warranty: val,
-                                            }))
-                                        }
-                                        icon={<ShieldCheck size={16} />}
-                                        label="មានធានា (Warranty)"
-                                        description="ជ្រើសរើស warranty period ពេលលក់ចេញ"
+                                    <Controller
+                                        name="has_warranty"
+                                        control={control}
+                                        render={({ field }) => (
+                                            <ToggleCheckbox
+                                                checked={field.value ?? false}
+                                                onChange={field.onChange}
+                                                icon={<ShieldCheck size={16} />}
+                                                label="មានធានា (Warranty)"
+                                                description="ជ្រើសរើស warranty period ពេលលក់ចេញ"
+                                            />
+                                        )}
                                     />
-                                    <ToggleCheckbox
-                                        checked={formData.is_discount}
-                                        onChange={(val) =>
-                                            setFormData((prev) => ({
-                                                ...prev,
-                                                is_discount: val,
-                                            }))
-                                        }
-                                        icon={<Percent size={16} />}
-                                        label="អាចបញ្ចុះតម្លៃ (Discountable)"
-                                        description="អនុញ្ញាតអោយដាក់បញ្ចុះតម្លៃពេលលក់"
+                                    <Controller
+                                        name="is_discount"
+                                        control={control}
+                                        render={({ field }) => (
+                                            <ToggleCheckbox
+                                                checked={field.value ?? false}
+                                                onChange={field.onChange}
+                                                icon={<Percent size={16} />}
+                                                label="អាចបញ្ចុះតម្លៃ (Discountable)"
+                                                description="អនុញ្ញាតអោយដាក់បញ្ចុះតម្លៃពេលលក់"
+                                            />
+                                        )}
                                     />
-                                    <ToggleCheckbox
-                                        checked={formData.is_returnable}
-                                        onChange={(val) =>
-                                            setFormData((prev) => ({
-                                                ...prev,
-                                                is_returnable: val,
-                                            }))
-                                        }
-                                        icon={<RotateCcw size={16} />}
-                                        label="អាចប្តូរវិញ (Returnable)"
-                                        description="អនុញ្ញាតអោយអតិថិជនប្តូរវិញ"
+                                    <Controller
+                                        name="is_returnable"
+                                        control={control}
+                                        render={({ field }) => (
+                                            <ToggleCheckbox
+                                                checked={field.value ?? false}
+                                                onChange={field.onChange}
+                                                icon={<RotateCcw size={16} />}
+                                                label="អាចប្តូរវិញ (Returnable)"
+                                                description="អនុញ្ញាតអោយអតិថិជនប្តូរវិញ"
+                                            />
+                                        )}
                                     />
-                                    <ToggleCheckbox
-                                        checked={formData.is_sellable}
-                                        onChange={(val) =>
-                                            setFormData((prev) => ({
-                                                ...prev,
-                                                is_sellable: val,
-                                            }))
-                                        }
-                                        icon={<Tag size={16} />}
-                                        label="អាចលក់បាន (Sellable)"
-                                        description="បង្ហាញក្នុង POS សម្រាប់លក់ចេញ"
+                                    <Controller
+                                        name="is_sellable"
+                                        control={control}
+                                        render={({ field }) => (
+                                            <ToggleCheckbox
+                                                checked={field.value ?? false}
+                                                onChange={field.onChange}
+                                                icon={<Tag size={16} />}
+                                                label="អាចលក់បាន (Sellable)"
+                                                description="បង្ហាញក្នុង POS សម្រាប់លក់ចេញ"
+                                            />
+                                        )}
                                     />
                                 </div>
-                            </section>
-
-                            <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-                                <FieldLabel>
-                                    កំណត់ចំណាំ (Additional Notes)
-                                </FieldLabel>
-                                <EditableTextarea
-                                    name="description"
-                                    value={formData.description ?? ''}
-                                    onChange={handleChange}
-                                    placeholder="ព័ត៌មានបន្ថែម ឧ. ពណ៌ ទំហំផ្ទុក spec ពិសេស..."
-                                    rows={4}
-                                />
                             </section>
 
                             <div className="flex justify-start">
