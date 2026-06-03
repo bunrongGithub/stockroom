@@ -1,7 +1,11 @@
-import type { StockLocationCreateInput, StockLocationUpdateInput } from '@/service/schema/branch.schema';
+import type {
+    StockLocationCreateInput,
+    StockLocationUpdateInput,
+} from '@/service/schema/branch.schema';
 import { BaseRepository } from '@/service/core/base-repository';
 import type { RequestContext } from '@/types/request-context';
 import type { StockLocationProps } from '@/types/branch';
+import { PaginatedResult, PaginationParams } from '@/service/core/pagination';
 
 const TABLE = 'stock_location' as const;
 
@@ -14,8 +18,30 @@ export class StockLocationRepository extends BaseRepository {
         }
         return StockLocationRepository.instance;
     }
+    async lookupLocations(
+        ctx: RequestContext,
+        warehouseId?: number,
+        params: PaginationParams = { page: 1, limit: 10 },
+    ): Promise<PaginatedResult<StockLocationProps>> {
 
-    async findAll(ctx: RequestContext, branchId?: number): Promise<StockLocationProps[]> {
+        console.log('Looking up locations with warehouseId:', warehouseId, 'and params:', params);
+        let query = this.db
+            .from(TABLE)
+            .select('*', { count: 'exact' })
+            .order('id', { ascending: false });
+
+        if (warehouseId !== undefined) {
+
+            console.log('Filtering locations by warehouse_id:', warehouseId);
+            query = query.eq('branch_id', warehouseId);
+        }
+
+        return this.paginate(query, params);
+    }
+    async findAll(
+        ctx: RequestContext,
+        warehoseId?: number,
+    ): Promise<StockLocationProps[]> {
         const { data: warehouses } = await this.db
             .from('warehouse')
             .select('id')
@@ -32,14 +58,17 @@ export class StockLocationRepository extends BaseRepository {
             .order('is_default', { ascending: false })
             .order('name');
 
-        if (branchId) query = query.eq('branch_id', branchId);
+        if (warehoseId) query = query.eq('branch_id', warehoseId);
 
         const { data, error } = await query;
         if (error) throw new Error(error.message);
         return data ?? [];
     }
 
-    async insertOne(ctx: RequestContext, input: StockLocationCreateInput): Promise<StockLocationProps> {
+    async insertOne(
+        ctx: RequestContext,
+        input: StockLocationCreateInput,
+    ): Promise<StockLocationProps> {
         const { data: branch } = await this.db
             .from('warehouse')
             .select('id')
@@ -66,7 +95,11 @@ export class StockLocationRepository extends BaseRepository {
         return data;
     }
 
-    async updateOne(ctx: RequestContext, id: number, input: StockLocationUpdateInput): Promise<StockLocationProps> {
+    async updateOne(
+        ctx: RequestContext,
+        id: number,
+        input: StockLocationUpdateInput,
+    ): Promise<StockLocationProps> {
         const { data: target } = await this.db
             .from(TABLE)
             .select('branch_id')
@@ -128,7 +161,9 @@ export class StockLocationRepository extends BaseRepository {
             .gt('quantity', 0);
 
         if (stock && stock.length > 0) {
-            throw new Error('Location has stock. Transfer it elsewhere before deleting.');
+            throw new Error(
+                'Location has stock. Transfer it elsewhere before deleting.',
+            );
         }
 
         const { error } = await this.db.from(TABLE).delete().eq('id', id);

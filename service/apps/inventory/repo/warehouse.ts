@@ -1,7 +1,11 @@
-import type { BranchCreateInput, BranchUpdateInput } from '@/service/schema/branch.schema';
+import type {
+    BranchCreateInput,
+    BranchUpdateInput,
+} from '@/service/schema/branch.schema';
 import { BaseRepository } from '@/service/core/base-repository';
 import type { RequestContext } from '@/types/request-context';
 import type { BranchProps } from '@/types/branch';
+import { PaginatedResult, PaginationParams } from '@/service/core';
 
 const TABLE = 'warehouse' as const;
 
@@ -13,6 +17,19 @@ export class WarehouseRepository extends BaseRepository {
             WarehouseRepository.instance = new WarehouseRepository();
         }
         return WarehouseRepository.instance;
+    }
+
+    async lookupWarehouse(
+        ctx: RequestContext,
+        params: PaginationParams = { page: 1, limit: 10 },
+    ): Promise<PaginatedResult<BranchProps>> {
+        const query = this.applyScope(
+            this.db.from(TABLE).select('*', { count: 'exact' }),
+            ctx,
+        );
+
+        const result = await this.paginate(query, params);
+        return result;
     }
 
     async findAll(ctx: RequestContext): Promise<BranchProps[]> {
@@ -28,7 +45,10 @@ export class WarehouseRepository extends BaseRepository {
         return data ?? [];
     }
 
-    async findOne(ctx: RequestContext, id: number): Promise<BranchProps | null> {
+    async findOne(
+        ctx: RequestContext,
+        id: number,
+    ): Promise<BranchProps | null> {
         const supabase = this.db;
         const { data, error } = await supabase
             .from(TABLE)
@@ -44,7 +64,10 @@ export class WarehouseRepository extends BaseRepository {
         return data;
     }
 
-    async insertOne(ctx: RequestContext, input: BranchCreateInput): Promise<BranchProps> {
+    async insertOne(
+        ctx: RequestContext,
+        input: BranchCreateInput,
+    ): Promise<BranchProps> {
         const supabase = this.db;
 
         if (input.is_default) {
@@ -79,7 +102,11 @@ export class WarehouseRepository extends BaseRepository {
         return data;
     }
 
-    async updateOne(ctx: RequestContext, id: number, input: BranchUpdateInput): Promise<BranchProps> {
+    async updateOne(
+        ctx: RequestContext,
+        id: number,
+        input: BranchUpdateInput,
+    ): Promise<BranchProps> {
         const supabase = this.db;
 
         if (input.is_default === true) {
@@ -119,7 +146,9 @@ export class WarehouseRepository extends BaseRepository {
                 .gt('quantity', 0);
 
             if (stock && stock.length > 0) {
-                throw new Error('Cannot delete branch with stock on hand. Transfer stock out first.');
+                throw new Error(
+                    'Cannot delete branch with stock on hand. Transfer stock out first.',
+                );
             }
         }
 

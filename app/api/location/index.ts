@@ -1,3 +1,3 @@
-import { WarehouseRepository } from '@/service/apps/inventory/repo/warehouse';
+import { StockLocationRepository } from '@/service/apps/inventory/repo/location';
 
-export const service = WarehouseRepository.getInstance();
+export const service = StockLocationRepository.getInstance();

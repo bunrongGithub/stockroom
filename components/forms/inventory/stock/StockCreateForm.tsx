@@ -1,6 +1,7 @@
 'use client';
 
 import AsyncSearchSelect from '@/components/ui/AsyncSearchSelect';
+import SelectDropdown from '@/components/ui/SelectDropdown';
 import {
     EditableInput,
     EditableTextarea,
@@ -48,8 +49,11 @@ type TabId = (typeof TABS)[number]['id'];
 type Simplify<T> = { [K in keyof T]: T[K] };
 type FormValues = Simplify<
     InventoryItemProps & {
-        location_id: number | '';
+        location_id: number | null;
+        location: { id: number; name: string } | null;
         initial_quantity: number | '';
+        warehouse_id: number | null;
+        warehouse: { id: number; name: string } | null;
     }
 >;
 
@@ -220,8 +224,9 @@ export default function StockCreateForm() {
             is_discount: true,
             is_returnable: false,
             is_sellable: true,
-            location_id: '',
+            location_id: null,
             initial_quantity: 0,
+            warehouse_id: null,
         },
     });
 
@@ -245,39 +250,6 @@ export default function StockCreateForm() {
             )
             .catch(() => {});
     }, []);
-    useEffect(() => {
-        let cancelled = false;
-        async function loadLocations() {
-            try {
-                const res = await fetch('/api/inventory/stock-location');
-                const json = await res.json();
-                if (!res.ok)
-                    throw new Error(
-                        json.error ?? 'Failed to load stock locations',
-                    );
-                const data: StockLocationProps[] = json.data ?? [];
-                if (cancelled) return;
-                setLocations(data);
-                const defaultLocation =
-                    data.find((l) => l.is_default) ?? data[0];
-                if (defaultLocation)
-                    setValue('location_id', defaultLocation.id);
-            } catch (err) {
-                if (!cancelled)
-                    setSubmitError(
-                        err instanceof Error
-                            ? err.message
-                            : 'Failed to load stock locations',
-                    );
-            } finally {
-                if (!cancelled) setLoadingLocations(false);
-            }
-        }
-        loadLocations();
-        return () => {
-            cancelled = true;
-        };
-    }, [setValue]);
 
     const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -820,7 +792,7 @@ export default function StockCreateForm() {
                                 <div className="grid gap-4 sm:grid-cols-2">
                                     <div>
                                         <Controller
-                                            name="uom_id"
+                                            name="warehouse_id"
                                             control={control}
                                             rules={{
                                                 required: 'Warehouse',
@@ -829,10 +801,10 @@ export default function StockCreateForm() {
                                                 <AsyncSearchSelect
                                                     label="Warehouse"
                                                     placeholder="ជ្រើសរើស Warehouse..."
-                                                    apiUrl="/api/uom"
+                                                    apiUrl="/api/warehouse/lookup"
                                                     value={field.value}
                                                     selectedLabel={
-                                                        watch('uom')?.name ?? ''
+                                                        watch('warehouse')?.name ?? ''
                                                     }
                                                     popupTitle="Warehouse"
                                                     enablePopupSearch
@@ -844,7 +816,7 @@ export default function StockCreateForm() {
                                                                   )
                                                                 : null,
                                                         );
-                                                        setValue('uom', {
+                                                        setValue('warehouse', {
                                                             id: selected?.id
                                                                 ? Number(
                                                                       selected.id,
@@ -859,27 +831,28 @@ export default function StockCreateForm() {
                                                 />
                                             )}
                                         />
-                                        {errors.uom_id && (
+                                        {errors.location_id && (
                                             <p className="mt-1 text-xs text-red-500">
-                                                {errors.uom_id.message}
+                                                {errors.location_id.message}
                                             </p>
                                         )}
                                     </div>
                                     <div>
                                         <Controller
-                                            name="uom_id"
+                                            name="location_id"
                                             control={control}
                                             rules={{
-                                                required: 'សូមជ្រើសរើស UOM',
+                                                required:
+                                                    'សូមជ្រើសរើស Location',
                                             }}
                                             render={({ field }) => (
                                                 <AsyncSearchSelect
                                                     label="Location"
                                                     placeholder="ជ្រើសរើស Location..."
-                                                    apiUrl="/api/uom"
+                                                    apiUrl={watch('warehouse_id') ? `/api/location/lookup?warehouse_id=${watch('warehouse_id')}` : '/api/location/lookup'}
                                                     value={field.value}
                                                     selectedLabel={
-                                                        watch('uom')?.name ?? ''
+                                                        watch('location')?.name ?? ''
                                                     }
                                                     popupTitle="Location"
                                                     enablePopupSearch
@@ -891,7 +864,7 @@ export default function StockCreateForm() {
                                                                   )
                                                                 : null,
                                                         );
-                                                        setValue('uom', {
+                                                        setValue('location', {
                                                             id: selected?.id
                                                                 ? Number(
                                                                       selected.id,
@@ -906,9 +879,9 @@ export default function StockCreateForm() {
                                                 />
                                             )}
                                         />
-                                        {errors.uom_id && (
+                                        {errors.location_id && (
                                             <p className="mt-1 text-xs text-red-500">
-                                                {errors.uom_id.message}
+                                                {errors.location_id.message}
                                             </p>
                                         )}
                                     </div>

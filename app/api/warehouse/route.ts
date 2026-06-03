@@ -4,7 +4,7 @@ import { getRequestContext } from '@/lib/request-context';
 import { WarehouseRepository } from '@/service/apps/inventory/repo/warehouse';
 import { z } from 'zod';
 
-const service = WarehouseRepository.getInstance();
+export const service = WarehouseRepository.getInstance();
 
 export async function GET(req: NextRequest) {
     try {
