@@ -6,7 +6,8 @@
  *
  * Static hrefs (no ':id') are returned unchanged.
  */
-export function resolveHref(href: string, id?: number | string): string {
+export function resolveHref(href: string | null | undefined, id?: number | string): string {
+    if (!href) return '#';
     if (id === undefined) return href;
     return href.replace(':id', String(id));
 }

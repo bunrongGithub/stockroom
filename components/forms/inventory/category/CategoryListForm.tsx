@@ -2,30 +2,19 @@
 
 import PopUpDeleteTransactionModal from '@/components/ui/PopUpDeleteModal';
 import { usePageActions } from '@/hook/usePageAction';
+import type { TMeta } from '@/types/app';
+import type { TCategory } from '@/types/inventory/item';
 import { resolveHref } from '@/utils/utils';
 import { ChevronLeft, ChevronRight, LayoutList, Search } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useState, useTransition } from 'react';
 
-type TCategoryProp = {
-    id: number;
-    name: string;
-    reference_no: string | null;
-};
-
-type TMeta = {
-    total: number;
-    page: number;
-    limit: number;
-    totalPages: number;
-};
-
 export default function CategoryListForm({
     categories,
     meta,
 }: {
-    categories: Array<TCategoryProp>;
+    categories: Array<TCategory & { id: number }>;
     meta: TMeta;
 }) {
     const router = useRouter();

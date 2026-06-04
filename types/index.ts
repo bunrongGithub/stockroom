@@ -6,27 +6,3 @@ export type Action = Array<{
     dynamic: boolean;
     icon: LucideIcon | null;
 }>;
-export type TMenuType =
-    | 'module'
-    | 'menu'
-    | 'submenu'
-    | 'configuration'
-    | 'button';
-export type TModule = Array<{
-    ordering: number;
-    icon: LucideIcon | null;
-    label: string;
-    parent: TModule | null;
-    href: string;
-    menu: Array<TMenuItem> | null;
-    type: TMenuType;
-}>;
-export type TMenuItem = {
-    ordering: number;
-    icon: LucideIcon | null;
-    label: string;
-    href: string;
-    type: TMenuType;
-    action: Action | null;
-    children?: Array<TMenuItem>;
-};

@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSessionFromRequest } from '@/lib/auth';
 
 const PUBLIC_PATHS = [
+    '/login',
     '/signin',
+    '/unauthorized',
     '/api/auth/login',
     '/api/auth/signup',
     '/_next',
@@ -28,7 +30,7 @@ export async function proxy(req: NextRequest) {
             );
         }
         const loginUrl = new URL('/signin', req.url);
-        loginUrl.searchParams.set('redirect', pathname);
+        loginUrl.searchParams.set('next', pathname);
         return NextResponse.redirect(loginUrl);
     }
 

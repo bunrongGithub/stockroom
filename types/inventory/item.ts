@@ -43,6 +43,7 @@ export interface InventoryItemProps {
 export type TCategory = {
     id: number | null;
     name: string;
+    reference_no?: string | null;
 };
 export type TUOM = { id: number | null; name: string };
 export type TStockQuantity = {
