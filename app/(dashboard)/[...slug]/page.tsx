@@ -1,6 +1,7 @@
 import { getSession } from '@/lib/auth';
 import { resolveModuleByPath } from '@/lib/db/modules';
 import { getModuleLoader } from '@/lib/module-registry';
+import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
 import { Suspense } from 'react';
 
@@ -8,7 +9,7 @@ interface Props {
     params: Promise<{ slug: string[] }>;
 }
 
-export default async function CatchAllModulePage({ params }: Props) {
+export default async function Page({ params }: Props) {
     const { slug } = await params;
 
     const session = await getSession();
@@ -30,12 +31,13 @@ export default async function CatchAllModulePage({ params }: Props) {
     // Load the React component from the registry
     const loader = getModuleLoader(mod.component);
     if (!loader) {
-        console.error(`[CatchAllModulePage] No component registered for key: "${mod.component}"`);
+        console.error(
+            `[CatchAllModulePage] No component registered for key: "${mod.component}"`,
+        );
         notFound();
     }
 
     const { default: ModuleComponent } = await loader();
-    console.log(`[CatchAllModulePage] Loaded component for path "${path}" with permissions:`, mod.permission);
     return (
         <Suspense
             fallback={
@@ -49,10 +51,11 @@ export default async function CatchAllModulePage({ params }: Props) {
     );
 }
 
-export async function generateMetadata({ params }: Props) {
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
     const { slug } = await params;
-    const label = slug[slug.length - 1]
-        ?.replace(/-/g, ' ')
-        .replace(/\b\w/g, (c) => c.toUpperCase()) ?? 'Module';
+    const label =
+        slug[slug.length - 1]
+            ?.replace(/-/g, ' ')
+            .replace(/\b\w/g, (c) => c.toUpperCase()) ?? 'Module';
     return { title: label };
 }
