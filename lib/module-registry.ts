@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react';
-import type { AppModule, AppPermission } from '@/types/app';
+import type { AppModule, AppPermission, TMeta } from '@/types/app';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Module component contract
@@ -9,6 +9,8 @@ import type { AppModule, AppPermission } from '@/types/app';
 export interface ModuleProps {
     module: AppModule;
     permission: AppPermission;
+    initialData?: unknown[] | null;
+    initialMeta?: TMeta | null;
 }
 
 type LazyLoader = () => Promise<{ default: ComponentType<ModuleProps> }>;
@@ -60,7 +62,11 @@ const registry = new Map<string, LazyLoader>([
     // Setting modules
     ['User', () => import('@/components/modules/setting/User')],
     ['Role', () => import('@/components/modules/setting/Role')],
-    ["RolePermission", () => import('@/components/modules/setting/RolePermission')],
+    ["Module", () => import('@/components/modules/setting/Module')],
+    [
+        'RolePermission',
+        () => import('@/components/modules/setting/RolePermission'),
+    ],
     // Sales (stub — add real component when ready)
     [
         'SalesRootModule',

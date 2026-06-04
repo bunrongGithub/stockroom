@@ -1,16 +1,20 @@
 import { getSession } from '@/lib/auth';
+import { apiUrl } from '@/lib/constant';
 import { resolveModuleByPath } from '@/lib/db/modules';
 import { getModuleLoader } from '@/lib/module-registry';
+import { fetchPaginatedData } from '@/lib/server-fetch';
 import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
 import { Suspense } from 'react';
 
 interface Props {
     params: Promise<{ slug: string[] }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
-export default async function Page({ params }: Props) {
+export default async function Page({ params, searchParams }: Props) {
     const { slug } = await params;
+    const _searchParams = await searchParams;
 
     const session = await getSession();
     if (!session) redirect('/login');
@@ -22,22 +26,41 @@ export default async function Page({ params }: Props) {
     const path = '/' + slug.join('/');
 
     // Resolve module record + merged permissions from DB (server-side security check)
-    const mod = await resolveModuleByPath(path, session.userId, companyId);
+    const module = await resolveModuleByPath(path, session.userId, companyId);
 
-    if (!mod) notFound();
+    if (!module) notFound();
 
-    if (!mod.permission.can_view) redirect('/unauthorized');
+    if (!module.permission.can_view) redirect('/unauthorized');
 
     // Load the React component from the registry
-    const loader = getModuleLoader(mod.component);
+    const loader = getModuleLoader(module.component);
     if (!loader) {
         console.error(
-            `[CatchAllModulePage] No component registered for key: "${mod.component}"`,
+            `[CatchAllModulePage] No component registered for key: "${module.component}"`,
         );
         notFound();
     }
 
     const { default: ModuleComponent } = await loader();
+
+    let _responseInitailPageData = null;
+    let _responsePageMeta = null;
+
+
+    const isCreateRoute = path.endsWith('/create');
+    if (!isCreateRoute) {
+        try {
+            const response = await fetchPaginatedData(apiUrl(path), _searchParams);
+            _responseInitailPageData = response.data.data;
+            _responsePageMeta = response.data.meta;
+        } catch (error) {
+            console.error(
+                '[CatchAllModulePage] Failed to fetch initial data:',
+                error,
+            );
+        }
+    }
+
     return (
         <Suspense
             fallback={
@@ -46,7 +69,12 @@ export default async function Page({ params }: Props) {
                 </div>
             }
         >
-            <ModuleComponent module={mod} permission={mod.permission} />
+            <ModuleComponent
+                module={module}
+                permission={module.permission}
+                initialData={_responseInitailPageData}
+                initialMeta={_responsePageMeta}
+            />
         </Suspense>
     );
 }

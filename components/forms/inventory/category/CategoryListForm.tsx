@@ -13,10 +13,17 @@ import { useCallback, useState, useTransition } from 'react';
 export default function CategoryListForm({
     categories,
     meta,
+    initialData,
+    initialMeta,
 }: {
     categories: Array<TCategory & { id: number }>;
     meta: TMeta;
+    initialData?: Array<TCategory & { id: number }> | null;
+    initialMeta?: TMeta | null;
 }) {
+    const displayCategories = initialData ?? categories;
+    const displayMeta = initialMeta ?? meta;
+
     const router = useRouter();
     const pathname = usePathname();
     const searchParams = useSearchParams();
@@ -66,8 +73,8 @@ export default function CategoryListForm({
         navigate({ limit: e.target.value, page: '1' });
     };
 
-    const currentPage = meta.page;
-    const totalPages = meta.totalPages;
+    const currentPage = displayMeta.page;
+    const totalPages = displayMeta.totalPages;
 
     // Build page numbers to show (max 5 around current)
     const getPageNumbers = () => {
@@ -212,7 +219,7 @@ export default function CategoryListForm({
                             </thead>
 
                             <tbody className="bg-white divide-y divide-slate-100">
-                                {categories.length === 0 ? (
+                                {displayCategories.length === 0 ? (
                                     <tr>
                                         <td
                                             colSpan={3}
@@ -222,7 +229,7 @@ export default function CategoryListForm({
                                         </td>
                                     </tr>
                                 ) : (
-                                    categories.map((item) => (
+                                    displayCategories.map((item) => (
                                         <tr
                                             key={item.id}
                                             className="hover:bg-slate-50/70 transition-colors"
@@ -318,18 +325,18 @@ export default function CategoryListForm({
                             <p className="text-xs text-slate-500 shrink-0">
                                 Showing{' '}
                                 <span className="font-semibold text-slate-700">
-                                    {(currentPage - 1) * meta.limit + 1}
+                                    {(currentPage - 1) * displayMeta.limit + 1}
                                 </span>
                                 {' – '}
                                 <span className="font-semibold text-slate-700">
                                     {Math.min(
-                                        currentPage * meta.limit,
-                                        meta.total,
+                                        currentPage * displayMeta.limit,
+                                        displayMeta.total,
                                     )}
                                 </span>{' '}
                                 of{' '}
                                 <span className="font-semibold text-slate-700">
-                                    {meta.total}
+                                    {displayMeta.total}
                                 </span>{' '}
                                 results
                             </p>
