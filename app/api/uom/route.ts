@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
             search,
             searchColumn: 'name',
         });
-        return NextResponse.json({ data: items }, { status: 200 });
+        return NextResponse.json(items, { status: 200 });
     } catch (error) {
 
         console.error('Error in GET /api/uom:', error);

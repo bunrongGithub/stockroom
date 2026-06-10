@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
             searchColumn: 'name',
         });
 
-        return NextResponse.json({ data: result }, { status: 200 });
+        return NextResponse.json(result, { status: 200 });
     } catch (error) {
         const message =
             error instanceof Error ? error.message : 'Unexpected error';

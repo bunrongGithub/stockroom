@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
             page: 1,
             limit: 10,
         });
-        return NextResponse.json({ data });
+        return NextResponse.json(data);
     } catch (err) {
         return NextResponse.json({ error: String(err) }, { status: 500 });
     }

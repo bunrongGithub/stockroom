@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
             searchColumn: 'permission',
             search: search,
         });
-        return NextResponse.json({ data });
+        return NextResponse.json(data);
     } catch (err) {
         return NextResponse.json({ error: String(err) }, { status: 500 });
     }

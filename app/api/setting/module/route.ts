@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
             search,
             searchColumn: 'label',
         });
-        return NextResponse.json({ data: items }, { status: 200 });
+        return NextResponse.json(items, { status: 200 });
     } catch (error) {
         const message = error instanceof Error ? error.message : 'Unexpected error';
         return NextResponse.json({ error: message }, { status: 500 });

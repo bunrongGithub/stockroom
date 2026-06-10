@@ -51,8 +51,8 @@ export default async function Page({ params, searchParams }: Props) {
     if (!isCreateRoute) {
         try {
             const response = await fetchPaginatedData(toApiUrl, _searchParams);
-            _responseInitailPageData = response.data.data;
-            _responsePageMeta = response.data.meta;
+            _responseInitailPageData = response.data;
+            _responsePageMeta = response.meta;
         } catch (error) {
             console.error(
                 '[CatchAllModulePage] Failed to fetch initial data:',
