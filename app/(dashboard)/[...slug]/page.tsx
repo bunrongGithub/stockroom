@@ -1,8 +1,8 @@
 import { getSession } from '@/lib/auth';
 import { apiUrl } from '@/lib/constant';
-import { resolveModuleByPath } from '@/lib/db/modules';
-import { getModuleLoader } from '@/lib/module-registry';
-import { fetchPaginatedData } from '@/lib/server-fetch';
+import { fetchPaginatedData } from '@/lib/fetch';
+import { resolveModuleByPath } from '@/lib/modules';
+import { getModuleLoader } from '@/lib/registry';
 import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
 import { Suspense } from 'react';
@@ -14,6 +14,7 @@ interface Props {
 
 export default async function Page({ params, searchParams }: Props) {
     const { slug } = await params;
+
     const _searchParams = await searchParams;
 
     const session = await getSession();
@@ -22,14 +23,11 @@ export default async function Page({ params, searchParams }: Props) {
     const companyId = Number(session.companyId);
     if (isNaN(companyId)) redirect('/login');
 
-    // Reconstruct the URL path from slug segments
     const path = '/' + slug.join('/');
+    const resolved = await resolveModuleByPath(path, session.userId, companyId);
 
-    // Resolve module record + merged permissions from DB (server-side security check)
-    const module = await resolveModuleByPath(path, session.userId, companyId);
-
-    if (!module) notFound();
-
+    if (!resolved) notFound();
+    const { module, actionModules } = resolved;
     if (!module.permission.can_view) redirect('/unauthorized');
 
     // Load the React component from the registry
@@ -46,11 +44,13 @@ export default async function Page({ params, searchParams }: Props) {
     let _responseInitailPageData = null;
     let _responsePageMeta = null;
 
-
     const isCreateRoute = path.endsWith('/create');
+
+    const toApiUrl = apiUrl(path);
+    console.log(`[CatchAllModulePage] Fetching initial data from: ${toApiUrl}`);
     if (!isCreateRoute) {
         try {
-            const response = await fetchPaginatedData(apiUrl(path), _searchParams);
+            const response = await fetchPaginatedData(toApiUrl, _searchParams);
             _responseInitailPageData = response.data.data;
             _responsePageMeta = response.data.meta;
         } catch (error) {
@@ -74,6 +74,7 @@ export default async function Page({ params, searchParams }: Props) {
                 permission={module.permission}
                 initialData={_responseInitailPageData}
                 initialMeta={_responsePageMeta}
+                actionModules={actionModules}
             />
         </Suspense>
     );

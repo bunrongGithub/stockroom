@@ -1,6 +1,6 @@
 'use client';
 
-import type { ModuleProps } from '@/lib/module-registry';
+import type { ModuleProps } from '@/lib/registry';
 import { Award } from 'lucide-react';
 
 export default function InventoryBrandModule(_props: ModuleProps) {
@@ -10,7 +10,9 @@ export default function InventoryBrandModule(_props: ModuleProps) {
                 <Award size={20} className="text-emerald-500" />
                 <h1 className="text-lg font-bold text-gray-900">Brand</h1>
             </div>
-            <p className="text-sm text-gray-500">Manage brands for inventory items.</p>
+            <p className="text-sm text-gray-500">
+                Manage brands for inventory items.
+            </p>
         </div>
     );
 }

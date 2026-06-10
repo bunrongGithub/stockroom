@@ -1,6 +1,6 @@
 import StockForm from '@/components/forms/inventory/stock/StockForm';
-import { serverFetch } from '@/lib/server-fetch';
 import { getSession } from '@/lib/auth';
+import { serverFetch } from '@/lib/fetch';
 import { notFound, redirect } from 'next/navigation';
 
 async function page() {

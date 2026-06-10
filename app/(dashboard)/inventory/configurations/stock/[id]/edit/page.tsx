@@ -1,6 +1,6 @@
 import StockEditForm from '@/components/forms/inventory/stock/StockEditForm';
 import { BASE_URL } from '@/lib/constant';
-import { serverFetch } from '@/lib/server-fetch';
+import { serverFetch } from '@/lib/fetch';
 import { notFound } from 'next/navigation';
 
 interface PageProps {

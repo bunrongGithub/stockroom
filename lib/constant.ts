@@ -4,4 +4,4 @@ export const BASE_URL =
 export const API_BASE_URL = `${BASE_URL}/api`;
 
 export const apiUrl = (configurationPath: string) =>
-    `${API_BASE_URL}/${configurationPath}`;
+    `${API_BASE_URL}${configurationPath}`;

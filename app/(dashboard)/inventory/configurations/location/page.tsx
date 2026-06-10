@@ -1,5 +1,5 @@
 import LocationForm from '@/components/forms/inventory/location/LocationForm';
-import { serverFetch } from '@/lib/server-fetch';
+import { serverFetch } from '@/lib/fetch';
 import { notFound } from 'next/navigation';
 
 export default async function LocationPage() {

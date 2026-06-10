@@ -1,15 +1,36 @@
 'use client';
 
-import type { ModuleProps } from '@/lib/module-registry';
-import { Box, Package, Warehouse, ArrowLeftRight, Settings } from 'lucide-react';
+import type { ModuleProps } from '@/lib/registry';
+import {
+    ArrowLeftRight,
+    Box,
+    Package,
+    Settings,
+    Warehouse,
+} from 'lucide-react';
 import Link from 'next/link';
 
 export default function InventoryRootModule({ permission }: ModuleProps) {
     const cards = [
         { href: '/inventory', icon: Package, label: 'Items', show: true },
-        { href: '/inventory/branch', icon: Warehouse, label: 'Branch', show: true },
-        { href: '/inventory/stock_adjust', icon: ArrowLeftRight, label: 'Stock Adjust', show: true },
-        { href: '/inventory/configurations', icon: Settings, label: 'Configuration', show: true },
+        {
+            href: '/inventory/branch',
+            icon: Warehouse,
+            label: 'Branch',
+            show: true,
+        },
+        {
+            href: '/inventory/stock_adjust',
+            icon: ArrowLeftRight,
+            label: 'Stock Adjust',
+            show: true,
+        },
+        {
+            href: '/inventory/configurations',
+            icon: Settings,
+            label: 'Configuration',
+            show: true,
+        },
     ];
 
     return (
@@ -17,8 +38,12 @@ export default function InventoryRootModule({ permission }: ModuleProps) {
             <div className="flex items-center gap-3">
                 <Box size={28} className="text-emerald-500" />
                 <div>
-                    <h1 className="text-xl font-bold text-gray-900">Inventory</h1>
-                    <p className="text-sm text-gray-500">Manage your stock, branches and product catalog</p>
+                    <h1 className="text-xl font-bold text-gray-900">
+                        Inventory
+                    </h1>
+                    <p className="text-sm text-gray-500">
+                        Manage your stock, branches and product catalog
+                    </p>
                 </div>
             </div>
 

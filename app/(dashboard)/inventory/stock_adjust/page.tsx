@@ -1,5 +1,5 @@
+import { serverFetch } from '@/lib/fetch';
 import { InventoryItemProps } from '@/types/inventory/item';
-import { serverFetch } from '@/lib/server-fetch';
 import { notFound } from 'next/navigation';
 import StockAdjustPageClient from './StockAdjustPageClient';
 

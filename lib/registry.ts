@@ -11,6 +11,7 @@ export interface ModuleProps {
     permission: AppPermission;
     initialData?: unknown[] | null;
     initialMeta?: TMeta | null;
+    actionModules?: AppModule[];
 }
 
 type LazyLoader = () => Promise<{ default: ComponentType<ModuleProps> }>;

@@ -1,6 +1,6 @@
 'use client';
 
-import type { ModuleProps } from '@/lib/module-registry';
+import type { ModuleProps } from '@/lib/registry';
 import { BadgePercent } from 'lucide-react';
 
 export default function SalesRootModule({ permission }: ModuleProps) {
@@ -12,9 +12,10 @@ export default function SalesRootModule({ permission }: ModuleProps) {
             </div>
             <p className="text-sm text-gray-500">Sales module — coming soon.</p>
             {permission.can_create && (
-                <div className="text-xs text-gray-400">You have create access.</div>
+                <div className="text-xs text-gray-400">
+                    You have create access.
+                </div>
             )}
         </div>
     );
 }
-

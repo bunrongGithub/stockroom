@@ -1,15 +1,16 @@
+import { getRequestContext } from '@/lib/request-context';
 import { getServerClient } from '@/lib/supabase/server';
+import { AppRole } from '@/service/apps/base/core/permission';
 import { NextRequest, NextResponse } from 'next/server';
 
-export async function GET() {
+const Service = new AppRole();
+export async function GET(request: NextRequest) {
+    const requestContext = getRequestContext(request);
     try {
-        const supabase = getServerClient();
-        const { data, error } = await supabase
-            .from('roles')
-            .select('id, name, description, created_at')
-            .order('id', { ascending: true });
-
-        if (error) throw error;
+        const data = await Service.findAll(requestContext, {
+            page: 1,
+            limit: 10,
+        });
         return NextResponse.json({ data });
     } catch (err) {
         return NextResponse.json({ error: String(err) }, { status: 500 });
@@ -20,13 +21,19 @@ export async function POST(req: NextRequest) {
     try {
         const { name, description } = await req.json();
         if (!name?.trim()) {
-            return NextResponse.json({ error: 'Name is required' }, { status: 422 });
+            return NextResponse.json(
+                { error: 'Name is required' },
+                { status: 422 },
+            );
         }
 
         const supabase = getServerClient();
         const { data, error } = await supabase
             .from('roles')
-            .insert({ name: name.trim(), description: description?.trim() ?? null })
+            .insert({
+                name: name.trim(),
+                description: description?.trim() ?? null,
+            })
             .select()
             .single();
 

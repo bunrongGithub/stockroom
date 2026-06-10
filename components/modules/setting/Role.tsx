@@ -1,36 +1,49 @@
 'use client';
 
-import { DataTable } from '@/components/ui/DataTable';
-import type { DataTableColumn } from '@/components/ui/DataTable';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import type { DataTableColumn } from '@/components/ui/DataTable';
+import { DataTable } from '@/components/ui/DataTable';
 import {
-    Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
+    Dialog,
+    DialogContent,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import PopUpDeleteTransactionModal from '@/components/ui/PopUpDeleteModal';
-import type { ModuleProps } from '@/lib/module-registry';
-import { Pencil, Plus, ShieldCheck, Trash2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useModuleActions } from '@/hook/usePageAction';
+import type { ModuleProps } from '@/lib/registry';
+import { Eye, Pencil, Plus, ShieldCheck, Trash2 } from 'lucide-react';
+import Link from 'next/link';
+import { useCallback, useState } from 'react';
 
-type RoleRow = {
+type ListRole = {
     id: number;
     name: string;
     description: string | null;
     created_at: string;
+    company: { id: number; name: string } | null;
 };
 
 type FormState = { name: string; description: string };
 const EMPTY_FORM: FormState = { name: '', description: '' };
 
-export default function Role({ permission }: ModuleProps) {
-    const [roles, setRoles] = useState<RoleRow[]>([]);
-    const [loading, setLoading] = useState(true);
+export default function Role({
+    module,
+    permission,
+    initialData,
+    actionModules,
+}: ModuleProps) {
+    useModuleActions({ actionModules, permission, modulePath: module.path });
+
+    const [roles, setRoles] = useState<ListRole[]>((initialData as ListRole[]) ?? []);
     const [error, setError] = useState<string | null>(null);
 
     const [dialogOpen, setDialogOpen] = useState(false);
-    const [editing, setEditing] = useState<RoleRow | null>(null);
+    const [editing, setEditing] = useState<ListRole | null>(null);
     const [form, setForm] = useState<FormState>(EMPTY_FORM);
     const [saving, setSaving] = useState(false);
     const [formError, setFormError] = useState<string | null>(null);
@@ -40,26 +53,21 @@ export default function Role({ permission }: ModuleProps) {
 
     const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
 
-    const fetchRoles = async () => {
-        setLoading(true);
-        try {
-            const r = await fetch('/api/setting/roles');
-            const d = await r.json();
-            if (d.error) setError(d.error);
-            else setRoles(d.data ?? []);
-        } catch (e) {
-            setError(String(e));
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => { fetchRoles(); }, []);
-
     const showToast = (msg: string, type: 'success' | 'error') => {
         setToast({ msg, type });
         setTimeout(() => setToast(null), 3000);
     };
+
+    const fetchRoles = useCallback(async () => {
+        try {
+            const r = await fetch('/api/setting/role');
+            const d = await r.json();
+            if (d.error) setError(d.error);
+            else setRoles(d.data?.data ?? d.data ?? []);
+        } catch (e) {
+            setError(String(e));
+        }
+    }, []);
 
     const openCreate = () => {
         setEditing(null);
@@ -68,7 +76,7 @@ export default function Role({ permission }: ModuleProps) {
         setDialogOpen(true);
     };
 
-    const openEdit = (row: RoleRow) => {
+    const openEdit = (row: ListRole) => {
         setEditing(row);
         setForm({ name: row.name, description: row.description ?? '' });
         setFormError(null);
@@ -76,19 +84,24 @@ export default function Role({ permission }: ModuleProps) {
     };
 
     const handleSave = async () => {
-        if (!form.name.trim()) { setFormError('Name is required'); return; }
+        if (!form.name.trim()) {
+            setFormError('Name is required');
+            return;
+        }
         setSaving(true);
         setFormError(null);
         try {
-            const url = editing ? `/api/setting/roles/${editing.id}` : '/api/setting/roles';
-            const method = editing ? 'PUT' : 'POST';
+            const url = editing ? `/api/setting/role/${editing.id}` : '/api/setting/role';
             const r = await fetch(url, {
-                method,
+                method: editing ? 'PUT' : 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(form),
             });
             const d = await r.json();
-            if (!r.ok) { setFormError(d.error ?? 'Failed to save'); return; }
+            if (!r.ok) {
+                setFormError(d.error ?? 'Failed to save');
+                return;
+            }
             showToast(editing ? 'Role updated' : 'Role created', 'success');
             setDialogOpen(false);
             fetchRoles();
@@ -103,10 +116,10 @@ export default function Role({ permission }: ModuleProps) {
         if (!deletingId) return;
         setDeleting(true);
         try {
-            const r = await fetch(`/api/setting/roles/${deletingId}`, { method: 'DELETE' });
+            const r = await fetch(`/api/setting/role/${deletingId}`, { method: 'DELETE' });
             if (!r.ok) throw new Error('Delete failed');
+            setRoles((prev) => prev.filter((role) => role.id !== deletingId));
             showToast('Role deleted', 'success');
-            fetchRoles();
         } catch {
             showToast('Delete failed', 'error');
         } finally {
@@ -115,7 +128,7 @@ export default function Role({ permission }: ModuleProps) {
         }
     };
 
-    const columns: DataTableColumn<RoleRow>[] = [
+    const columns: DataTableColumn<ListRole>[] = [
         {
             key: 'name',
             header: 'Role',
@@ -139,6 +152,16 @@ export default function Role({ permission }: ModuleProps) {
                 ),
         },
         {
+            key: 'company',
+            header: 'Company',
+            cell: (row) =>
+                row.company ? (
+                    <span className="text-sm text-slate-500">{row.company.name}</span>
+                ) : (
+                    <span className="text-xs text-muted-foreground italic">No company</span>
+                ),
+        },
+        {
             key: 'created',
             header: 'Created',
             headerClassName: 'text-right',
@@ -152,10 +175,17 @@ export default function Role({ permission }: ModuleProps) {
         {
             key: 'actions',
             header: '',
-            headerClassName: 'w-24',
+            headerClassName: 'w-28',
             cellClassName: 'text-right',
             cell: (row) => (
                 <div className="inline-flex items-center gap-1 justify-end">
+                    <Link
+                        href={`/setting/role/${row.id}`}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
+                        title="View permissions"
+                    >
+                        <Eye size={13} />
+                    </Link>
                     {permission.can_update && (
                         <button
                             type="button"
@@ -183,9 +213,12 @@ export default function Role({ permission }: ModuleProps) {
 
     return (
         <div className="p-6 max-w-4xl mx-auto space-y-6 animate-in fade-in duration-300">
-            {/* Toast */}
             {toast && (
-                <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl text-sm font-medium shadow-lg transition-all ${toast.type === 'success' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'}`}>
+                <div
+                    className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl text-sm font-medium shadow-lg transition-all ${
+                        toast.type === 'success' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'
+                    }`}
+                >
                     {toast.msg}
                 </div>
             )}
@@ -207,9 +240,15 @@ export default function Role({ permission }: ModuleProps) {
                     <p className="text-sm text-slate-500">Manage system roles</p>
                 </div>
                 <div className="ml-auto flex items-center gap-2">
-                    {!loading && <Badge variant="secondary">{roles.length} role{roles.length !== 1 ? 's' : ''}</Badge>}
+                    <Badge variant="secondary">
+                        {roles.length} role{roles.length !== 1 ? 's' : ''}
+                    </Badge>
                     {permission.can_create && (
-                        <Button size="sm" onClick={openCreate} className="gap-1.5 bg-emerald-600 hover:bg-emerald-500">
+                        <Button
+                            size="sm"
+                            onClick={openCreate}
+                            className="gap-1.5 bg-emerald-600 hover:bg-emerald-500"
+                        >
                             <Plus size={14} /> Add Role
                         </Button>
                     )}
@@ -217,34 +256,34 @@ export default function Role({ permission }: ModuleProps) {
             </div>
 
             {error && (
-                <div className="rounded-xl bg-rose-50 border border-rose-200 px-4 py-3 text-sm text-rose-700">{error}</div>
+                <div className="rounded-xl bg-rose-50 border border-rose-200 px-4 py-3 text-sm text-rose-700">
+                    {error}
+                </div>
             )}
 
-            {loading ? (
-                <div className="flex justify-center py-16">
-                    <div className="w-6 h-6 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin" />
-                </div>
-            ) : (
-                <DataTable
-                    columns={columns}
-                    data={roles}
-                    keyExtractor={(r) => r.id}
-                    searchFn={(row, q) =>
-                        row.name.toLowerCase().includes(q) ||
-                        (row.description ?? '').toLowerCase().includes(q)
-                    }
-                    searchPlaceholder="Search roles..."
-                    emptyTitle="No roles yet"
-                    emptyDescription="Create your first role to get started"
-                    emptyAction={
-                        permission.can_create ? (
-                            <Button size="sm" onClick={openCreate} className="gap-1.5 bg-emerald-600 hover:bg-emerald-500">
-                                <Plus size={14} /> Add Role
-                            </Button>
-                        ) : null
-                    }
-                />
-            )}
+            <DataTable
+                columns={columns}
+                data={roles}
+                keyExtractor={(r) => r.id}
+                searchFn={(row, q) =>
+                    row.name.toLowerCase().includes(q) ||
+                    (row.description ?? '').toLowerCase().includes(q)
+                }
+                searchPlaceholder="Search roles..."
+                emptyTitle="No roles yet"
+                emptyDescription="Create your first role to get started"
+                emptyAction={
+                    permission.can_create ? (
+                        <Button
+                            size="sm"
+                            onClick={openCreate}
+                            className="gap-1.5 bg-emerald-600 hover:bg-emerald-500"
+                        >
+                            <Plus size={14} /> Add Role
+                        </Button>
+                    ) : null
+                }
+            />
 
             {/* Create / Edit dialog */}
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -255,7 +294,9 @@ export default function Role({ permission }: ModuleProps) {
 
                     <div className="space-y-4 py-2">
                         <div className="space-y-1.5">
-                            <Label htmlFor="role-name">Name <span className="text-rose-500">*</span></Label>
+                            <Label htmlFor="role-name">
+                                Name <span className="text-rose-500">*</span>
+                            </Label>
                             <Input
                                 id="role-name"
                                 placeholder="e.g. admin, staff, viewer"
@@ -269,23 +310,33 @@ export default function Role({ permission }: ModuleProps) {
                                 id="role-desc"
                                 placeholder="Optional description"
                                 value={form.description}
-                                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                                onChange={(e) =>
+                                    setForm((f) => ({ ...f, description: e.target.value }))
+                                }
                             />
                         </div>
-                        {formError && (
-                            <p className="text-sm text-rose-600">{formError}</p>
-                        )}
+                        {formError && <p className="text-sm text-rose-600">{formError}</p>}
                     </div>
 
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={saving}>
+                        <Button
+                            variant="outline"
+                            onClick={() => setDialogOpen(false)}
+                            disabled={saving}
+                        >
                             Cancel
                         </Button>
-                        <Button onClick={handleSave} disabled={saving} className="bg-emerald-600 hover:bg-emerald-500 min-w-20">
+                        <Button
+                            onClick={handleSave}
+                            disabled={saving}
+                            className="bg-emerald-600 hover:bg-emerald-500 min-w-20"
+                        >
                             {saving ? (
                                 <div className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                            ) : editing ? (
+                                'Save'
                             ) : (
-                                editing ? 'Save' : 'Create'
+                                'Create'
                             )}
                         </Button>
                     </DialogFooter>

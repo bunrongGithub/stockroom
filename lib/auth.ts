@@ -40,7 +40,6 @@ export async function verifyToken(
     }
 }
 
-// ── Cookie Operations ─────────────────────────────────────────
 
 export function setSessionCookie(response: NextResponse, token: string): void {
     response.cookies.set(SESSION_COOKIE, token, {

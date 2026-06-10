@@ -1,9 +1,9 @@
 'use client';
 
-import { DataTable } from '@/components/ui/DataTable';
 import type { DataTableColumn } from '@/components/ui/DataTable';
+import { DataTable } from '@/components/ui/DataTable';
 import { Badge } from '@/components/ui/badge';
-import type { ModuleProps } from '@/lib/module-registry';
+import type { ModuleProps } from '@/lib/registry';
 import { Users } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
@@ -33,9 +33,13 @@ const COLUMNS: DataTableColumn<UserRow>[] = [
                     {row.email.substring(0, 2).toUpperCase()}
                 </div>
                 <div className="min-w-0">
-                    <p className="text-sm font-medium text-slate-800 truncate">{row.email}</p>
+                    <p className="text-sm font-medium text-slate-800 truncate">
+                        {row.email}
+                    </p>
                     {row.full_name && (
-                        <p className="text-xs text-slate-400 truncate">{row.full_name}</p>
+                        <p className="text-xs text-slate-400 truncate">
+                            {row.full_name}
+                        </p>
                     )}
                 </div>
             </div>
@@ -46,7 +50,9 @@ const COLUMNS: DataTableColumn<UserRow>[] = [
         header: 'Roles',
         cell: (row) =>
             row.roles.length === 0 ? (
-                <span className="text-xs text-muted-foreground italic">No role</span>
+                <span className="text-xs text-muted-foreground italic">
+                    No role
+                </span>
             ) : (
                 <div className="flex gap-1 flex-wrap">
                     {row.roles.map((r) => (
@@ -97,7 +103,9 @@ export default function User(_props: ModuleProps) {
                 </div>
                 <div>
                     <h2 className="text-xl font-bold text-slate-800">Users</h2>
-                    <p className="text-sm text-slate-500">All registered system users and their roles</p>
+                    <p className="text-sm text-slate-500">
+                        All registered system users and their roles
+                    </p>
                 </div>
                 {!loading && (
                     <Badge variant="secondary" className="ml-auto">

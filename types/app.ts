@@ -27,7 +27,7 @@ export interface AppModule {
     sort_order: number;
     is_active: boolean;
     type: AppModuleType;
-    permission: AppPermission;
+    // permission: AppPermission;
 }
 
 export interface AppProfile {

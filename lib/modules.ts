@@ -46,11 +46,21 @@ export async function getUserModulesWithPermissions(
     }));
 }
 
+export interface ResolvedModule {
+    module: AppModule;
+    actionModules: AppModule[];
+}
+
 export async function resolveModuleByPath(
     path: string,
     userId: string,
     companyId: number,
-): Promise<AppModule | null> {
+): Promise<ResolvedModule | null> {
     const modules = await getUserModulesWithPermissions(userId, companyId);
-    return modules.find((m) => m.path === path) ?? null;
+    const module = modules.find((m) => m.path === path);
+    if (!module) return null;
+    const actionModules = modules.filter(
+        (m) => m.type === 'action' && m.parent_id === module.id,
+    );
+    return { module, actionModules };
 }

@@ -1,7 +1,7 @@
 import POSClient from '@/components/forms/sales/pos/POSClient';
-import { serverFetch } from '@/lib/server-fetch';
 import { ToastProvider } from '@/components/ui/Toast';
 import { getSession } from '@/lib/auth';
+import { serverFetch } from '@/lib/fetch';
 import { getServerClient } from '@/lib/supabase/server';
 import { notFound, redirect } from 'next/navigation';
 

@@ -1,5 +1,5 @@
 import UomListForm from '@/components/forms/inventory/uom/UomListForm';
-import { serverFetch } from '@/lib/server-fetch';
+import { serverFetch } from '@/lib/fetch';
 import { notFound } from 'next/navigation';
 
 interface PageProps {
@@ -19,7 +19,9 @@ async function page({ searchParams }: PageProps) {
 
     const json = await res.json();
     const listPagination = json.data;
-    return <UomListForm uoms={listPagination.data} meta={listPagination.meta} />;
+    return (
+        <UomListForm uoms={listPagination.data} meta={listPagination.meta} />
+    );
 }
 
 export default page;

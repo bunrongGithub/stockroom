@@ -1,7 +1,7 @@
-import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-import { getUserModulesWithPermissions } from '@/lib/db/modules';
+import { getUserModulesWithPermissions } from '@/lib/modules';
 import type { AppInitData } from '@/types/app';
+import { NextResponse } from 'next/server';
 
 export async function GET() {
     const session = await getSession();
@@ -14,7 +14,10 @@ export async function GET() {
         return NextResponse.json({ error: 'Invalid session' }, { status: 400 });
     }
 
-    const modules = await getUserModulesWithPermissions(session.userId, companyId);
+    const modules = await getUserModulesWithPermissions(
+        session.userId,
+        companyId,
+    );
 
     const payload: AppInitData = {
         profile: {

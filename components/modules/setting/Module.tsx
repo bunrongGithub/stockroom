@@ -2,66 +2,42 @@
 
 import { DataTable, type DataTableColumn } from '@/components/ui/DataTable';
 import PopUpDeleteTransactionModal from '@/components/ui/PopUpDeleteModal';
-import { usePageActions } from '@/hook/usePageAction';
-import type { ModuleProps } from '@/lib/module-registry';
-import type { TMeta } from '@/types/app';
-import type { AppModule } from '@/types/app';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { useModuleActions } from '@/hook/usePageAction';
+import type { ModuleProps } from '@/lib/registry';
+import type { AppModule, TMeta } from '@/types/app';
+import { Pencil, Trash2 } from 'lucide-react';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 const DEFAULT_META: TMeta = { total: 0, page: 1, limit: 10, totalPages: 0 };
 
-export default function ModuleComponent({ module, permission, initialData, initialMeta }: ModuleProps) {
-    const { setActions } = usePageActions();
+export default function ModuleComponent({
+    module,
+    permission,
+    initialData,
+    initialMeta,
+    actionModules,
+}: ModuleProps) {
+    useModuleActions({ actionModules, permission, modulePath: module.path });
 
     const displayModules = (initialData as AppModule[]) ?? [];
     const displayMeta = initialMeta ?? DEFAULT_META;
 
     const [deletingId, setDeletingId] = useState<number | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
-    const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
-
-    // Setup page actions
-    useEffect(() => {
-        const actions = [];
-        if (permission.can_create) {
-            actions.push({
-                label: 'Add Module',
-                href: `${module.path}/create`,
-                type: 'user_action' as const,
-                dynamic: false,
-                icon: Plus,
-            });
-        }
-        if (permission.can_update) {
-            actions.push({
-                label: 'Edit',
-                href: `${module.path}/:id/update`,
-                type: 'user_action' as const,
-                dynamic: true,
-                icon: Pencil,
-            });
-        }
-        if (permission.can_delete) {
-            actions.push({
-                label: 'Delete',
-                href: null,
-                type: 'user_action' as const,
-                dynamic: true,
-                icon: Trash2,
-            });
-        }
-        setActions(actions);
-        return () => setActions([]);
-    }, [module.path, permission, setActions]);
+    const [toast, setToast] = useState<{
+        msg: string;
+        type: 'success' | 'error';
+    } | null>(null);
 
     // Delete handler
     const onConfirmDelete = async () => {
         if (!deletingId) return;
         try {
             setIsDeleting(true);
-            const res = await fetch(`/api/modules/${deletingId}`, { method: 'DELETE' });
+            const res = await fetch(`/api/modules/${deletingId}`, {
+                method: 'DELETE',
+            });
             if (!res.ok) throw new Error('Delete failed');
             setToast({ msg: 'Module deleted successfully', type: 'success' });
             window.location.reload();
@@ -72,7 +48,6 @@ export default function ModuleComponent({ module, permission, initialData, initi
             setDeletingId(null);
         }
     };
-
 
     // DataTable columns
     const columns: DataTableColumn<AppModule>[] = [
@@ -89,7 +64,11 @@ export default function ModuleComponent({ module, permission, initialData, initi
         {
             key: 'path',
             header: 'Path',
-            cell: (row) => <span className="text-xs text-muted-foreground">{row.path}</span>,
+            cell: (row) => (
+                <span className="text-xs text-muted-foreground">
+                    {row.path}
+                </span>
+            ),
         },
         {
             key: 'type',
@@ -168,7 +147,9 @@ export default function ModuleComponent({ module, permission, initialData, initi
             {/* Header */}
             <div className="space-y-2">
                 <h2 className="text-2xl font-bold text-slate-800">Modules</h2>
-                <p className="text-sm text-slate-500">Manage application modules and their access control</p>
+                <p className="text-sm text-slate-500">
+                    Manage application modules and their access control
+                </p>
             </div>
 
             {/* DataTable */}
@@ -199,10 +180,15 @@ export default function ModuleComponent({ module, permission, initialData, initi
                         </span>
                         {' – '}
                         <span className="font-semibold text-slate-700">
-                            {Math.min(displayMeta.page * displayMeta.limit, displayMeta.total)}
+                            {Math.min(
+                                displayMeta.page * displayMeta.limit,
+                                displayMeta.total,
+                            )}
                         </span>{' '}
                         of{' '}
-                        <span className="font-semibold text-slate-700">{displayMeta.total}</span>{' '}
+                        <span className="font-semibold text-slate-700">
+                            {displayMeta.total}
+                        </span>{' '}
                         modules
                     </p>
                     <span className="text-sm">

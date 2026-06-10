@@ -1,5 +1,5 @@
 import UomFormUpdate from '@/components/forms/inventory/uom/UomFormUpdate';
-import { serverFetch } from '@/lib/server-fetch';
+import { serverFetch } from '@/lib/fetch';
 import { notFound } from 'next/navigation';
 async function page({ params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;

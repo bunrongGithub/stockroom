@@ -1,18 +1,26 @@
 'use client';
 
-import { DataTable } from '@/components/ui/DataTable';
-import type { DataTableColumn } from '@/components/ui/DataTable';
-import { Button } from '@/components/ui/button';
-import {
-    Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
-} from '@/components/ui/dialog';
-import {
-    Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import type { DataTableColumn } from '@/components/ui/DataTable';
+import { DataTable } from '@/components/ui/DataTable';
+import {
+    Dialog,
+    DialogContent,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import PopUpDeleteTransactionModal from '@/components/ui/PopUpDeleteModal';
-import type { ModuleProps } from '@/lib/module-registry';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
+import type { ModuleProps } from '@/lib/registry';
 import type { AppModuleType } from '@/types/app';
 import { Check, KeyRound, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
@@ -34,7 +42,13 @@ type PermissionRow = {
 };
 
 type RoleOption = { id: number; name: string };
-type ModuleOption = { id: number; label: string; path: string; type: string; key: string };
+type ModuleOption = {
+    id: number;
+    label: string;
+    path: string;
+    type: string;
+    key: string;
+};
 
 type FormState = {
     role_id: string;
@@ -61,15 +75,24 @@ const EMPTY_FORM: FormState = {
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 const TYPE_STYLE: Record<string, string> = {
-    transaction:   'bg-emerald-100 text-emerald-700 border-emerald-200',
+    transaction: 'bg-emerald-100 text-emerald-700 border-emerald-200',
     configuration: 'bg-sky-100    text-sky-700    border-sky-200',
-    action:        'bg-slate-100  text-slate-600  border-slate-200',
+    action: 'bg-slate-100  text-slate-600  border-slate-200',
 };
 
-const PERM_KEYS = ['can_view', 'can_create', 'can_update', 'can_delete', 'can_export'] as const;
-const PERM_LABELS: Record<typeof PERM_KEYS[number], string> = {
-    can_view: 'View', can_create: 'Create', can_update: 'Update',
-    can_delete: 'Delete', can_export: 'Export',
+const PERM_KEYS = [
+    'can_view',
+    'can_create',
+    'can_update',
+    'can_delete',
+    'can_export',
+] as const;
+const PERM_LABELS: Record<(typeof PERM_KEYS)[number], string> = {
+    can_view: 'View',
+    can_create: 'Create',
+    can_update: 'Update',
+    can_delete: 'Delete',
+    can_export: 'Export',
 };
 
 function PermDot({ active }: { active: boolean }) {
@@ -103,8 +126,12 @@ function PermToggle({
                     : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100'
             }`}
         >
-            <span className={`w-4 h-4 rounded flex items-center justify-center border ${checked ? 'bg-emerald-500 border-emerald-500' : 'border-slate-300 bg-white'}`}>
-                {checked && <Check size={10} className="text-white" strokeWidth={3} />}
+            <span
+                className={`w-4 h-4 rounded flex items-center justify-center border ${checked ? 'bg-emerald-500 border-emerald-500' : 'border-slate-300 bg-white'}`}
+            >
+                {checked && (
+                    <Check size={10} className="text-white" strokeWidth={3} />
+                )}
             </span>
             {label}
         </button>
@@ -128,7 +155,10 @@ export default function RolePermission({ permission }: ModuleProps) {
     const [deletingId, setDeletingId] = useState<number | null>(null);
     const [deleting, setDeleting] = useState(false);
 
-    const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
+    const [toast, setToast] = useState<{
+        msg: string;
+        type: 'success' | 'error';
+    } | null>(null);
 
     // Module type filter for the module dropdown
     const [moduleTypeFilter, setModuleTypeFilter] = useState<string>('all');
@@ -147,7 +177,9 @@ export default function RolePermission({ permission }: ModuleProps) {
                 fetch('/api/setting/modules'),
             ]);
             const [pData, rData, mData] = await Promise.all([
-                pRes.json(), rRes.json(), mRes.json(),
+                pRes.json(),
+                rRes.json(),
+                mRes.json(),
             ]);
             setPermissions(pData.data ?? []);
             setRoles(rData.data ?? []);
@@ -159,7 +191,9 @@ export default function RolePermission({ permission }: ModuleProps) {
         }
     }, []);
 
-    useEffect(() => { fetchAll(); }, [fetchAll]);
+    useEffect(() => {
+        fetchAll();
+    }, [fetchAll]);
 
     const openAssign = () => {
         setEditingId(null);
@@ -217,8 +251,14 @@ export default function RolePermission({ permission }: ModuleProps) {
                 body: JSON.stringify(form),
             });
             const d = await r.json();
-            if (!r.ok) { setFormError(d.error ?? 'Failed to save'); return; }
-            showToast(editingId ? 'Permission updated' : 'Permission assigned', 'success');
+            if (!r.ok) {
+                setFormError(d.error ?? 'Failed to save');
+                return;
+            }
+            showToast(
+                editingId ? 'Permission updated' : 'Permission assigned',
+                'success',
+            );
             setDialogOpen(false);
             fetchAll();
         } catch (e) {
@@ -232,7 +272,10 @@ export default function RolePermission({ permission }: ModuleProps) {
         if (!deletingId) return;
         setDeleting(true);
         try {
-            const r = await fetch(`/api/setting/role-permissions/${deletingId}`, { method: 'DELETE' });
+            const r = await fetch(
+                `/api/setting/role-permissions/${deletingId}`,
+                { method: 'DELETE' },
+            );
             if (!r.ok) throw new Error('Delete failed');
             showToast('Permission removed', 'success');
             fetchAll();
@@ -244,9 +287,10 @@ export default function RolePermission({ permission }: ModuleProps) {
         }
     };
 
-    const filteredModules = moduleTypeFilter === 'all'
-        ? modules
-        : modules.filter((m) => m.type === moduleTypeFilter);
+    const filteredModules =
+        moduleTypeFilter === 'all'
+            ? modules
+            : modules.filter((m) => m.type === moduleTypeFilter);
 
     // ── Columns ──────────────────────────────────────────────────────────────
 
@@ -265,8 +309,12 @@ export default function RolePermission({ permission }: ModuleProps) {
             header: 'Module',
             cell: (row) => (
                 <div>
-                    <p className="text-sm font-medium text-slate-800">{row.modules?.label ?? '—'}</p>
-                    <p className="text-xs text-slate-400 font-mono">{row.modules?.path}</p>
+                    <p className="text-sm font-medium text-slate-800">
+                        {row.modules?.label ?? '—'}
+                    </p>
+                    <p className="text-xs text-slate-400 font-mono">
+                        {row.modules?.path}
+                    </p>
                 </div>
             ),
         },
@@ -276,7 +324,9 @@ export default function RolePermission({ permission }: ModuleProps) {
             cell: (row) => {
                 const t = row.modules?.type ?? 'transaction';
                 return (
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${TYPE_STYLE[t] ?? TYPE_STYLE.transaction}`}>
+                    <span
+                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${TYPE_STYLE[t] ?? TYPE_STYLE.transaction}`}
+                    >
                         {t}
                     </span>
                 );
@@ -286,14 +336,20 @@ export default function RolePermission({ permission }: ModuleProps) {
             key: 'permissions',
             header: 'Permissions',
             cell: (row) => (
-                <div className="flex items-center gap-1" title={PERM_KEYS.filter(k => row[k]).map(k => PERM_LABELS[k]).join(', ')}>
+                <div
+                    className="flex items-center gap-1"
+                    title={PERM_KEYS.filter((k) => row[k])
+                        .map((k) => PERM_LABELS[k])
+                        .join(', ')}
+                >
                     {PERM_KEYS.map((k) => (
                         <span key={k} title={PERM_LABELS[k]}>
                             <PermDot active={row[k]} />
                         </span>
                     ))}
                     <span className="ml-1 text-xs text-slate-400">
-                        {PERM_KEYS.filter((k) => row[k]).length}/{PERM_KEYS.length}
+                        {PERM_KEYS.filter((k) => row[k]).length}/
+                        {PERM_KEYS.length}
                     </span>
                 </div>
             ),
@@ -336,7 +392,9 @@ export default function RolePermission({ permission }: ModuleProps) {
         <div className="p-6 max-w-6xl mx-auto space-y-6 animate-in fade-in duration-300">
             {/* Toast */}
             {toast && (
-                <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl text-sm font-medium shadow-lg ${toast.type === 'success' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'}`}>
+                <div
+                    className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl text-sm font-medium shadow-lg ${toast.type === 'success' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'}`}
+                >
                     {toast.msg}
                 </div>
             )}
@@ -354,15 +412,26 @@ export default function RolePermission({ permission }: ModuleProps) {
                     <KeyRound size={20} className="text-amber-600" />
                 </div>
                 <div>
-                    <h2 className="text-xl font-bold text-slate-800">Module Permissions</h2>
-                    <p className="text-sm text-slate-500">Assign permissions to roles for each module</p>
+                    <h2 className="text-xl font-bold text-slate-800">
+                        Module Permissions
+                    </h2>
+                    <p className="text-sm text-slate-500">
+                        Assign permissions to roles for each module
+                    </p>
                 </div>
                 <div className="ml-auto flex items-center gap-2">
                     {!loading && (
-                        <Badge variant="secondary">{permissions.length} assignment{permissions.length !== 1 ? 's' : ''}</Badge>
+                        <Badge variant="secondary">
+                            {permissions.length} assignment
+                            {permissions.length !== 1 ? 's' : ''}
+                        </Badge>
                     )}
                     {permission.can_create && (
-                        <Button size="sm" onClick={openAssign} className="gap-1.5 bg-emerald-600 hover:bg-emerald-500">
+                        <Button
+                            size="sm"
+                            onClick={openAssign}
+                            className="gap-1.5 bg-emerald-600 hover:bg-emerald-500"
+                        >
                             <Plus size={14} /> Assign Permission
                         </Button>
                     )}
@@ -371,9 +440,14 @@ export default function RolePermission({ permission }: ModuleProps) {
 
             {/* Permission legend */}
             <div className="flex items-center gap-3 flex-wrap">
-                <span className="text-xs text-slate-400 font-medium uppercase tracking-wide">Legend:</span>
+                <span className="text-xs text-slate-400 font-medium uppercase tracking-wide">
+                    Legend:
+                </span>
                 {PERM_KEYS.map((k) => (
-                    <span key={k} className="flex items-center gap-1 text-xs text-slate-500">
+                    <span
+                        key={k}
+                        className="flex items-center gap-1 text-xs text-slate-500"
+                    >
                         <PermDot active={true} /> {PERM_LABELS[k]}
                     </span>
                 ))}
@@ -398,7 +472,11 @@ export default function RolePermission({ permission }: ModuleProps) {
                     emptyDescription="Use 'Assign Permission' to grant a role access to a module"
                     emptyAction={
                         permission.can_create ? (
-                            <Button size="sm" onClick={openAssign} className="gap-1.5 bg-emerald-600 hover:bg-emerald-500">
+                            <Button
+                                size="sm"
+                                onClick={openAssign}
+                                className="gap-1.5 bg-emerald-600 hover:bg-emerald-500"
+                            >
                                 <Plus size={14} /> Assign Permission
                             </Button>
                         ) : null
@@ -412,14 +490,18 @@ export default function RolePermission({ permission }: ModuleProps) {
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
                             <KeyRound size={16} className="text-amber-500" />
-                            {editingId ? 'Edit Permission' : 'Assign Permission'}
+                            {editingId
+                                ? 'Edit Permission'
+                                : 'Assign Permission'}
                         </DialogTitle>
                     </DialogHeader>
 
                     <div className="space-y-5 py-2">
                         {/* Role */}
                         <div className="space-y-1.5">
-                            <Label>Role <span className="text-rose-500">*</span></Label>
+                            <Label>
+                                Role <span className="text-rose-500">*</span>
+                            </Label>
                             <Select
                                 value={form.role_id}
                                 onValueChange={(v) => setField('role_id', v)}
@@ -430,7 +512,10 @@ export default function RolePermission({ permission }: ModuleProps) {
                                 </SelectTrigger>
                                 <SelectContent>
                                     {roles.map((r) => (
-                                        <SelectItem key={r.id} value={String(r.id)}>
+                                        <SelectItem
+                                            key={r.id}
+                                            value={String(r.id)}
+                                        >
                                             {r.name}
                                         </SelectItem>
                                     ))}
@@ -440,18 +525,31 @@ export default function RolePermission({ permission }: ModuleProps) {
 
                         {/* Module with type filter */}
                         <div className="space-y-1.5">
-                            <Label>Module <span className="text-rose-500">*</span></Label>
+                            <Label>
+                                Module <span className="text-rose-500">*</span>
+                            </Label>
                             <div className="flex gap-2">
                                 {/* Type filter */}
-                                <Select value={moduleTypeFilter} onValueChange={setModuleTypeFilter}>
+                                <Select
+                                    value={moduleTypeFilter}
+                                    onValueChange={setModuleTypeFilter}
+                                >
                                     <SelectTrigger className="w-40 shrink-0">
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="all">All types</SelectItem>
-                                        <SelectItem value="transaction">Transaction</SelectItem>
-                                        <SelectItem value="configuration">Configuration</SelectItem>
-                                        <SelectItem value="action">Action</SelectItem>
+                                        <SelectItem value="all">
+                                            All types
+                                        </SelectItem>
+                                        <SelectItem value="transaction">
+                                            Transaction
+                                        </SelectItem>
+                                        <SelectItem value="configuration">
+                                            Configuration
+                                        </SelectItem>
+                                        <SelectItem value="action">
+                                            Action
+                                        </SelectItem>
                                     </SelectContent>
                                 </Select>
                                 {/* Module picker */}
@@ -465,9 +563,16 @@ export default function RolePermission({ permission }: ModuleProps) {
                                     </SelectTrigger>
                                     <SelectContent className="max-h-56">
                                         {filteredModules.map((m) => (
-                                            <SelectItem key={m.id} value={String(m.id)}>
-                                                <span className="font-medium">{m.label}</span>
-                                                <span className="ml-1 text-xs text-muted-foreground font-mono">{m.path}</span>
+                                            <SelectItem
+                                                key={m.id}
+                                                value={String(m.id)}
+                                            >
+                                                <span className="font-medium">
+                                                    {m.label}
+                                                </span>
+                                                <span className="ml-1 text-xs text-muted-foreground font-mono">
+                                                    {m.path}
+                                                </span>
                                             </SelectItem>
                                         ))}
                                         {filteredModules.length === 0 && (
@@ -484,11 +589,19 @@ export default function RolePermission({ permission }: ModuleProps) {
                         <div className="space-y-1.5">
                             <Label>Module Display Type</Label>
                             <div className="flex gap-2">
-                                {(['transaction', 'configuration', 'action'] as AppModuleType[]).map((t) => (
+                                {(
+                                    [
+                                        'transaction',
+                                        'configuration',
+                                        'action',
+                                    ] as AppModuleType[]
+                                ).map((t) => (
                                     <button
                                         key={t}
                                         type="button"
-                                        onClick={() => setField('module_type', t)}
+                                        onClick={() =>
+                                            setField('module_type', t)
+                                        }
                                         className={`flex-1 py-1.5 rounded-lg border text-xs font-medium transition-all capitalize ${
                                             form.module_type === t
                                                 ? TYPE_STYLE[t]
@@ -500,8 +613,10 @@ export default function RolePermission({ permission }: ModuleProps) {
                                 ))}
                             </div>
                             <p className="text-xs text-slate-400">
-                                <strong>transaction</strong> → sidebar &nbsp;·&nbsp;
-                                <strong>configuration</strong> → top navbar &nbsp;·&nbsp;
+                                <strong>transaction</strong> → sidebar
+                                &nbsp;·&nbsp;
+                                <strong>configuration</strong> → top navbar
+                                &nbsp;·&nbsp;
                                 <strong>action</strong> → hidden from nav
                             </p>
                         </div>
@@ -524,7 +639,16 @@ export default function RolePermission({ permission }: ModuleProps) {
                                 <button
                                     type="button"
                                     className="text-xs text-emerald-600 hover:underline"
-                                    onClick={() => setForm((f) => ({ ...f, can_view: true, can_create: true, can_update: true, can_delete: true, can_export: true }))}
+                                    onClick={() =>
+                                        setForm((f) => ({
+                                            ...f,
+                                            can_view: true,
+                                            can_create: true,
+                                            can_update: true,
+                                            can_delete: true,
+                                            can_export: true,
+                                        }))
+                                    }
                                 >
                                     Select all
                                 </button>
@@ -532,7 +656,16 @@ export default function RolePermission({ permission }: ModuleProps) {
                                 <button
                                     type="button"
                                     className="text-xs text-slate-500 hover:underline"
-                                    onClick={() => setForm((f) => ({ ...f, can_view: false, can_create: false, can_update: false, can_delete: false, can_export: false }))}
+                                    onClick={() =>
+                                        setForm((f) => ({
+                                            ...f,
+                                            can_view: false,
+                                            can_create: false,
+                                            can_update: false,
+                                            can_delete: false,
+                                            can_export: false,
+                                        }))
+                                    }
                                 >
                                     Clear all
                                 </button>
@@ -540,19 +673,31 @@ export default function RolePermission({ permission }: ModuleProps) {
                         </div>
 
                         {formError && (
-                            <p className="text-sm text-rose-600 rounded-lg bg-rose-50 px-3 py-2">{formError}</p>
+                            <p className="text-sm text-rose-600 rounded-lg bg-rose-50 px-3 py-2">
+                                {formError}
+                            </p>
                         )}
                     </div>
 
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={saving}>
+                        <Button
+                            variant="outline"
+                            onClick={() => setDialogOpen(false)}
+                            disabled={saving}
+                        >
                             Cancel
                         </Button>
-                        <Button onClick={handleSave} disabled={saving} className="bg-emerald-600 hover:bg-emerald-500 min-w-24">
+                        <Button
+                            onClick={handleSave}
+                            disabled={saving}
+                            className="bg-emerald-600 hover:bg-emerald-500 min-w-24"
+                        >
                             {saving ? (
                                 <div className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                            ) : editingId ? (
+                                'Save Changes'
                             ) : (
-                                editingId ? 'Save Changes' : 'Assign'
+                                'Assign'
                             )}
                         </Button>
                     </DialogFooter>

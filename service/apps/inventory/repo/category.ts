@@ -1,5 +1,11 @@
-import type { CreateCategoryInput, UpdateCategoryInput } from '@/service/schema/category.schema';
-import { type PaginationParams, type PaginatedResult } from '@/service/core/pagination';
+import type {
+    CreateCategoryInput,
+    UpdateCategoryInput,
+} from '@/service/schema/category.schema';
+import {
+    type PaginationParams,
+    type PaginatedResult,
+} from '@/service/core/pagination';
 import { BaseRepository } from '@/service/core/base-repository';
 import type { RequestContext } from '@/types/request-context';
 
@@ -31,7 +37,7 @@ export class CategoryRepository extends BaseRepository {
         ctx: RequestContext,
         params: PaginationParams,
     ): Promise<PaginatedResult<Category>> {
-        const query = this.applyScope(
+        const query = this.applyFilter(
             this.db.from(TABLE).select('*', { count: 'exact' }),
             ctx,
         );
@@ -39,7 +45,7 @@ export class CategoryRepository extends BaseRepository {
     }
 
     async findOne(ctx: RequestContext, id: number): Promise<Category | null> {
-        const { data, error } = await this.applyScope(
+        const { data, error } = await this.applyFilter(
             this.db.from(TABLE).select('*').eq('id', id),
             ctx,
         ).single();
@@ -51,7 +57,10 @@ export class CategoryRepository extends BaseRepository {
         return data;
     }
 
-    async insertOne(ctx: RequestContext, input: CreateCategoryInput): Promise<Category> {
+    async insertOne(
+        ctx: RequestContext,
+        input: CreateCategoryInput,
+    ): Promise<Category> {
         const { data, error } = await this.scopedDb(Number(ctx.companyId))
             .from(TABLE)
             .insert({ ...input, user_id: ctx.userId })
@@ -67,8 +76,11 @@ export class CategoryRepository extends BaseRepository {
         id: number,
         input: UpdateCategoryInput,
     ): Promise<Category> {
-        const { data, error } = await this.applyScope(
-            this.db.from(TABLE).update({ ...input }).eq('id', id),
+        const { data, error } = await this.applyFilter(
+            this.db
+                .from(TABLE)
+                .update({ ...input })
+                .eq('id', id),
             ctx,
         )
             .select()
@@ -79,7 +91,7 @@ export class CategoryRepository extends BaseRepository {
     }
 
     async deleteOne(ctx: RequestContext, id: number): Promise<void> {
-        const { error } = await this.applyScope(
+        const { error } = await this.applyFilter(
             this.db.from(TABLE).delete().eq('id', id),
             ctx,
         );
