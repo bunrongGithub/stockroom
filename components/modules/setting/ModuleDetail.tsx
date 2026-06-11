@@ -1,11 +1,6 @@
 'use client';
 
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
-import { Separator } from '@/components/ui/separator';
 import {
     Card,
     CardContent,
@@ -13,667 +8,478 @@ import {
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { useModuleActions } from '@/hook/usePageAction';
+import type { ModuleProps } from '@/lib/registry';
+import type { AppModuleType } from '@/types/app';
+import { ArrowLeft, Loader2, Save, Search } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useState } from 'react';
-import { ChevronDown, ChevronRight, Package } from 'lucide-react';
+import PopUpSearch from '@/components/ui/PopUpSearch';
+import { PopUpSearchTable } from '@/components/ui/PopUpSearchTable';
+import { useForm, Controller } from 'react-hook-form';
+import { useState, useEffect } from 'react';
+import {
+    InputGroup,
+    InputGroupAddon,
+    InputGroupInput,
+} from '../../ui/input-group';
 
-interface InventoryItem {
-    id: number;
-    key: string;
+type FormValues = {
     label: string;
+    key: string;
     path: string;
     component: string;
-    parent_id: number | null;
     icon: string;
+    parent_id: number | null;
     sort_order: number;
+    type: AppModuleType;
     is_active: boolean;
-    created_at: string;
-    writed_at: string | null;
-    type: string;
     is_initial_data: boolean;
-    children?: InventoryItem[];
-}
-
-interface InventoryDetailFormProps {
-    item: InventoryItem;
-    onSave?: (item: InventoryItem) => void;
-    readOnly?: boolean;
-}
-const sampleInventoryItem = {
-    id: 1,
-    key: 'inventory',
-    label: 'Inventory',
-    path: '/inventory',
-    component: 'InventoryRootModule',
-    parent_id: null,
-    icon: 'Box',
-    sort_order: 1,
-    is_active: true,
-    created_at: '2026-06-03T16:32:32.671178+00:00',
-    writed_at: null,
-    type: 'transaction',
-    is_initial_data: false,
-    children: [
-        {
-            id: 5,
-            key: 'inventory/stock-adjust',
-            label: 'Stock Adjust',
-            path: '/inventory/stock_adjust',
-            component: 'InventoryStockAdjModule',
-            parent_id: 1,
-            icon: 'ArrowLeftRight',
-            sort_order: 3,
-            is_active: true,
-            created_at: '2026-06-03T16:32:32.671178+00:00',
-            writed_at: null,
-            type: 'transaction',
-            is_initial_data: false,
-            children: [],
-        },
-        {
-            id: 6,
-            key: '/inventory/configurations',
-            label: 'Configuration',
-            path: '/inventory/configurations',
-            component: 'InventoryConfigModule',
-            parent_id: 1,
-            icon: 'Settings',
-            sort_order: 4,
-            is_active: true,
-            created_at: '2026-06-03T16:32:32.671178+00:00',
-            writed_at: null,
-            type: 'transaction',
-            is_initial_data: false,
-            children: [
-                {
-                    id: 7,
-                    key: '/inventory/configurations/category',
-                    label: 'Category',
-                    path: '/inventory/configurations/category',
-                    component: 'InventoryCategoryModule',
-                    parent_id: 6,
-                    icon: 'Tag',
-                    sort_order: 1,
-                    is_active: true,
-                    created_at: '2026-06-03T16:32:32.671178+00:00',
-                    writed_at: null,
-                    type: 'transaction',
-                    is_initial_data: true,
-                    children: [],
-                },
-                {
-                    id: 3,
-                    key: '/inventory/configurations/items',
-                    label: 'Stock Items',
-                    path: '/inventory/configurations/stock-item',
-                    component: 'InventoryStockItemsModule',
-                    parent_id: 6,
-                    icon: 'Package',
-                    sort_order: 1,
-                    is_active: true,
-                    created_at: '2026-06-03T16:32:32.671178+00:00',
-                    writed_at: null,
-                    type: 'transaction',
-                    is_initial_data: true,
-                    children: [],
-                },
-            ],
-        },
-    ],
 };
-export function InventoryDetailForm({
-    item = sampleInventoryItem,
-    onSave,
-    readOnly = false,
-}: InventoryDetailFormProps) {
-    const [formData, setFormData] = useState<InventoryItem>(item);
-    const [isEditing, setIsEditing] = useState(false);
-    const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
 
-    const handleInputChange = (field: keyof InventoryItem, value: any) => {
-        setFormData((prev) => ({
-            ...prev,
-            [field]: value,
-        }));
-    };
+function slugify(value: string): string {
+    return value
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, '-')
+        .replace(/[^a-z0-9/-]/g, '');
+}
 
-    const handleSave = () => {
-        onSave?.(formData);
-        setIsEditing(false);
-    };
+export default function ModuleCreate({
+    module,
+    permission,
+    actionModules,
+}: ModuleProps) {
+    useModuleActions({ actionModules, permission, modulePath: module.path });
 
-    const handleCancel = () => {
-        setFormData(item);
-        setIsEditing(false);
-    };
+    const router = useRouter();
+    const [parentLabel, setParentLabel] = useState('');
+    const [parentPopupOpen, setParentPopupOpen] = useState(false);
+    const [toast, setToast] = useState<{
+        msg: string;
+        type: 'success' | 'error';
+    } | null>(null);
 
-    const toggleExpanded = (id: number) => {
-        const newExpanded = new Set(expandedIds);
-        if (newExpanded.has(id)) {
-            newExpanded.delete(id);
-        } else {
-            newExpanded.add(id);
+    const {
+        register,
+        handleSubmit,
+        control,
+        watch,
+        setValue,
+        formState: { errors, isSubmitting },
+    } = useForm<FormValues>({
+        defaultValues: {
+            label: '',
+            key: '',
+            path: '',
+            component: '',
+            icon: '',
+            parent_id: null,
+            sort_order: 0,
+            type: 'transaction',
+            is_active: true,
+            is_initial_data: false,
+        },
+    });
+
+    // Auto-derive key and path from label while they are still in sync
+    const watchedLabel = watch('label');
+    const watchedKey = watch('key');
+    const watchedPath = watch('path');
+
+    useEffect(() => {
+        const slug = slugify(watchedLabel);
+        const derived = slug ? `/${slug}` : '';
+        // Only overwrite if the field is empty or still matches the previous derived value
+        if (!watchedKey || watchedKey === `/${slugify(watchedLabel)}`) {
+            setValue('key', derived, { shouldValidate: false });
         }
-        setExpandedIds(newExpanded);
-    };
+        if (!watchedPath || watchedPath === `/${slugify(watchedLabel)}`) {
+            setValue('path', derived, { shouldValidate: false });
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [watchedLabel]);
 
-    const formatDate = (dateString: string) => {
-        const date = new Date(dateString);
-        return date.toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-        });
-    };
+    function showToast(msg: string, type: 'success' | 'error') {
+        setToast({ msg, type });
+        setTimeout(() => setToast(null), 3000);
+    }
 
-    const typeColor = formData.type === 'transaction' ? 'default' : 'secondary';
+    async function onSubmit(data: FormValues) {
+        try {
+            const res = await fetch('/api/setting/module', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    label: data.label.trim(),
+                    key: data.key.trim(),
+                    path: data.path.trim(),
+                    component: data.component.trim(),
+                    icon: data.icon.trim() || null,
+                    parent_id: data.parent_id ?? null,
+                    sort_order: data.sort_order,
+                    type: data.type,
+                    is_active: data.is_active,
+                    is_initial_data: data.is_initial_data,
+                }),
+            });
+
+            const json = await res.json();
+            if (!res.ok) {
+                throw new Error(
+                    typeof json.error === 'string'
+                        ? json.error
+                        : 'Failed to create module',
+                );
+            }
+
+            showToast('Module created successfully', 'success');
+            setTimeout(() => router.push('/setting/module'), 1000);
+        } catch (err) {
+            showToast(
+                err instanceof Error ? err.message : 'Something went wrong',
+                'error',
+            );
+        }
+    }
 
     return (
-        <div className="w-full max-w-4xl mx-auto space-y-6">
-            {/* Header Section */}
+        <div>
+            {/* Toast */}
+            {toast && (
+                <div
+                    className={`fixed right-4 top-4 z-50 rounded-xl px-4 py-3 text-sm font-medium shadow-lg transition-all ${
+                        toast.type === 'success'
+                            ? 'bg-emerald-500 text-white'
+                            : 'bg-rose-500 text-white'
+                    }`}
+                >
+                    {toast.msg}
+                </div>
+            )}
+
+            {/* Header */}
             <div className="flex items-start justify-between">
-                <div className="space-y-2">
+                <div className="space-y-1">
                     <h1 className="text-3xl font-bold tracking-tight">
-                        {formData.label}
+                        {watchedLabel || 'Module'}
                     </h1>
                     <p className="text-sm text-muted-foreground">
-                        Module Configuration • ID: {formData.id}
+                        Module Configuration • New
                     </p>
                 </div>
-                {!readOnly && (
-                    <div className="flex gap-2">
-                        {isEditing ? (
-                            <>
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={handleCancel}
-                                >
-                                    Cancel
-                                </Button>
-                                <Button size="sm" onClick={handleSave}>
-                                    Save Changes
-                                </Button>
-                            </>
+                <div className="flex gap-2">
+                    <Button
+                        type="button"
+                        className="border-none shadow-sm"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => router.push('/setting/module')}
+                        disabled={isSubmitting}
+                    >
+                        <ArrowLeft className="mr-1.5 size-4" />
+                        Back
+                    </Button>
+                    <Button
+                        type="button"
+                        size="sm"
+                        onClick={handleSubmit(onSubmit)}
+                        disabled={isSubmitting}
+                    >
+                        {isSubmitting ? (
+                            <Loader2 className="mr-1.5 size-4 animate-spin" />
                         ) : (
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setIsEditing(true)}
-                            >
-                                Edit
-                            </Button>
+                            <Save className="mr-1.5 size-4" />
                         )}
-                    </div>
-                )}
-            </div>
-
-            {/* Status Badges */}
-            <div className="flex flex-wrap gap-2">
-                <Badge variant={formData.is_active ? 'default' : 'secondary'}>
-                    {formData.is_active ? '✓ Active' : 'Inactive'}
-                </Badge>
-                <Badge variant={typeColor}>{formData.type}</Badge>
-                {formData.is_initial_data && (
-                    <Badge variant="outline">Initial Data</Badge>
-                )}
+                        {isSubmitting ? 'Saving...' : 'Save Module'}
+                    </Button>
+                </div>
             </div>
 
             {/* Tabs Navigation */}
-            <Tabs defaultValue="details" className="w-full">
-                <TabsList className="grid w-full max-w-md grid-cols-2">
-                    <TabsTrigger value="details">Details</TabsTrigger>
-                    {formData.children && formData.children.length > 0 && (
-                        <TabsTrigger value="children">
-                            Children ({formData.children.length})
-                        </TabsTrigger>
-                    )}
+            <Tabs
+                defaultValue="basic-information"
+                className="w-full flex-col h-full"
+            >
+                <TabsList className="grid w-full max-w-2xl p-3 grid-cols-4">
+                    <TabsTrigger value="basic-information">
+                        Basic Information
+                    </TabsTrigger>
+                    <TabsTrigger value="navigation">Navigation</TabsTrigger>
+                    <TabsTrigger value="configuration">
+                        Configuration
+                    </TabsTrigger>
+                    <TabsTrigger value="childrent">Childrent</TabsTrigger>
                 </TabsList>
 
-                {/* Details Tab */}
-                <TabsContent value="details" className="space-y-6">
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                        {/* Primary Information */}
-                        <div className="lg:col-span-2 space-y-6">
-                            {/* Basic Information */}
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle>Basic Information</CardTitle>
-                                    <CardDescription>
-                                        Core module details and configuration
-                                    </CardDescription>
-                                </CardHeader>
-                                <CardContent className="space-y-6">
-                                    {/* Key */}
-                                    <div className="space-y-2">
-                                        <Label htmlFor="key">Key</Label>
-                                        <Input
-                                            id="key"
-                                            value={formData.key}
-                                            onChange={(e) =>
-                                                handleInputChange(
-                                                    'key',
-                                                    e.target.value,
-                                                )
-                                            }
-                                            disabled={!isEditing || readOnly}
-                                            className="font-mono text-sm"
-                                        />
-                                    </div>
+                {/* Basic Information Tab */}
+                <TabsContent
+                    value="basic-information"
+                    className="space-y-6 w-full"
+                >
+                    <Card className="border-none w-full">
+                        <CardContent className="grid grid-cols-2 gap-3 pt-4">
+                            {/* Key */}
+                            <div className="space-y-2">
+                                <Label htmlFor="key">Key</Label>
+                                <Input
+                                    id="key"
+                                    placeholder="/sale/create"
+                                    className="font-mono text-sm"
+                                    {...register('key', {
+                                        required: 'Required',
+                                    })}
+                                />
+                                {errors.key && (
+                                    <p className="text-xs text-destructive">
+                                        {errors.key.message}
+                                    </p>
+                                )}
+                            </div>
 
-                                    {/* Label */}
-                                    <div className="space-y-2">
-                                        <Label htmlFor="label">Label</Label>
-                                        <Input
-                                            id="label"
-                                            value={formData.label}
-                                            onChange={(e) =>
-                                                handleInputChange(
-                                                    'label',
-                                                    e.target.value,
-                                                )
-                                            }
-                                            disabled={!isEditing || readOnly}
-                                        />
-                                    </div>
+                            {/* Label */}
+                            <div className="space-y-2">
+                                <Label htmlFor="label">Label</Label>
+                                <Input
+                                    id="label"
+                                    placeholder="Sale"
+                                    {...register('label', {
+                                        required: 'Required',
+                                    })}
+                                />
+                                {errors.label && (
+                                    <p className="text-xs text-destructive">
+                                        {errors.label.message}
+                                    </p>
+                                )}
+                            </div>
 
-                                    {/* Component Name */}
-                                    <div className="space-y-2">
-                                        <Label htmlFor="component">
-                                            Component
-                                        </Label>
-                                        <Input
-                                            id="component"
-                                            value={formData.component}
-                                            onChange={(e) =>
-                                                handleInputChange(
-                                                    'component',
-                                                    e.target.value,
-                                                )
-                                            }
-                                            disabled={!isEditing || readOnly}
-                                            className="font-mono text-sm"
-                                        />
-                                    </div>
+                            {/* Component */}
+                            <div className="space-y-2">
+                                <Label htmlFor="component">Component</Label>
+                                <Input
+                                    id="component"
+                                    placeholder="e.g. SaleModule"
+                                    className="font-mono text-sm"
+                                    {...register('component', {
+                                        required: 'Required',
+                                    })}
+                                />
+                                {errors.component && (
+                                    <p className="text-xs text-destructive">
+                                        {errors.component.message}
+                                    </p>
+                                )}
+                            </div>
 
-                                    {/* Icon */}
-                                    <div className="space-y-2">
-                                        <Label htmlFor="icon">Icon</Label>
-                                        <Input
-                                            id="icon"
-                                            value={formData.icon}
-                                            onChange={(e) =>
-                                                handleInputChange(
-                                                    'icon',
-                                                    e.target.value,
-                                                )
-                                            }
-                                            disabled={!isEditing || readOnly}
-                                        />
-                                    </div>
-                                </CardContent>
-                            </Card>
+                            {/* Icon */}
+                            <div className="space-y-2">
+                                <Label htmlFor="icon">Icon</Label>
+                                <Input
+                                    id="icon"
+                                    placeholder="e.g. Box"
+                                    {...register('icon')}
+                                />
+                            </div>
 
-                            {/* Navigation & Paths */}
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle>Navigation</CardTitle>
-                                    <CardDescription>
-                                        Routing and path configuration
-                                    </CardDescription>
-                                </CardHeader>
-                                <CardContent className="space-y-6">
-                                    {/* Path */}
-                                    <div className="space-y-2">
-                                        <Label htmlFor="path">Path</Label>
-                                        <Input
-                                            id="path"
-                                            value={formData.path}
-                                            onChange={(e) =>
-                                                handleInputChange(
-                                                    'path',
-                                                    e.target.value,
-                                                )
-                                            }
-                                            disabled={!isEditing || readOnly}
-                                            className="font-mono text-sm"
-                                        />
-                                    </div>
-
-                                    {/* Parent ID */}
-                                    <div className="space-y-2">
-                                        <Label htmlFor="parent_id">
-                                            Parent Menu
-                                        </Label>
-                                        <Input
-                                            id="parent_id"
-                                            type="number"
-                                            value={formData.parent_id ?? ''}
-                                            onChange={(e) =>
-                                                handleInputChange(
-                                                    'parent_id',
-                                                    e.target.value
-                                                        ? parseInt(
-                                                              e.target.value,
-                                                          )
-                                                        : null,
-                                                )
-                                            }
-                                            disabled={!isEditing || readOnly}
-                                            placeholder="None"
-                                        />
-                                    </div>
-
-                                    {/* Sort Order */}
-                                    <div className="space-y-2">
-                                        <Label htmlFor="sort_order">
-                                            Sort Order
-                                        </Label>
-                                        <Input
-                                            id="sort_order"
-                                            type="number"
-                                            value={formData.sort_order}
-                                            onChange={(e) =>
-                                                handleInputChange(
-                                                    'sort_order',
-                                                    parseInt(e.target.value),
-                                                )
-                                            }
-                                            disabled={!isEditing || readOnly}
-                                        />
-                                    </div>
-                                </CardContent>
-                            </Card>
-
-                            {/* Configuration */}
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle>Configuration</CardTitle>
-                                    <CardDescription>
-                                        Module type and status settings
-                                    </CardDescription>
-                                </CardHeader>
-                                <CardContent className="space-y-6">
-                                    {/* Type */}
-                                    <div className="space-y-2">
-                                        <Label htmlFor="type">Type</Label>
-                                        <select
-                                            id="type"
-                                            value={formData.type}
-                                            onChange={(e) =>
-                                                handleInputChange(
-                                                    'type',
-                                                    e.target.value,
-                                                )
-                                            }
-                                            disabled={!isEditing || readOnly}
-                                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                                        >
-                                            <option value="transaction">
-                                                Transaction
-                                            </option>
-                                            <option value="configuration">
-                                                Configuration
-                                            </option>
-                                        </select>
-                                    </div>
-
-                                    {/* Active Status */}
-                                    <div className="flex items-center justify-between">
-                                        <div className="space-y-0.5">
-                                            <Label>Status</Label>
-                                            <p className="text-sm text-muted-foreground">
-                                                Enable this module
-                                            </p>
-                                        </div>
-                                        <Switch
-                                            checked={formData.is_active}
-                                            onCheckedChange={(checked) =>
-                                                handleInputChange(
-                                                    'is_active',
-                                                    checked,
-                                                )
-                                            }
-                                            disabled={!isEditing || readOnly}
-                                        />
-                                    </div>
-
-                                    {/* Initial Data */}
-                                    <div className="flex items-center justify-between">
-                                        <div className="space-y-0.5">
-                                            <Label>Initial Data</Label>
-                                            <p className="text-sm text-muted-foreground">
-                                                Part of base configuration
-                                            </p>
-                                        </div>
-                                        <Switch
-                                            checked={formData.is_initial_data}
-                                            onCheckedChange={(checked) =>
-                                                handleInputChange(
-                                                    'is_initial_data',
-                                                    checked,
-                                                )
-                                            }
-                                            disabled={!isEditing || readOnly}
-                                        />
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        </div>
-
-                        {/* Sidebar - Metadata */}
-                        <div className="space-y-6">
-                            {/* Timestamps */}
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle className="text-lg">
-                                        Metadata
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent className="space-y-4">
-                                    <div className="space-y-2">
-                                        <p className="text-xs font-semibold text-muted-foreground uppercase">
-                                            Created
-                                        </p>
-                                        <p className="text-sm font-mono">
-                                            {formatDate(formData.created_at)}
-                                        </p>
-                                    </div>
-
-                                    <Separator />
-
-                                    <div className="space-y-2">
-                                        <p className="text-xs font-semibold text-muted-foreground uppercase">
-                                            Last Updated
-                                        </p>
-                                        {formData.writed_at ? (
-                                            <p className="text-sm font-mono">
-                                                {formatDate(formData.writed_at)}
-                                            </p>
-                                        ) : (
-                                            <p className="text-sm text-muted-foreground">
-                                                Never
-                                            </p>
-                                        )}
-                                    </div>
-
-                                    <Separator />
-
-                                    <div className="space-y-2">
-                                        <p className="text-xs font-semibold text-muted-foreground uppercase">
-                                            ID
-                                        </p>
-                                        <p className="text-sm font-mono font-bold">
-                                            {formData.id}
-                                        </p>
-                                    </div>
-                                </CardContent>
-                            </Card>
-
-                            {/* Quick Stats */}
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle className="text-lg">
-                                        Summary
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent className="space-y-3">
-                                    <div className="space-y-1">
-                                        <p className="text-xs text-muted-foreground">
-                                            Module Type
-                                        </p>
-                                        <Badge
-                                            variant="outline"
-                                            className="text-xs"
-                                        >
-                                            {formData.type}
-                                        </Badge>
-                                    </div>
-                                    <div className="space-y-1">
-                                        <p className="text-xs text-muted-foreground">
-                                            Status
-                                        </p>
-                                        <Badge
-                                            variant={
-                                                formData.is_active
-                                                    ? 'default'
-                                                    : 'secondary'
-                                            }
-                                            className="text-xs"
-                                        >
-                                            {formData.is_active
-                                                ? 'Active'
-                                                : 'Inactive'}
-                                        </Badge>
-                                    </div>
-                                    <div className="space-y-1">
-                                        <p className="text-xs text-muted-foreground">
-                                            Sort Order
-                                        </p>
-                                        <p className="text-sm font-semibold">
-                                            {formData.sort_order}
-                                        </p>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        </div>
-                    </div>
+                            {/* Type */}
+                            <div className="space-y-2">
+                                <Label htmlFor="type">Type</Label>
+                                <select
+                                    id="type"
+                                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                    {...register('type')}
+                                >
+                                    <option value="transaction">
+                                        Transaction
+                                    </option>
+                                    <option value="configuration">
+                                        Configuration
+                                    </option>
+                                    <option value="action">Action</option>
+                                </select>
+                            </div>
+                        </CardContent>
+                    </Card>
                 </TabsContent>
 
-                {/* Children Tab */}
-                {formData.children && formData.children.length > 0 && (
-                    <TabsContent value="children" className="space-y-6">
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>Child Modules</CardTitle>
-                                <CardDescription>
-                                    {formData.children.length} sub-module
-                                    {formData.children.length !== 1 ? 's' : ''}
-                                </CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="space-y-2">
-                                    {formData.children.map((child) => (
-                                        <ChildrenTreeItem
-                                            key={child.id}
-                                            item={child}
-                                            isExpanded={expandedIds.has(
-                                                child.id,
-                                            )}
-                                            onToggleExpand={toggleExpanded}
-                                            depth={0}
-                                            expandedIds={expandedIds}
-                                        />
-                                    ))}
+                {/* Navigation Tab */}
+                <TabsContent value="navigation">
+                    <Card className="border-none">
+                        <CardHeader>
+                            <CardTitle>Navigation</CardTitle>
+                            <CardDescription>
+                                Routing and path configuration
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="grid grid-cols-2 gap-3">
+                            {/* Path URL */}
+                            <div className="space-y-2">
+                                <Label htmlFor="path">Path URL</Label>
+                                <Input
+                                    id="path"
+                                    placeholder="e.g. /inventory/stock-item"
+                                    className="font-mono text-sm"
+                                    {...register('path', {
+                                        required: 'Required',
+                                    })}
+                                />
+                                {errors.path && (
+                                    <p className="text-xs text-destructive">
+                                        {errors.path.message}
+                                    </p>
+                                )}
+                            </div>
+
+                            {/* Parent Menu */}
+                            <div className="space-y-2">
+                                <Label htmlFor="parent_id">Parent Menu</Label>
+                                <InputGroup className="h-10">
+                                    <InputGroupInput
+                                        id="parent_id"
+                                        placeholder="Search parent module..."
+                                        readOnly
+                                        value={parentLabel}
+                                    />
+                                    <InputGroupAddon align="inline-end">
+                                        <button
+                                            type="button"
+                                            className="cursor-pointer"
+                                            onClick={() =>
+                                                setParentPopupOpen(true)
+                                            }
+                                        >
+                                            <Search className="w-4" />
+                                        </button>
+                                    </InputGroupAddon>
+                                </InputGroup>
+                            </div>
+
+                            {/* Sort Order */}
+                            <div className="space-y-2">
+                                <Label htmlFor="sort_order">Ordering</Label>
+                                <Input
+                                    id="sort_order"
+                                    type="number"
+                                    placeholder="0"
+                                    {...register('sort_order', {
+                                        valueAsNumber: true,
+                                        min: {
+                                            value: 0,
+                                            message: 'Must be 0 or higher',
+                                        },
+                                    })}
+                                />
+                                {errors.sort_order && (
+                                    <p className="text-xs text-destructive">
+                                        {errors.sort_order.message}
+                                    </p>
+                                )}
+                            </div>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+
+                {/* Configuration Tab */}
+                <TabsContent value="configuration">
+                    <Card className="border-none">
+                        <CardHeader>
+                            <CardTitle>Configuration</CardTitle>
+                            <CardDescription>
+                                Module type and status settings
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-6">
+                            {/* Active Status */}
+                            <div className="flex items-center justify-between">
+                                <div className="space-y-0.5">
+                                    <Label>Status</Label>
+                                    <p className="text-sm text-muted-foreground">
+                                        Enable this module
+                                    </p>
                                 </div>
-                            </CardContent>
-                        </Card>
-                    </TabsContent>
-                )}
+                                <Controller
+                                    name="is_active"
+                                    control={control}
+                                    render={({ field }) => (
+                                        <Switch
+                                            checked={field.value}
+                                            onCheckedChange={field.onChange}
+                                        />
+                                    )}
+                                />
+                            </div>
+
+                            {/* Initial Data */}
+                            <div className="flex items-center justify-between">
+                                <div className="space-y-0.5">
+                                    <Label>Initial Data</Label>
+                                    <p className="text-sm text-muted-foreground">
+                                        Part of base configuration
+                                    </p>
+                                </div>
+                                <Controller
+                                    name="is_initial_data"
+                                    control={control}
+                                    render={({ field }) => (
+                                        <Switch
+                                            checked={field.value}
+                                            onCheckedChange={field.onChange}
+                                        />
+                                    )}
+                                />
+                            </div>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
             </Tabs>
-        </div>
-    );
-}
 
-function ChildrenTreeItem({
-    item,
-    isExpanded,
-    onToggleExpand,
-    depth = 0,
-    expandedIds,
-}: {
-    item: InventoryItem;
-    isExpanded: boolean;
-    onToggleExpand: (id: number) => void;
-    depth?: number;
-    expandedIds?: Set<number>;
-}) {
-    const hasChildren = item.children && item.children.length > 0;
-    const paddingLeft = `${depth * 1.5}rem`;
-
-    return (
-        <div className="space-y-1">
-            <div
-                className="flex items-center gap-2 p-2 rounded-md hover:bg-muted cursor-pointer transition-colors"
-                style={{ paddingLeft }}
+            {/* Parent Menu Popup */}
+            <PopUpSearch
+                open={parentPopupOpen}
+                title="Parent Menu"
+                placeholder="Search module..."
+                onClose={() => setParentPopupOpen(false)}
             >
-                {hasChildren ? (
-                    <button
-                        onClick={() => onToggleExpand(item.id)}
-                        className="flex-shrink-0 p-0 hover:bg-background rounded transition-colors"
-                    >
-                        {isExpanded ? (
-                            <ChevronDown className="w-4 h-4" />
-                        ) : (
-                            <ChevronRight className="w-4 h-4" />
-                        )}
-                    </button>
-                ) : (
-                    <div className="w-4 h-4" />
-                )}
-
-                <Package className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-
-                <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{item.label}</p>
-                    <p className="text-xs text-muted-foreground truncate">
-                        {item.key}
-                    </p>
-                </div>
-
-                <div className="flex items-center gap-2 flex-shrink-0">
-                    <Badge
-                        variant="outline"
-                        className="text-xs whitespace-nowrap"
-                    >
-                        {item.type}
-                    </Badge>
-                    <Badge
-                        variant={item.is_active ? 'default' : 'secondary'}
-                        className="text-xs whitespace-nowrap"
-                    >
-                        {item.is_active ? 'Active' : 'Inactive'}
-                    </Badge>
-                </div>
-            </div>
-
-            {/* Nested Children */}
-            {hasChildren && isExpanded && (
-                <div>
-                    {item.children!.map((child) => (
-                        <ChildrenTreeItem
-                            key={child.id}
-                            item={child}
-                            isExpanded={expandedIds?.has(child.id) || false}
-                            onToggleExpand={onToggleExpand}
-                            depth={depth + 1}
-                            expandedIds={expandedIds}
-                        />
-                    ))}
-                </div>
-            )}
+                <PopUpSearchTable<
+                    { id: number; label: string } & Record<string, unknown>
+                >
+                    apiUrl="/api/setting/module/lookup"
+                    flatData
+                    selectedId={watch('parent_id')}
+                    onRowSelect={(row) => {
+                        setValue('parent_id', row.id, { shouldDirty: true });
+                        setParentLabel(String(row.label ?? ''));
+                        setParentPopupOpen(false);
+                    }}
+                    columns={[
+                        {
+                            key: 'id',
+                            header: '#',
+                            className: 'w-16 text-muted-foreground',
+                        },
+                        {
+                            key: 'label',
+                            header: 'Module',
+                            filterable: true,
+                            getValue: (r) => String(r.label ?? ''),
+                        },
+                        {
+                            key: 'type',
+                            header: 'Type',
+                            className: 'w-28',
+                        },
+                        {
+                            key: 'path',
+                            header: 'Path',
+                            className: 'font-mono text-xs',
+                        },
+                    ]}
+                />
+            </PopUpSearch>
         </div>
     );
 }

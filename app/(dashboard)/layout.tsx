@@ -14,6 +14,7 @@ import {
     Loader2, LogOut,
     User,
     UserCheck,
+    ShoppingBagIcon,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import Image from 'next/image';
@@ -28,7 +29,7 @@ import type { Action } from '@/types';
 
 const ICON_MAP: Record<string, LucideIcon> = {
     Box, BadgePercent, Package, Warehouse, ArrowLeftRight,
-    Settings, Tag, Ruler, Award,User, UserCheck
+    Settings, Tag, Ruler, Award,User, UserCheck, ShoppingBagIcon
 };
 
 function ModuleIcon({ name, size = 16, className }: { name: string | null; size?: number; className?: string }) {

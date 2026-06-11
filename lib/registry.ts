@@ -72,6 +72,7 @@ const registry = new Map<string, LazyLoader>([
     ['Module', () => import('@/components/modules/setting/Module')],
     ['ModuleCreate', () => import('@/components/modules/ModuleCreate')],
     ['ModuleDetail', () => import('@/components/modules/setting/ModuleDetail')],
+    ['ModuleUpdate', () => import('@/components/modules/setting/ModuleUpdate')],
     [
         'RolePermission',
         () => import('@/components/modules/setting/RolePermission'),

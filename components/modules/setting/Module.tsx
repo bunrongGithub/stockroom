@@ -24,6 +24,8 @@ export default function ModuleComponent({
     const staticActions = pageAction?.actions.filter((a) => !a.dynamic) ?? [];
     const dynamicActions = pageAction?.actions.filter((a) => a.dynamic) ?? [];
 
+
+    console.log(dynamicActions)
     const displayModules = (initialData as AppModule[]) ?? [];
     const displayMeta = initialMeta ?? DEFAULT_META;
 
@@ -211,7 +213,7 @@ export default function ModuleComponent({
                         <span className="font-semibold text-slate-700">
                             {(displayMeta.page - 1) * displayMeta.limit + 1}
                         </span>
-                        {' – '}
+                        {' - '}
                         <span className="font-semibold text-slate-700">
                             {Math.min(
                                 displayMeta.page * displayMeta.limit,
