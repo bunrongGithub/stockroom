@@ -3,6 +3,7 @@
 import type { DataTableColumn } from '@/components/ui/DataTable';
 import { DataTable } from '@/components/ui/DataTable';
 import { Badge } from '@/components/ui/badge';
+import { useModuleActions } from '@/hook/usePageAction';
 import type { ModuleProps } from '@/lib/registry';
 import { Users } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -79,7 +80,8 @@ const COLUMNS: DataTableColumn<UserRow>[] = [
     },
 ];
 
-export default function User(_props: ModuleProps) {
+export default function User({ module, permission, actionModules }: ModuleProps) {
+    useModuleActions({ actionModules, permission, modulePath: module.path });
     const [users, setUsers] = useState<UserRow[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);

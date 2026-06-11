@@ -1,11 +1,15 @@
 'use client';
 
+import { useModuleActions } from '@/hook/usePageAction';
 import type { ModuleProps } from '@/lib/registry';
 import { Warehouse } from 'lucide-react';
 
-// This module is rendered by the catch-all when /inventory/branch has no specific page override.
-// In dev the specific page at app/(dashboard)/inventory/branch/page.tsx takes priority.
-export default function InventoryBranchModule({ permission }: ModuleProps) {
+export default function InventoryBranchModule({
+    module,
+    permission,
+    actionModules,
+}: ModuleProps) {
+    useModuleActions({ actionModules, permission, modulePath: module.path });
     return (
         <div className="p-6 space-y-4">
             <div className="flex items-center gap-2">

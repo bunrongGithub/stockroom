@@ -59,7 +59,7 @@ export class InventoryRepository extends BaseRepository {
         ctx: RequestContext,
         params: PaginationParams,
     ): Promise<PaginatedResult<InventoryItem>> {
-        const query = this.applyScope(
+        const query = this.applyFilter(
             this.db
                 .from(TABLE)
                 .select(
@@ -76,7 +76,7 @@ export class InventoryRepository extends BaseRepository {
         id: number,
     ): Promise<InventoryItem | null> {
         const query = `*, category:inventory_item_category(id, name, reference_no), uom:inventory_item_uom(id, name), company:company(id, name)`;
-        const { data, error } = await this.applyScope(
+        const { data, error } = await this.applyFilter(
             this.db.from(TABLE).select(query).eq('id', id),
             ctx,
         ).single();
@@ -116,7 +116,7 @@ export class InventoryRepository extends BaseRepository {
         input: UpdateInventoryInput,
     ): Promise<InventoryItem> {
         const sku = input.sku ? input.sku : generateSKU('SKU');
-        const { data, error } = await this.applyScope(
+        const { data, error } = await this.applyFilter(
             this.db
                 .from(TABLE)
                 .update({ ...input, sku, updated_at: new Date().toISOString() })
@@ -131,7 +131,7 @@ export class InventoryRepository extends BaseRepository {
     }
 
     async deleteOne(ctx: RequestContext, id: number): Promise<void> {
-        const { error } = await this.applyScope(
+        const { error } = await this.applyFilter(
             this.db.from(TABLE).delete().eq('id', id),
             ctx,
         );

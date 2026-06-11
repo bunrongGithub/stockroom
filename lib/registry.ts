@@ -28,8 +28,14 @@ const registry = new Map<string, LazyLoader>([
         () => import('@/components/modules/inventory/InventoryRootModule'),
     ],
     [
-        'InventoryItemsModule',
-        () => import('@/components/modules/inventory/InventoryItemsModule'),
+        'InventoryStockItemsModule',
+        () =>
+            import('@/components/modules/inventory/InventoryStockItemsModule'),
+    ],
+    [
+        'CategoryUpdateForm',
+        () =>
+            import('@/components/forms/inventory/category/CategoryUpdateForm'),
     ],
     [
         'InventoryBranchModule',
@@ -63,7 +69,9 @@ const registry = new Map<string, LazyLoader>([
     // Setting modules
     ['User', () => import('@/components/modules/setting/User')],
     ['Role', () => import('@/components/modules/setting/Role')],
-    ["Module", () => import('@/components/modules/setting/Module')],
+    ['Module', () => import('@/components/modules/setting/Module')],
+    ['ModuleCreate', () => import('@/components/modules/ModuleCreate')],
+    ['ModuleDetail', () => import('@/components/modules/setting/ModuleDetail')],
     [
         'RolePermission',
         () => import('@/components/modules/setting/RolePermission'),

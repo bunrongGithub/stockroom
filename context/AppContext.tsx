@@ -37,23 +37,12 @@ interface AppContextValue {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const CACHE_KEY = 'erp_app_init';
-const CACHE_TTL_MS = 1000 * 60 * 30; // 30 minutes
-
-interface CachedPayload {
-    data: AppInitData;
-    cachedAt: number;
-}
 
 function readCache(): AppInitData | null {
     try {
         const raw = localStorage.getItem(CACHE_KEY);
         if (!raw) return null;
-        const cached: CachedPayload = JSON.parse(raw);
-        if (Date.now() - cached.cachedAt > CACHE_TTL_MS) {
-            localStorage.removeItem(CACHE_KEY);
-            return null;
-        }
-        return cached.data;
+        return JSON.parse(raw) as AppInitData;
     } catch {
         return null;
     }
@@ -61,8 +50,7 @@ function readCache(): AppInitData | null {
 
 function writeCache(data: AppInitData) {
     try {
-        const payload: CachedPayload = { data, cachedAt: Date.now() };
-        localStorage.setItem(CACHE_KEY, JSON.stringify(payload));
+        localStorage.setItem(CACHE_KEY, JSON.stringify(data));
     } catch {
         // localStorage might be unavailable (private mode, quota exceeded)
     }
@@ -99,15 +87,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const [isLoading, setIsLoading] = useState(true);
     const fetchedRef = useRef(false);
 
-    const fetchInit = useCallback(async (force = false) => {
-        if (!force) {
-            const cached = readCache();
-            if (cached) {
-                setData(cached);
-                setIsLoading(false);
-                return;
-            }
-        }
+    const fetchInit = useCallback(async () => {
         try {
             const res = await fetch('/api/app/init');
             if (res.ok) {
@@ -126,30 +106,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (fetchedRef.current) return;
         fetchedRef.current = true;
 
-        // Hydrate from localStorage immediately (sync), then validate from server
         const cached = readCache();
         if (cached) {
             setData(cached);
             setIsLoading(false);
-            // Still refresh from server in background (silent)
-            fetch('/api/app/init')
-                .then((r) => (r.ok ? r.json() : null))
-                .then((json: AppInitData | null) => {
-                    if (json) {
-                        setData(json);
-                        writeCache(json);
-                    }
-                })
-                .catch(() => {});
         } else {
-            fetchInit(false);
+            fetchInit();
         }
     }, [fetchInit]);
 
     const refetch = useCallback(async () => {
         clearAppCache();
         setIsLoading(true);
-        await fetchInit(true);
+        await fetchInit();
     }, [fetchInit]);
 
     // ── Derived values ────────────────────────────────────────────────────────

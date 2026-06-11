@@ -1,28 +1,36 @@
 'use client';
 
+import { useModuleActions } from '@/hook/usePageAction';
+import type { ModuleProps } from '@/lib/registry';
 import { LayoutList, Loader2, Save } from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import React, { useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import React, { useEffect, useState } from 'react';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
 type FormState = {
     name: string;
     reference_no: string;
 };
 
-type Props = {
-    id: number;
-    defaultValues: FormState;
-};
+function CategoryUpdateForm({ module, permission, actionModules }: ModuleProps) {
+    useModuleActions({ actionModules, permission, modulePath: module.path });
 
-// ─── Component ────────────────────────────────────────────────────────────────
-function CategoryUpdateForm({ id, defaultValues }: Props) {
     const router = useRouter();
+    const params = useParams();
+    const id = Number(params.id ?? params.slug?.at(-2));
 
-    const [form, setForm] = useState<FormState>({
-        name: defaultValues.name ?? '',
-        reference_no: defaultValues.reference_no ?? '',
-    });
+    const [form, setForm] = useState<FormState>({ name: '', reference_no: '' });
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        if (!id) return;
+        fetch(`/api/inventory/configurations/category/${id}`)
+            .then((r) => r.json())
+            .then((json) => {
+                const d = json.data;
+                setForm({ name: d?.name ?? '', reference_no: d?.reference_no ?? '' });
+            })
+            .finally(() => setLoading(false));
+    }, [id]);
     const [errors, setErrors] = useState<Partial<FormState>>({});
     const [saving, setSaving] = useState(false);
     const [toast, setToast] = useState<{
@@ -94,6 +102,14 @@ function CategoryUpdateForm({ id, defaultValues }: Props) {
     }
 
     // ── Render ────────────────────────────────────────────────────────────────
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center h-64">
+                <Loader2 className="animate-spin text-emerald-500" size={28} />
+            </div>
+        );
+    }
+
     return (
         <>
             {/* Toast */}

@@ -20,6 +20,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import { useModuleActions } from '@/hook/usePageAction';
 import type { ModuleProps } from '@/lib/registry';
 import type { AppModuleType } from '@/types/app';
 import { Check, KeyRound, Pencil, Plus, Trash2, X } from 'lucide-react';
@@ -140,7 +141,12 @@ function PermToggle({
 
 // ── Main component ─────────────────────────────────────────────────────────
 
-export default function RolePermission({ permission }: ModuleProps) {
+export default function RolePermission({
+    module,
+    permission,
+    actionModules,
+}: ModuleProps) {
+    useModuleActions({ actionModules, permission, modulePath: module.path });
     const [permissions, setPermissions] = useState<PermissionRow[]>([]);
     const [roles, setRoles] = useState<RoleOption[]>([]);
     const [modules, setModules] = useState<ModuleOption[]>([]);

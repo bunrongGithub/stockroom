@@ -4,7 +4,7 @@ import type { AppModule } from '@/types/app';
 type UserModuleRow = {
     id: number; key: string; label: string; path: string; component: string;
     parent_id: number | null; icon: string | null; sort_order: number;
-    is_active: boolean; type: string | null;
+    is_active: boolean; type: string | null; is_initial_data: boolean;
     can_view: boolean; can_create: boolean; can_update: boolean;
     can_delete: boolean; can_export: boolean;
 };
@@ -36,6 +36,7 @@ export async function getUserModulesWithPermissions(
         sort_order: row.sort_order,
         is_active: row.is_active,
         type: (row.type ?? 'transaction') as AppModule['type'],
+        is_initial_data: row.is_initial_data ?? false,
         permission: {
             can_view: row.can_view,
             can_create: row.can_create,
@@ -51,16 +52,29 @@ export interface ResolvedModule {
     actionModules: AppModule[];
 }
 
+function isDynamic(seg: string): boolean {
+    return seg.startsWith(':') || (seg.startsWith('[') && seg.endsWith(']'));
+}
+
+function pathMatches(pattern: string, actual: string): boolean {
+    const a = pattern.split('/');
+    const b = actual.split('/');
+    if (a.length !== b.length) return false;
+    return a.every((seg, i) => isDynamic(seg) || seg === b[i]);
+}
+
 export async function resolveModuleByPath(
     path: string,
     userId: string,
     companyId: number,
 ): Promise<ResolvedModule | null> {
     const modules = await getUserModulesWithPermissions(userId, companyId);
-    const module = modules.find((m) => m.path === path);
-    if (!module) return null;
+    const _module =
+        modules.find((m) => m.path === path) ??
+        modules.find((m) => pathMatches(m.path, path));
+    if (!_module) return null;
     const actionModules = modules.filter(
-        (m) => m.type === 'action' && m.parent_id === module.id,
+        (m) => m.type === 'action' && m.parent_id === _module.id,
     );
-    return { module, actionModules };
+    return { module: _module, actionModules };
 }

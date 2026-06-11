@@ -1,10 +1,16 @@
 'use client';
 
+import { useModuleActions } from '@/hook/usePageAction';
 import type { ModuleProps } from '@/lib/registry';
 import { Award, Ruler, Settings, Tag } from 'lucide-react';
 import Link from 'next/link';
 
-export default function InventoryConfigModule({ permission }: ModuleProps) {
+export default function InventoryConfigModule({
+    module,
+    permission,
+    actionModules,
+}: ModuleProps) {
+    useModuleActions({ actionModules, permission, modulePath: module.path });
     const sections = [
         {
             href: '/inventory/configurations/category',

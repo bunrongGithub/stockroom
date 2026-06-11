@@ -1,7 +1,7 @@
 import { getSession } from '@/lib/auth';
 import { apiUrl } from '@/lib/constant';
 import { fetchPaginatedData } from '@/lib/fetch';
-import { resolveModuleByPath } from '@/lib/modules';
+import { resolveModuleByPath } from '@/lib/modules-rpc';
 import { getModuleLoader } from '@/lib/registry';
 import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
@@ -44,13 +44,12 @@ export default async function Page({ params, searchParams }: Props) {
     let _responseInitailPageData = null;
     let _responsePageMeta = null;
 
-    const isCreateRoute = path.endsWith('/create');
-
-    const toApiUrl = apiUrl(path);
-    console.log(`[CatchAllModulePage] Fetching initial data from: ${toApiUrl}`);
-    if (!isCreateRoute) {
+    if (module.is_initial_data) {
         try {
-            const response = await fetchPaginatedData(toApiUrl, _searchParams);
+            const response = await fetchPaginatedData(
+                apiUrl(path),
+                _searchParams,
+            );
             _responseInitailPageData = response.data;
             _responsePageMeta = response.meta;
         } catch (error) {

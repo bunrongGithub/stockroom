@@ -37,7 +37,7 @@ export function useModuleActions({
 
     useEffect(() => {
         const staticActions: Action = (actionModules ?? [])
-            .filter((m) => m.permission.can_view)
+            .filter((m) => m.permission.can_view && !m.path.includes(':') && !m.path.includes('['))
             .map((m) => ({
                 label: m.label,
                 href: m.path,

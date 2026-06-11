@@ -1,5 +1,6 @@
 'use client';
 
+import { useModuleActions } from '@/hook/usePageAction';
 import type { ModuleProps } from '@/lib/registry';
 import {
     ArrowLeftRight,
@@ -10,7 +11,12 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 
-export default function InventoryRootModule({ permission }: ModuleProps) {
+export default function InventoryRootModule({
+    module,
+    permission,
+    actionModules,
+}: ModuleProps) {
+    useModuleActions({ actionModules, permission, modulePath: module.path });
     const cards = [
         { href: '/inventory', icon: Package, label: 'Items', show: true },
         {

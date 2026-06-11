@@ -13,17 +13,10 @@ import { useCallback, useState, useTransition } from 'react';
 export default function CategoryListForm({
     categories,
     meta,
-    initialData,
-    initialMeta,
 }: {
     categories: Array<TCategory & { id: number }>;
     meta: TMeta;
-    initialData?: Array<TCategory & { id: number }> | null;
-    initialMeta?: TMeta | null;
 }) {
-    const displayCategories = initialData ?? categories;
-    const displayMeta = initialMeta ?? meta;
-
     const router = useRouter();
     const pathname = usePathname();
     const searchParams = useSearchParams();
@@ -73,10 +66,9 @@ export default function CategoryListForm({
         navigate({ limit: e.target.value, page: '1' });
     };
 
-    const currentPage = displayMeta.page;
-    const totalPages = displayMeta.totalPages;
+    const currentPage = meta.page;
+    const totalPages = meta.totalPages;
 
-    // Build page numbers to show (max 5 around current)
     const getPageNumbers = () => {
         const delta = 2;
         const range: (number | '...')[] = [];
@@ -100,12 +92,13 @@ export default function CategoryListForm({
         if (!deletingId) return;
         try {
             setIsDeleting(true);
-            const res = await fetch(`/api/category/${deletingId}`, {
-                method: 'DELETE',
-            });
+            const res = await fetch(
+                `/api/inventory/configurations/category/${deletingId}`,
+                { method: 'DELETE' },
+            );
             if (!res.ok) throw new Error('Delete failed');
             setToast({ msg: 'Delete successful', type: 'success' });
-            window.location.reload();
+            router.refresh();
         } catch {
             setToast({ msg: 'Delete failed', type: 'error' });
         } finally {
@@ -219,7 +212,7 @@ export default function CategoryListForm({
                             </thead>
 
                             <tbody className="bg-white divide-y divide-slate-100">
-                                {displayCategories.length === 0 ? (
+                                {categories.length === 0 ? (
                                     <tr>
                                         <td
                                             colSpan={3}
@@ -229,7 +222,7 @@ export default function CategoryListForm({
                                         </td>
                                     </tr>
                                 ) : (
-                                    displayCategories.map((item) => (
+                                    categories.map((item) => (
                                         <tr
                                             key={item.id}
                                             className="hover:bg-slate-50/70 transition-colors"
@@ -325,18 +318,18 @@ export default function CategoryListForm({
                             <p className="text-xs text-slate-500 shrink-0">
                                 Showing{' '}
                                 <span className="font-semibold text-slate-700">
-                                    {(currentPage - 1) * displayMeta.limit + 1}
+                                    {(currentPage - 1) * meta.limit + 1}
                                 </span>
                                 {' – '}
                                 <span className="font-semibold text-slate-700">
                                     {Math.min(
-                                        currentPage * displayMeta.limit,
-                                        displayMeta.total,
+                                        currentPage * meta.limit,
+                                        meta.total,
                                     )}
                                 </span>{' '}
                                 of{' '}
                                 <span className="font-semibold text-slate-700">
-                                    {displayMeta.total}
+                                    {meta.total}
                                 </span>{' '}
                                 results
                             </p>
@@ -370,7 +363,7 @@ export default function CategoryListForm({
                                                 handlePageChange(p as number)
                                             }
                                             disabled={isPending}
-                                            className={`min-w-[32px] h-8 px-2 rounded-lg text-xs font-medium border transition-colors disabled:cursor-not-allowed ${
+                                            className={`min-w-8 h-8 px-2 rounded-lg text-xs font-medium border transition-colors disabled:cursor-not-allowed ${
                                                 p === currentPage
                                                     ? 'bg-emerald-600 border-emerald-600 text-white'
                                                     : 'border-slate-200 text-slate-600 hover:bg-white hover:text-slate-800'

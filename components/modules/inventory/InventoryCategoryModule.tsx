@@ -17,18 +17,12 @@ export default function InventoryCategoryModule({
 }: ModuleProps) {
     useModuleActions({ actionModules, permission, modulePath: module.path });
 
-    const categories =
-        (initialData as unknown as Array<TCategory & { id: number }>) ?? [];
-    const meta = initialMeta ?? DEFAULT_META;
-
     return (
         <CategoryListForm
-            categories={categories}
-            meta={meta}
-            initialData={
-                initialData as unknown as Array<TCategory & { id: number }>
+            categories={
+                (initialData as Array<TCategory & { id: number }>) ?? []
             }
-            initialMeta={initialMeta}
+            meta={initialMeta ?? DEFAULT_META}
         />
     );
 }

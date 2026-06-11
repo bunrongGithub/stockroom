@@ -1,12 +1,12 @@
+import { getRequestContext } from '@/lib/request-context';
+import { getServerClient } from '@/lib/supabase/server';
 import {
     itemIdSchema,
     updateInventorySchema,
 } from '@/service/schema/inventory.schema';
 import { NextRequest, NextResponse } from 'next/server';
-import { getRequestContext } from '@/lib/request-context';
-import { getServerClient } from '@/lib/supabase/server';
 import { z } from 'zod';
-import { service } from '..';
+import { Service } from '../route';
 
 type Params = { params: Promise<{ id: string }> };
 type BranchJoin = {
@@ -43,7 +43,7 @@ export async function GET(req: NextRequest, { params }: Params) {
             );
         }
 
-        const item = await service.findOne(ctx, parsed.data.id);
+        const item = await Service.findOne(ctx, parsed.data.id);
         if (!item) {
             return NextResponse.json(
                 { error: 'Item not found' },
@@ -131,7 +131,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
             );
         }
 
-        const item = await service.updateOne(
+        const item = await Service.updateOne(
             ctx,
             parsed.data.id,
             bodyParsed.data,
@@ -162,7 +162,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
             );
         }
 
-        await service.deleteOne(ctx, parsed.data.id);
+        await Service.deleteOne(ctx, parsed.data.id);
         return NextResponse.json(
             { message: 'Item deleted successfully' },
             { status: 200 },

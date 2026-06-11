@@ -2,10 +2,10 @@
 
 import { DataTable, type DataTableColumn } from '@/components/ui/DataTable';
 import PopUpDeleteTransactionModal from '@/components/ui/PopUpDeleteModal';
-import { useModuleActions } from '@/hook/usePageAction';
+import { useModuleActions, usePageActions } from '@/hook/usePageAction';
 import type { ModuleProps } from '@/lib/registry';
 import type { AppModule, TMeta } from '@/types/app';
-import { Pencil, Trash2 } from 'lucide-react';
+import { resolveHref } from '@/utils/utils';
 import Link from 'next/link';
 import { useState } from 'react';
 
@@ -19,6 +19,10 @@ export default function ModuleComponent({
     actionModules,
 }: ModuleProps) {
     useModuleActions({ actionModules, permission, modulePath: module.path });
+
+    const pageAction = usePageActions();
+    const staticActions = pageAction?.actions.filter((a) => !a.dynamic) ?? [];
+    const dynamicActions = pageAction?.actions.filter((a) => a.dynamic) ?? [];
 
     const displayModules = (initialData as AppModule[]) ?? [];
     const displayMeta = initialMeta ?? DEFAULT_META;
@@ -94,32 +98,44 @@ export default function ModuleComponent({
                 </span>
             ),
         },
-        {
-            key: 'actions',
-            header: 'Actions',
-            cell: (row) => (
-                <div className="flex items-center gap-2">
-                    {permission.can_update && (
-                        <Link
-                            href={`${module.path}/${row.id}/update`}
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-sky-200 px-3 py-1.5 text-xs font-medium text-sky-600 transition-colors hover:bg-sky-50"
-                        >
-                            <Pencil size={13} />
-                            Edit
-                        </Link>
-                    )}
-                    {permission.can_delete && (
-                        <button
-                            onClick={() => setDeletingId(row.id)}
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-medium text-rose-600 transition-colors hover:bg-rose-50"
-                        >
-                            <Trash2 size={13} />
-                            Delete
-                        </button>
-                    )}
-                </div>
-            ),
-        },
+        ...(dynamicActions.length > 0
+            ? [
+                  {
+                      key: 'actions',
+                      header: 'Actions',
+                      cell: (row: AppModule) => (
+                          <div className="flex items-center gap-2">
+                              {dynamicActions.map((action) => {
+                                  const Icon = action.icon;
+                                  if (action.label.toLowerCase() === 'delete') {
+                                      return (
+                                          <button
+                                              key={action.label}
+                                              type="button"
+                                              onClick={() => setDeletingId(row.id)}
+                                              className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-medium text-rose-600 transition-colors hover:bg-rose-50"
+                                          >
+                                              {Icon && <Icon size={13} />}
+                                              {action.label}
+                                          </button>
+                                      );
+                                  }
+                                  return (
+                                      <Link
+                                          key={action.label}
+                                          href={resolveHref(action.href as string, row.id)}
+                                          className="inline-flex items-center gap-1.5 rounded-lg border border-sky-200 px-3 py-1.5 text-xs font-medium text-sky-600 transition-colors hover:bg-sky-50"
+                                      >
+                                          {Icon && <Icon size={13} />}
+                                          {action.label}
+                                      </Link>
+                                  );
+                              })}
+                          </div>
+                      ),
+                  } satisfies DataTableColumn<AppModule>,
+              ]
+            : []),
     ];
 
     return (
@@ -145,11 +161,28 @@ export default function ModuleComponent({
             />
 
             {/* Header */}
-            <div className="space-y-2">
-                <h2 className="text-2xl font-bold text-slate-800">Modules</h2>
-                <p className="text-sm text-slate-500">
-                    Manage application modules and their access control
-                </p>
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+                <div className="space-y-1">
+                    <h2 className="text-2xl font-bold text-slate-800">Modules</h2>
+                    <p className="text-sm text-slate-500">
+                        Manage application modules and their access control
+                    </p>
+                </div>
+                <div className="flex items-center gap-2">
+                    {staticActions.map((action) => {
+                        const Icon = action.icon;
+                        return (
+                            <Link
+                                key={action.label}
+                                href={action.href as string}
+                                className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 rounded-xl text-sm font-medium shadow-sm transition-colors"
+                            >
+                                {Icon && <Icon size={16} />}
+                                {action.label}
+                            </Link>
+                        );
+                    })}
+                </div>
             </div>
 
             {/* DataTable */}

@@ -1,9 +1,15 @@
 'use client';
 
+import { useModuleActions } from '@/hook/usePageAction';
 import type { ModuleProps } from '@/lib/registry';
 import { ArrowLeftRight } from 'lucide-react';
 
-export default function InventoryStockAdjModule({ permission }: ModuleProps) {
+export default function InventoryStockAdjModule({
+    module,
+    permission,
+    actionModules,
+}: ModuleProps) {
+    useModuleActions({ actionModules, permission, modulePath: module.path });
     return (
         <div className="p-6 space-y-4">
             <div className="flex items-center gap-2">

@@ -2,8 +2,9 @@ import { createInventorySchema } from '@/service/schema/inventory.schema';
 import { NextRequest, NextResponse } from 'next/server';
 import { getRequestContext } from '@/lib/request-context';
 import { z } from 'zod';
-import { service } from '.';
+import { InventoryRepository } from '@/service/apps/inventory/repo/stock';
 
+export const Service = InventoryRepository.getInstance();
 export async function GET(req: NextRequest) {
     try {
         const ctx = getRequestContext(req);
@@ -13,7 +14,7 @@ export async function GET(req: NextRequest) {
         const limit = Number(searchParams.get('limit') || 10);
         const search = searchParams.get('search') ?? undefined;
 
-        const result = await service.findAll(ctx, {
+        const result = await Service.findAll(ctx, {
             page,
             limit,
             search,
@@ -41,7 +42,7 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        const item = await service.insertOne(ctx, parsed.data);
+        const item = await Service.insertOne(ctx, parsed.data);
         return NextResponse.json({ data: item }, { status: 201 });
     } catch (error) {
         const message =

@@ -18,7 +18,6 @@ import { useMemo, useState } from 'react';
 
 interface Props {
     items: Array<InventoryItemProps>;
-    branches?: BranchProps[];
 }
 
 // ─── Condition Badge ──────────────────────────────────────────────────────────
@@ -139,7 +138,11 @@ function PropertyBadges({ item }: { item: InventoryItemProps }) {
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-export default function StockForm({ items }: Props) {
+export default function StockForm({
+    items,
+}: {
+    items: Array<InventoryItemProps>;
+}) {
     const [searchQuery, setSearchQuery] = useState('');
     const [filterBranchId, setFilterBranchId] = useState<number | 'all'>('all');
     const [filterLocationId, setFilterLocationId] = useState<number | 'all'>(

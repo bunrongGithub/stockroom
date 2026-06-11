@@ -1,30 +1,25 @@
-import { getSession } from '@/lib/auth';
-import { getUserModulesWithPermissions } from '@/lib/modules';
+import { getUserModulesWithPermissions } from '@/lib/modules-rpc';
+import { getRequestContext } from '@/lib/request-context';
 import type { AppInitData } from '@/types/app';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
-export async function GET() {
-    const session = await getSession();
-    if (!session) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+export async function GET(request: NextRequest) {
+    const ctx = getRequestContext(request);
 
-    const companyId = Number(session.companyId);
+    const companyId = Number(ctx.companyId);
+
     if (isNaN(companyId)) {
         return NextResponse.json({ error: 'Invalid session' }, { status: 400 });
     }
 
-    const modules = await getUserModulesWithPermissions(
-        session.userId,
-        companyId,
-    );
+    const modules = await getUserModulesWithPermissions(ctx.userId, companyId);
 
     const payload: AppInitData = {
         profile: {
-            userId: session.userId,
-            companyId: session.companyId,
-            role: session.role,
-            email: session.email,
+            userId: ctx.userId,
+            companyId: ctx.companyId,
+            role: ctx.role,
+            email: ctx.email,
         },
         modules,
     };
