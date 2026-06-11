@@ -1,6 +1,5 @@
 'use client';
 
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -11,16 +10,22 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { useModuleActions } from '@/hook/usePageAction';
 import type { ModuleProps } from '@/lib/registry';
 import type { AppModuleType } from '@/types/app';
-import { ArrowLeft, Loader2, Save } from 'lucide-react';
+import { ArrowLeft, Loader2, Save, Search } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import PopUpSearch from '@/components/ui/PopUpSearch';
+import { PopUpSearchTable } from '@/components/ui/PopUpSearchTable';
 
 import { useState } from 'react';
+import {
+    InputGroup,
+    InputGroupAddon,
+    InputGroupInput,
+} from '../ui/input-group';
 
 type FormData = {
     label: string;
@@ -74,6 +79,8 @@ export default function ModuleCreate({
         msg: string;
         type: 'success' | 'error';
     } | null>(null);
+    const [parentLabel, setParentLabel] = useState('');
+    const [parentPopupOpen, setParentPopupOpen] = useState(false);
 
     function showToast(msg: string, type: 'success' | 'error') {
         setToast({ msg, type });
@@ -355,20 +362,25 @@ export default function ModuleCreate({
                             {/* Parent ID */}
                             <div className="space-y-2">
                                 <Label htmlFor="parent_id">Parent Menu</Label>
-                                <Input
-                                    id="parent_id"
-                                    type="text"
-                                    value={form.parent_id ?? ''}
-                                    onChange={(e) =>
-                                        handleInputChange(
-                                            'parent_id',
-                                            e.target.value
-                                                ? parseInt(e.target.value)
-                                                : null,
-                                        )
-                                    }
-                                    placeholder="None"
-                                />
+                                <InputGroup className="h-8">
+                                    <InputGroupInput
+                                        id="parent_id"
+                                        placeholder="Search parent module..."
+                                        readOnly
+                                        value={parentLabel}
+                                    />
+                                    <InputGroupAddon align="inline-end">
+                                        <button
+                                            type="button"
+                                            className="cursor-pointer"
+                                            onClick={() =>
+                                                setParentPopupOpen(true)
+                                            }
+                                        >
+                                            <Search className="w-4" />
+                                        </button>
+                                    </InputGroupAddon>
+                                </InputGroup>
                             </div>
 
                             {/* Sort Order */}
@@ -438,6 +450,49 @@ export default function ModuleCreate({
                     </Card>
                 </TabsContent>
             </Tabs>
+
+            <PopUpSearch
+                open={parentPopupOpen}
+                title="Parent Menu"
+                placeholder="Search module..."
+                onClose={() => setParentPopupOpen(false)}
+            >
+                <PopUpSearchTable<
+                    { id: number; label: string } & Record<string, unknown>
+                >
+                    apiUrl="/api/setting/module/lookup"
+                    flatData
+                    selectedId={form.parent_id ? Number(form.parent_id) : null}
+                    onRowSelect={(row) => {
+                        handleInputChange('parent_id', String(row.id));
+                        setParentLabel(String(row.label ?? ''));
+                        setParentPopupOpen(false);
+                    }}
+                    columns={[
+                        {
+                            key: 'id',
+                            header: '#',
+                            className: 'w-16 text-muted-foreground',
+                        },
+                        {
+                            key: 'label',
+                            header: 'Module',
+                            filterable: true,
+                            getValue: (r) => String(r.label ?? ''),
+                        },
+                        {
+                            key: 'type',
+                            header: 'Type',
+                            className: '',
+                        },
+                        {
+                            key: 'path',
+                            header: 'Path URL',
+                            className: '',
+                        },
+                    ]}
+                />
+            </PopUpSearch>
         </div>
     );
 }

@@ -345,7 +345,7 @@ export function InventoryDetailForm({
                                     {/* Parent ID */}
                                     <div className="space-y-2">
                                         <Label htmlFor="parent_id">
-                                            Parent ID
+                                            Parent Menu
                                         </Label>
                                         <Input
                                             id="parent_id"

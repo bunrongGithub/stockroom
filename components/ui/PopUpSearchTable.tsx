@@ -25,6 +25,8 @@ type PopUpSearchTableProps<T extends Record<string, unknown>> = {
     /** Highlight the row whose id matches this value. */
     selectedId?: string | number | null;
     onRowSelect: (row: T) => void;
+    /** Set true when the API returns { data: [...] } instead of { data: { data: [...] } }. */
+    flatData?: boolean;
 };
 
 export function PopUpSearchTable<T extends Record<string, unknown>>({
@@ -33,6 +35,7 @@ export function PopUpSearchTable<T extends Record<string, unknown>>({
     idKey = 'id',
     selectedId,
     onRowSelect,
+    flatData = false,
 }: PopUpSearchTableProps<T>) {
     const { searchTerm } = usePopUpSearch();
 
@@ -54,7 +57,7 @@ export function PopUpSearchTable<T extends Record<string, unknown>>({
                 const res = await fetch(url, { signal: controller.signal });
                 if (!res.ok) throw new Error('Failed to fetch');
                 const json = await res.json();
-                setData(json?.data?.data ?? []);
+                setData(flatData ? (json?.data ?? []) : (json?.data?.data ?? []));
             } catch (err) {
                 if (err instanceof Error && err.name === 'AbortError') return;
                 setError('មិនអាចទាញយកទិន្នន័យបានទេ។');
@@ -67,7 +70,7 @@ export function PopUpSearchTable<T extends Record<string, unknown>>({
             controller.abort();
             window.clearTimeout(timeout);
         };
-    }, [apiUrl, searchTerm]);
+    }, [apiUrl, searchTerm, flatData]);
 
     // Apply per-column filters client-side on top of server results.
     const filtered = useMemo(() => {

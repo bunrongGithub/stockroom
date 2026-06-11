@@ -32,6 +32,10 @@ type AsyncSearchSelectProps = {
     selectedLabel?: string;
     popupTitle?: string;
     enablePopupSearch?: boolean;
+    /** Field name to use as the option label. Defaults to "name". */
+    nameKey?: string;
+    /** Set true when the API returns { data: [...] } instead of { data: { data: [...] } }. */
+    flatData?: boolean;
 };
 
 export default function AsyncSearchSelect({
@@ -44,6 +48,8 @@ export default function AsyncSearchSelect({
     selectedLabel: selectedLabelProp = '',
     popupTitle,
     enablePopupSearch = false,
+    nameKey = 'name',
+    flatData = false,
 }: AsyncSearchSelectProps) {
     const containerRef = useRef<HTMLDivElement>(null);
 
@@ -62,14 +68,14 @@ export default function AsyncSearchSelect({
             );
             if (!res.ok) throw new Error('Failed to fetch');
 
-            const items = await res.json();
-            const {
-                data: { data: data },
-            } = items;
+            const json = await res.json();
+            const rows: SearchApiItem[] = flatData
+                ? (json?.data ?? [])
+                : (json?.data?.data ?? []);
             setOptions(
-                data.map((item: SearchApiItem) => ({
+                rows.map((item) => ({
                     value: item.id,
-                    label: item.name,
+                    label: String((item as Record<string, unknown>)[nameKey] ?? ''),
                 })),
             );
         } catch {

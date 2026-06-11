@@ -29,17 +29,23 @@ export class ModuleRepository extends BaseRepository {
         _ctx: RequestContext,
         params: PaginationParams,
     ): Promise<PaginatedResult<AppModule>> {
-        const query = this.db
-            .from(TABLE)
-            .select(
-                'id, key, label, path, component, parent_id, icon, sort_order, is_active, type, is_initial_data',
-                { count: 'exact' },
-            )
-            .is('parent_id', null);
+        const query = this.applyFilter(
+            this.db
+                .from(TABLE)
+                .select(
+                    'id, key, label, path, component, parent_id, icon, sort_order, is_active, type, is_initial_data',
+                    { count: 'exact' },
+                )
+                .is('parent_id', null),
+            _ctx,
+        );
         return this.paginate(query, params);
     }
 
-    async findOne(_ctx: RequestContext, id: number): Promise<AppModuleNested | null> {
+    async findOne(
+        _ctx: RequestContext,
+        id: number,
+    ): Promise<AppModuleNested | null> {
         const { data: module, error } = await this.db
             .from(TABLE)
             .select('*')
@@ -76,11 +82,16 @@ export class ModuleRepository extends BaseRepository {
 
     async insertOne(
         _ctx: RequestContext,
-        input: Omit<AppModule, 'id' | 'is_initial_data'> & { is_initial_data?: boolean },
+        input: Omit<AppModule, 'id' | 'is_initial_data'> & {
+            is_initial_data?: boolean;
+        },
     ): Promise<AppModule> {
         const { data, error } = await this.db
             .from(TABLE)
-            .insert({ ...input, is_initial_data: input.is_initial_data ?? false })
+            .insert({
+                ...input,
+                is_initial_data: input.is_initial_data ?? false,
+            })
             .select('*')
             .single();
 
@@ -109,4 +120,17 @@ export class ModuleRepository extends BaseRepository {
         if (error) throw new Error(error.message);
     }
 
+    async findAllMenu(_ctx: RequestContext, params: PaginationParams): Promise<PaginatedResult<AppModule>> {
+        const { limit = 10, page = 1, search } = params;
+        const query = this.applyFilter(
+            this.db
+                .from(TABLE)
+                .select(
+                    'id, key, label, path, component, parent_id, icon, sort_order, is_active, type, is_initial_data',
+                    { count: 'exact' },
+                ),
+            _ctx,
+        ).order('sort_order', { ascending: true });
+        return this.paginate(query, { limit, page, search, searchColumn: 'label' });
+    }
 }
