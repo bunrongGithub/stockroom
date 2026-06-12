@@ -14,7 +14,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import PopUpDeleteTransactionModal from '@/components/ui/PopUpDeleteModal';
-import { useModuleActions } from '@/hook/usePageAction';
+import { useRegisterModule } from '@/hook/useModule';
 import type { ModuleProps } from '@/lib/registry';
 import { Eye, Pencil, Plus, ShieldCheck, Trash2 } from 'lucide-react';
 import Link from 'next/link';
@@ -37,7 +37,7 @@ export default function Role({
     initialData,
     actionModules,
 }: ModuleProps) {
-    useModuleActions({ actionModules, permission, modulePath: module.path });
+    useRegisterModule({ actionModules, permission, modulePath: module.path });
 
     const [roles, setRoles] = useState<ListRole[]>((initialData as ListRole[]) ?? []);
     const [error, setError] = useState<string | null>(null);
@@ -212,7 +212,7 @@ export default function Role({
     ];
 
     return (
-        <div className="p-6 max-w-4xl mx-auto space-y-6 animate-in fade-in duration-300">
+        <div className=" mx-auto animate-in fade-in duration-300">
             {toast && (
                 <div
                     className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl text-sm font-medium shadow-lg transition-all ${

@@ -11,21 +11,16 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { useModuleActions } from '@/hook/usePageAction';
+import { useRegisterModule } from '@/hook/useModule';
 import type { ModuleProps } from '@/lib/registry';
 import type { AppModuleType } from '@/types/app';
 import { ArrowLeft, Loader2, Save, Search } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useParams, usePathname, useRouter } from 'next/navigation';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import PopUpSearch from '@/components/ui/PopUpSearch';
 import { PopUpSearchTable } from '@/components/ui/PopUpSearchTable';
 import { useForm, Controller } from 'react-hook-form';
 import { useState, useEffect } from 'react';
-import {
-    InputGroup,
-    InputGroupAddon,
-    InputGroupInput,
-} from '../../ui/input-group';
 
 type FormValues = {
     label: string;
@@ -40,24 +35,24 @@ type FormValues = {
     is_initial_data: boolean;
 };
 
-function slugify(value: string): string {
-    return value
-        .toLowerCase()
-        .trim()
-        .replace(/\s+/g, '-')
-        .replace(/[^a-z0-9/-]/g, '');
-}
-
-export default function ModuleCreate({
+export default function ModuleUpdate({
     module,
     permission,
     actionModules,
 }: ModuleProps) {
-    useModuleActions({ actionModules, permission, modulePath: module.path });
+    useRegisterModule({ actionModules, permission, modulePath: module.path });
 
     const router = useRouter();
+    const params = useParams();
+    const pathname = usePathname();
+    const id = Number(
+        params.id ??
+            (Array.isArray(params.slug) ? params.slug.at(-2) : params.slug),
+    );
+
     const [parentLabel, setParentLabel] = useState('');
     const [parentPopupOpen, setParentPopupOpen] = useState(false);
+    const [loading, setLoading] = useState(true);
     const [toast, setToast] = useState<{
         msg: string;
         type: 'success' | 'error';
@@ -69,6 +64,7 @@ export default function ModuleCreate({
         control,
         watch,
         setValue,
+        reset,
         formState: { errors, isSubmitting },
     } = useForm<FormValues>({
         defaultValues: {
@@ -85,23 +81,42 @@ export default function ModuleCreate({
         },
     });
 
-    // Auto-derive key and path from label while they are still in sync
-    const watchedLabel = watch('label');
-    const watchedKey = watch('key');
-    const watchedPath = watch('path');
-
     useEffect(() => {
-        const slug = slugify(watchedLabel);
-        const derived = slug ? `/${slug}` : '';
-        // Only overwrite if the field is empty or still matches the previous derived value
-        if (!watchedKey || watchedKey === `/${slugify(watchedLabel)}`) {
-            setValue('key', derived, { shouldValidate: false });
-        }
-        if (!watchedPath || watchedPath === `/${slugify(watchedLabel)}`) {
-            setValue('path', derived, { shouldValidate: false });
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [watchedLabel]);
+        if (!id) return;
+        (async () => {
+            setLoading(true);
+            try {
+                const res = await fetch(`/api/setting/module/${id}`);
+                const json = await res.json();
+                const data = json.data;
+                if (data) {
+                    reset({
+                        label: data.label,
+                        key: data.key,
+                        path: data.path,
+                        component: data.component,
+                        icon: data.icon ?? '',
+                        parent_id: data.parent_id,
+                        sort_order: data.sort_order,
+                        type: data.type,
+                        is_active: data.is_active,
+                        is_initial_data: data.is_initial_data,
+                    });
+                    if (data.parent_id) {
+                        const parentRes = await fetch(
+                            `/api/setting/module/${data.parent_id}`,
+                        );
+                        const parentJson = await parentRes.json();
+                        setParentLabel(
+                            parentJson.data?.label ?? String(data.parent_id),
+                        );
+                    }
+                }
+            } finally {
+                setLoading(false);
+            }
+        })();
+    }, [id, reset]);
 
     function showToast(msg: string, type: 'success' | 'error') {
         setToast({ msg, type });
@@ -110,8 +125,8 @@ export default function ModuleCreate({
 
     async function onSubmit(data: FormValues) {
         try {
-            const res = await fetch('/api/setting/module', {
-                method: 'POST',
+            const res = await fetch(`/api/setting/module/${id}`, {
+                method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     label: data.label.trim(),
@@ -132,11 +147,11 @@ export default function ModuleCreate({
                 throw new Error(
                     typeof json.error === 'string'
                         ? json.error
-                        : 'Failed to create module',
+                        : 'Failed to update module',
                 );
             }
 
-            showToast('Module created successfully', 'success');
+            showToast('Module updated successfully', 'success');
             setTimeout(() => router.push('/setting/module'), 1000);
         } catch (err) {
             showToast(
@@ -144,6 +159,16 @@ export default function ModuleCreate({
                 'error',
             );
         }
+    }
+
+    const watchedLabel = watch('label');
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center h-64">
+                <Loader2 className="animate-spin text-emerald-500" size={28} />
+            </div>
+        );
     }
 
     return (
@@ -168,7 +193,7 @@ export default function ModuleCreate({
                         {watchedLabel || 'Module'}
                     </h1>
                     <p className="text-sm text-muted-foreground">
-                        Module Configuration • Update
+                        Module Configuration • Edit
                     </p>
                 </div>
                 <div className="flex gap-2">
@@ -199,21 +224,18 @@ export default function ModuleCreate({
                 </div>
             </div>
 
-            {/* Tabs Navigation */}
+            {/* Tabs */}
             <Tabs
                 defaultValue="basic-information"
                 className="w-full flex-col h-full"
             >
-                <TabsList className="grid w-full max-w-2xl p-3 grid-cols-4">
+                <TabsList className="grid w-full max-w-2xl p-3 grid-cols-3">
                     <TabsTrigger value="basic-information">
                         Basic Information
                     </TabsTrigger>
                     <TabsTrigger value="navigation">Navigation</TabsTrigger>
                     <TabsTrigger value="configuration">
                         Configuration
-                    </TabsTrigger>
-                    <TabsTrigger value="childrent">
-                        Childrent
                     </TabsTrigger>
                 </TabsList>
 
@@ -224,7 +246,6 @@ export default function ModuleCreate({
                 >
                     <Card className="border-none w-full">
                         <CardContent className="grid grid-cols-2 gap-3 pt-4">
-                            {/* Key */}
                             <div className="space-y-2">
                                 <Label htmlFor="key">Key</Label>
                                 <Input
@@ -242,7 +263,6 @@ export default function ModuleCreate({
                                 )}
                             </div>
 
-                            {/* Label */}
                             <div className="space-y-2">
                                 <Label htmlFor="label">Label</Label>
                                 <Input
@@ -259,7 +279,6 @@ export default function ModuleCreate({
                                 )}
                             </div>
 
-                            {/* Component */}
                             <div className="space-y-2">
                                 <Label htmlFor="component">Component</Label>
                                 <Input
@@ -277,7 +296,6 @@ export default function ModuleCreate({
                                 )}
                             </div>
 
-                            {/* Icon */}
                             <div className="space-y-2">
                                 <Label htmlFor="icon">Icon</Label>
                                 <Input
@@ -287,7 +305,6 @@ export default function ModuleCreate({
                                 />
                             </div>
 
-                            {/* Type */}
                             <div className="space-y-2">
                                 <Label htmlFor="type">Type</Label>
                                 <select
@@ -318,7 +335,6 @@ export default function ModuleCreate({
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="grid grid-cols-2 gap-3">
-                            {/* Path URL */}
                             <div className="space-y-2">
                                 <Label htmlFor="path">Path URL</Label>
                                 <Input
@@ -336,31 +352,27 @@ export default function ModuleCreate({
                                 )}
                             </div>
 
-                            {/* Parent Menu */}
                             <div className="space-y-2">
                                 <Label htmlFor="parent_id">Parent Menu</Label>
-                                <InputGroup className="h-10">
-                                    <InputGroupInput
+                                <div className="flex gap-1.5">
+                                    <Input
                                         id="parent_id"
                                         placeholder="Search parent module..."
                                         readOnly
                                         value={parentLabel}
+                                        className="flex-1"
                                     />
-                                    <InputGroupAddon align="inline-end">
-                                        <button
-                                            type="button"
-                                            className="cursor-pointer"
-                                            onClick={() =>
-                                                setParentPopupOpen(true)
-                                            }
-                                        >
-                                            <Search className="w-4" />
-                                        </button>
-                                    </InputGroupAddon>
-                                </InputGroup>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="icon"
+                                        onClick={() => setParentPopupOpen(true)}
+                                    >
+                                        <Search className="size-4" />
+                                    </Button>
+                                </div>
                             </div>
 
-                            {/* Sort Order */}
                             <div className="space-y-2">
                                 <Label htmlFor="sort_order">Ordering</Label>
                                 <Input
@@ -395,7 +407,6 @@ export default function ModuleCreate({
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-6">
-                            {/* Active Status */}
                             <div className="flex items-center justify-between">
                                 <div className="space-y-0.5">
                                     <Label>Status</Label>
@@ -415,7 +426,6 @@ export default function ModuleCreate({
                                 />
                             </div>
 
-                            {/* Initial Data */}
                             <div className="flex items-center justify-between">
                                 <div className="space-y-0.5">
                                     <Label>Initial Data</Label>

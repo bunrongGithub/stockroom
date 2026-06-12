@@ -9,9 +9,19 @@ import { clearAppCache } from '@/context/AppContext';
 import type { AppModule } from '@/types/app';
 import { supabase } from '@/lib/supabase/client';
 import {
-    Box, BadgePercent, Package, Warehouse, ArrowLeftRight,
-    Settings, Tag, Ruler, Award, ChevronDown, ChevronRight,
-    Loader2, LogOut,
+    Box,
+    BadgePercent,
+    Package,
+    Warehouse,
+    ArrowLeftRight,
+    Settings,
+    Tag,
+    Ruler,
+    Award,
+    ChevronDown,
+    ChevronRight,
+    Loader2,
+    LogOut,
     User,
     UserCheck,
     ShoppingBagIcon,
@@ -22,26 +32,48 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
 import type { Action } from '@/types';
+import { ModuleProvider, useModuleContext } from '@/context/ModuleContext';
+import { useModuleActions } from '@/hook/useModule';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Icon map: DB icon name → Lucide component
-// ─────────────────────────────────────────────────────────────────────────────
+function ModuleActionBridge() {
+    const { actionModules, permission, modulePath } = useModuleContext();
+    useModuleActions({
+        actionModules,
+        permission: permission ?? undefined,
+        modulePath,
+    });
+    return null;
+}
 
 const ICON_MAP: Record<string, LucideIcon> = {
-    Box, BadgePercent, Package, Warehouse, ArrowLeftRight,
-    Settings, Tag, Ruler, Award,User, UserCheck, ShoppingBagIcon
+    Box,
+    BadgePercent,
+    Package,
+    Warehouse,
+    ArrowLeftRight,
+    Settings,
+    Tag,
+    Ruler,
+    Award,
+    User,
+    UserCheck,
+    ShoppingBagIcon,
 };
 
-function ModuleIcon({ name, size = 16, className }: { name: string | null; size?: number; className?: string }) {
+function ModuleIcon({
+    name,
+    size = 16,
+    className,
+}: {
+    name: string | null;
+    size?: number;
+    className?: string;
+}) {
     if (!name) return null;
     const Icon = ICON_MAP[name];
     if (!Icon) return null;
     return <Icon size={size} className={className} strokeWidth={2} />;
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Sidebar inner — consumes AppContext
-// ─────────────────────────────────────────────────────────────────────────────
 
 function SidebarNav() {
     const pathname = usePathname();
@@ -73,7 +105,9 @@ function SidebarNav() {
                 const modActive =
                     isActive(mod.path) ||
                     children.some((c) => isActive(c.path)) ||
-                    children.some((c) => visibleChildren(c.id).some((s) => isActive(s.path)));
+                    children.some((c) =>
+                        visibleChildren(c.id).some((s) => isActive(s.path)),
+                    );
                 const isOpen = openMap[mod.key] ?? modActive;
 
                 return (
@@ -82,17 +116,24 @@ function SidebarNav() {
                             type="button"
                             onClick={() => toggle(mod.key)}
                             className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
-                                ${modActive
-                                    ? 'bg-emerald-500/10 text-emerald-300'
-                                    : 'text-gray-400 hover:bg-gray-800/50 hover:text-gray-200'
+                                ${
+                                    modActive
+                                        ? 'bg-emerald-500/10 text-emerald-300'
+                                        : 'text-gray-400 hover:bg-gray-800/50 hover:text-gray-200'
                                 }`}
                         >
                             <ModuleIcon
                                 name={mod.icon}
                                 size={16}
-                                className={modActive ? 'text-emerald-400' : 'text-gray-500'}
+                                className={
+                                    modActive
+                                        ? 'text-emerald-400'
+                                        : 'text-gray-500'
+                                }
                             />
-                            <span className="flex-1 text-left">{mod.label}</span>
+                            <span className="flex-1 text-left">
+                                {mod.label}
+                            </span>
                             {children.length > 0 && (
                                 <ChevronDown
                                     size={14}
@@ -139,7 +180,8 @@ function SidebarMenuRow({
     isActive: (path: string) => boolean;
 }) {
     const children = visibleChildren(item.id);
-    const active = isActive(item.path) || children.some((c) => isActive(c.path));
+    const active =
+        isActive(item.path) || children.some((c) => isActive(c.path));
     const isOpen = openMap[item.key] ?? active;
 
     return (
@@ -148,13 +190,16 @@ function SidebarMenuRow({
                 <Link
                     href={item.path}
                     className={`flex-1 flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all
-                        ${active
-                            ? 'bg-emerald-500/10 text-emerald-300 font-medium'
-                            : 'text-gray-500 hover:bg-gray-800/40 hover:text-gray-200'
+                        ${
+                            active
+                                ? 'bg-emerald-500/10 text-emerald-300 font-medium'
+                                : 'text-gray-500 hover:bg-gray-800/40 hover:text-gray-200'
                         }`}
                 >
                     {depth === 1 && (
-                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${active ? 'bg-emerald-400' : 'bg-gray-700'}`} />
+                        <span
+                            className={`w-1.5 h-1.5 rounded-full shrink-0 ${active ? 'bg-emerald-400' : 'bg-gray-700'}`}
+                        />
                     )}
                     {item.label}
                 </Link>
@@ -213,7 +258,9 @@ function TopNavConfigTabs() {
                 modules.some(
                     (c) =>
                         c.parent_id === m.id &&
-                        modules.some((s) => s.parent_id === c.id && isActive(s.path)),
+                        modules.some(
+                            (s) => s.parent_id === c.id && isActive(s.path),
+                        ),
                 )),
     );
 
@@ -224,7 +271,10 @@ function TopNavConfigTabs() {
     const activeParent =
         allTransaction.find((m) => {
             const kids = configChildren(m.id);
-            return kids.length > 0 && (isActive(m.path) || kids.some((k) => isActive(k.path)));
+            return (
+                kids.length > 0 &&
+                (isActive(m.path) || kids.some((k) => isActive(k.path)))
+            );
         }) ?? null;
 
     if (!activeParent) return null;
@@ -243,15 +293,18 @@ function TopNavConfigTabs() {
                         key={item.key}
                         href={item.path}
                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all shrink-0
-                            ${active
-                                ? 'bg-emerald-500/10 text-emerald-300 ring-1 ring-emerald-500/30'
-                                : 'text-gray-500 hover:bg-gray-800/60 hover:text-gray-200'
+                            ${
+                                active
+                                    ? 'bg-emerald-500/10 text-emerald-300 ring-1 ring-emerald-500/30'
+                                    : 'text-gray-500 hover:bg-gray-800/60 hover:text-gray-200'
                             }`}
                     >
                         <ModuleIcon
                             name={item.icon}
                             size={13}
-                            className={active ? 'text-emerald-400' : 'text-gray-600'}
+                            className={
+                                active ? 'text-emerald-400' : 'text-gray-600'
+                            }
                         />
                         {item.label}
                     </Link>
@@ -272,9 +325,10 @@ function SidebarProfile() {
 
     const email = profile?.email ?? '...';
     const role = profile?.role ?? '';
-    const initials = email && !['...'].includes(email)
-        ? email.substring(0, 2).toUpperCase()
-        : 'AD';
+    const initials =
+        email && !['...'].includes(email)
+            ? email.substring(0, 2).toUpperCase()
+            : 'AD';
 
     const handleLogout = async () => {
         setIsLoggingOut(true);
@@ -321,27 +375,12 @@ function SidebarProfile() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function DashboardShell({ children }: { children: React.ReactNode }) {
-    const [appConfig, setAppConfig] = useState({ name: 'iCase', logo: '/icase.jpg' });
+    const [appConfig, setAppConfig] = useState({
+        name: 'iCase',
+        logo: '/icase.jpg',
+    });
     const [actionList, setActionList] = useState<Action>([]);
 
-    useEffect(() => {
-        const load = async () => {
-            const { data } = await supabase
-                .from('settings')
-                .select('shop_name, logo')
-                .limit(1)
-                .single();
-            const row = data as unknown as { shop_name: string; logo: string } | null;
-            if (row)
-                setAppConfig({
-                    name: row.shop_name || 'iCase Service',
-                    logo: row.logo || '/icase.jpg',
-                });
-        };
-        load();
-        window.addEventListener('settingsUpdated', load);
-        return () => window.removeEventListener('settingsUpdated', load);
-    }, []);
 
     return (
         <div className="flex h-screen w-full overflow-hidden bg-gray-50 font-sans">
@@ -390,11 +429,17 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
                 {/* Page Content */}
                 <main className="flex-1 min-h-0 overflow-y-auto bg-gray-50">
-                    <PageActionContext.Provider
-                        value={{ actions: actionList, setActions: setActionList }}
-                    >
-                        {children}
-                    </PageActionContext.Provider>
+                    <ModuleProvider>
+                        <PageActionContext.Provider
+                            value={{
+                                actions: actionList,
+                                setActions: setActionList,
+                            }}
+                        >
+                            <ModuleActionBridge />
+                            {children}
+                        </PageActionContext.Provider>
+                    </ModuleProvider>
                 </main>
             </div>
         </div>
@@ -405,7 +450,11 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 // Root export — wraps everything in AppProvider + UserProfileProvider
 // ─────────────────────────────────────────────────────────────────────────────
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+export default function DashboardLayout({
+    children,
+}: {
+    children: React.ReactNode;
+}) {
     return (
         <UserProfileProvider>
             <AppProvider>

@@ -1,7 +1,25 @@
-import React from 'react';
+'use client';
 
-function page() {
-    return <div>page</div>;
+import { useApp } from '@/context/AppContext';
+import { Loader2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
+
+export default function DashboardHome() {
+    const { visibleRootModules, isLoading } = useApp();
+    const router = useRouter();
+
+    useEffect(() => {
+        if (isLoading) return;
+        const first = visibleRootModules[0];
+        if (first) {
+            router.replace(first.path);
+        }
+    }, [isLoading, visibleRootModules, router]);
+
+    return (
+        <div className="flex h-full items-center justify-center">
+            <Loader2 className="animate-spin text-emerald-500" size={28} />
+        </div>
+    );
 }
-
-export default page;

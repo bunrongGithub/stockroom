@@ -1,7 +1,7 @@
 'use client';
 
 import CategoryListForm from '@/components/forms/inventory/category/CategoryListForm';
-import { useModuleActions } from '@/hook/usePageAction';
+import { useRegisterModule } from '@/hook/useModule';
 import type { ModuleProps } from '@/lib/registry';
 import type { TMeta } from '@/types/app';
 import type { TCategory } from '@/types/inventory/item';
@@ -15,7 +15,7 @@ export default function InventoryCategoryModule({
     initialMeta,
     actionModules,
 }: ModuleProps) {
-    useModuleActions({ actionModules, permission, modulePath: module.path });
+    useRegisterModule({ actionModules, permission, modulePath: module.path });
 
     return (
         <CategoryListForm

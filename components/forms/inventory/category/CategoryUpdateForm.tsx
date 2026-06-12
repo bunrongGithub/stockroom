@@ -1,6 +1,6 @@
 'use client';
 
-import { useModuleActions } from '@/hook/usePageAction';
+import { useRegisterModule } from '@/hook/useModule';
 import type { ModuleProps } from '@/lib/registry';
 import { LayoutList, Loader2, Save } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
@@ -12,7 +12,7 @@ type FormState = {
 };
 
 function CategoryUpdateForm({ module, permission, actionModules }: ModuleProps) {
-    useModuleActions({ actionModules, permission, modulePath: module.path });
+    useRegisterModule({ actionModules, permission, modulePath: module.path });
 
     const router = useRouter();
     const params = useParams();

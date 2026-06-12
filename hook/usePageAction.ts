@@ -4,11 +4,11 @@ import {
     PageActionContext,
     PageActionContextValue,
 } from '@/context/PageActionContext';
+import { useModuleContext } from '@/context/ModuleContext';
 import { resolveIcon } from '@/lib/resolve-icon';
 import type { Action } from '@/types';
 import type { AppModule, AppPermission } from '@/types/app';
-import { Pencil, Trash2 } from 'lucide-react';
-import { useContext, useEffect } from 'react';
+import { useCallback, useContext, useEffect } from 'react';
 
 export function usePageActions(): PageActionContextValue {
     const ctx = useContext(PageActionContext);
@@ -20,116 +20,49 @@ export function usePageActions(): PageActionContextValue {
     return ctx;
 }
 
-interface UseModuleActionsOptions {
-    /** type=action child modules from DB — rendered as static header buttons */
-    actionModules?: AppModule[] | null;
-    /** when provided, appends Edit/Delete as dynamic (row-level) actions */
-    permission?: AppPermission;
-    modulePath?: string;
-}
 
-const getActionLabel = (
-    action: boolean,
-    actionLabel: 'view' | 'update' | 'edit' | 'delete' | 'export',
-    actonModulePaths: AppModule[],
-) => {
-    if (action && actionLabel === 'view') {
-        const path = actonModulePaths.find(
-            (item) => item.is_active && item.path.endsWith('/view'),
-        );
-        if (path && path.label) {
-            return path.label;
-        } else {
-            return 'Somthing Else';
-        }
-    } else if ((action && actionLabel === 'update') || actionLabel === 'edit') {
-        const path = actonModulePaths.find(
-            (item) =>
-                (item.is_active && item.path.endsWith('/update')) ||
-                item.path.endsWith('/edit'),
-        );
-        if (path && path.label) {
-            return path.label;
-        } else {
-            return 'Somthing Else';
-        }
-    } else if (action && actionLabel === 'delete') {
-        const path = actonModulePaths.find(
-            (item) =>
-                (item.is_active && item.path.endsWith('/delete')) ||
-                item.path.endsWith('/edit'),
-        );
-        if (path && path.label) {
-            return path.label;
-        } else {
-            return 'Somthing Else';
-        }
-    }
+export const getStaticActions = (
+    actions: AppModule[] | undefined,
+    permisson: AppPermission | undefined,
+): Action => {
+    if (!actions) return [];
+    return actions
+        .filter(
+            (a) =>
+                a.path && a.path.endsWith('/create') && permisson?.can_create,
+        )
+        .map((item) => ({
+            label: item.label,
+            href: item.path,
+            type: 'user_action' as const,
+            dynamic: false,
+            icon: resolveIcon(item.icon),
+        }));
 };
-export function useModuleActions({
-    actionModules,
-    permission,
-    modulePath,
-}: UseModuleActionsOptions) {
-    const { setActions } = usePageActions();
-    useEffect(() => {
-        const staticActions: Action = (actionModules ?? [])
-            .filter(
-                (m) =>
-                    m.permission.can_view &&
-                    !m.path.includes(':') &&
-                    !m.path.includes('['),
-            )
-            .map((m) => ({
-                label: m.label,
-                href: m.path,
-                type: 'user_action' as const,
-                dynamic: false,
-                icon: resolveIcon(m.icon),
-            }));
 
-        const dynamicActions: Action = [];
-        if (permission?.can_update && modulePath) {
-            dynamicActions.push({
-                label: getActionLabel(
-                    permission.can_update,
-                    'update',
-                    actionModules!,
-                ) as string,
-                href: `${modulePath}/:id/update`,
-                type: 'user_action',
-                dynamic: true,
-                icon: Pencil,
-            });
-        }
-        if (permission?.can_delete) {
-            dynamicActions.push({
-                label: getActionLabel(
-                    permission.can_delete,
-                    'delete',
-                    actionModules!,
-                ) as string,
-                href: null,
-                type: 'user_action',
-                dynamic: true,
-                icon: Trash2,
-            });
-        }
-        if (permission?.can_view && modulePath) {
-            dynamicActions.push({
-                label: getActionLabel(
-                    permission.can_view,
-                    'view',
-                    actionModules!,
-                ) as string,
-                href: `${modulePath}/:id/view`,
-                type: 'user_action',
-                dynamic: true,
-                icon: Pencil,
-            });
-        }
+export const getDynamicActions = (
+    actions: AppModule[] | undefined,
+    permission: AppPermission | undefined,
+): Action => {
+    if (!actions) return [];
+    return actions
+        .filter((a) => {
+            if (!a.path) return false;
 
-        setActions([...staticActions, ...dynamicActions]);
-        return () => setActions([]);
-    }, [actionModules, permission, modulePath, setActions]);
-}
+            const p = a.path;
+            const canUpdate = p.endsWith('/update') && permission?.can_update;
+            const canView = p.endsWith('/view') && permission?.can_view;
+            const canDelete = p.endsWith('/delete') && permission?.can_delete;
+
+            return !!(canView || canUpdate || canDelete);
+        })
+        .map((item) => ({
+            label: item.label,
+            // Replace Next.js [id] segment with :id so resolveHref() can substitute
+            // the actual row id when rendering per-row action buttons.
+            href: item.path.replace('[id]', ':id'),
+            type: 'user_action' as const,
+            dynamic: true,
+            icon: resolveIcon(item.icon),
+        }));
+};

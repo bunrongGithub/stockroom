@@ -11,195 +11,177 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { useModuleActions } from '@/hook/usePageAction';
+import { DataTable, type DataTableColumn } from '@/components/ui/DataTable';
+import { useRegisterModule } from '@/hook/useModule';
 import type { ModuleProps } from '@/lib/registry';
-import type { AppModuleType } from '@/types/app';
-import { ArrowLeft, Loader2, Save, Search } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import type { AppModule } from '@/types/app';
+import { ArrowLeft, EyeIcon, Loader2 } from 'lucide-react';
+import { useParams, usePathname, useRouter } from 'next/navigation';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import PopUpSearch from '@/components/ui/PopUpSearch';
-import { PopUpSearchTable } from '@/components/ui/PopUpSearchTable';
-import { useForm, Controller } from 'react-hook-form';
 import { useState, useEffect } from 'react';
-import {
-    InputGroup,
-    InputGroupAddon,
-    InputGroupInput,
-} from '../../ui/input-group';
+import type { AppModuleNested } from '@/service/apps/setting/repo/module';
+import Link from 'next/link';
 
-type FormValues = {
-    label: string;
-    key: string;
-    path: string;
-    component: string;
-    icon: string;
-    parent_id: number | null;
-    sort_order: number;
-    type: AppModuleType;
-    is_active: boolean;
-    is_initial_data: boolean;
-};
+type FlatChild = AppModule & { level: 1 | 2 };
 
-function slugify(value: string): string {
-    return value
-        .toLowerCase()
-        .trim()
-        .replace(/\s+/g, '-')
-        .replace(/[^a-z0-9/-]/g, '');
-}
-
-export default function ModuleCreate({
-    module,
+export default function ModuleDetail({
+    module: _module,
     permission,
     actionModules,
 }: ModuleProps) {
-    useModuleActions({ actionModules, permission, modulePath: module.path });
+    useRegisterModule({ actionModules, permission });
 
     const router = useRouter();
-    const [parentLabel, setParentLabel] = useState('');
-    const [parentPopupOpen, setParentPopupOpen] = useState(false);
-    const [toast, setToast] = useState<{
-        msg: string;
-        type: 'success' | 'error';
-    } | null>(null);
+    const params = useParams();
+    const pathname = usePathname();
+    const id = Number(
+        params.id ??
+            (Array.isArray(params.slug) ? params.slug.at(-2) : params.slug),
+    );
 
-    const {
-        register,
-        handleSubmit,
-        control,
-        watch,
-        setValue,
-        formState: { errors, isSubmitting },
-    } = useForm<FormValues>({
-        defaultValues: {
-            label: '',
-            key: '',
-            path: '',
-            component: '',
-            icon: '',
-            parent_id: null,
-            sort_order: 0,
-            type: 'transaction',
-            is_active: true,
-            is_initial_data: false,
-        },
-    });
-
-    // Auto-derive key and path from label while they are still in sync
-    const watchedLabel = watch('label');
-    const watchedKey = watch('key');
-    const watchedPath = watch('path');
-
+    const [loading, setLoading] = useState(true);
+    const [data, setData] = useState<AppModuleNested | null>(null);
+    const [flatChildren, setFlatChildren] = useState<FlatChild[]>([]);
+    console.log(pathname);
     useEffect(() => {
-        const slug = slugify(watchedLabel);
-        const derived = slug ? `/${slug}` : '';
-        // Only overwrite if the field is empty or still matches the previous derived value
-        if (!watchedKey || watchedKey === `/${slugify(watchedLabel)}`) {
-            setValue('key', derived, { shouldValidate: false });
-        }
-        if (!watchedPath || watchedPath === `/${slugify(watchedLabel)}`) {
-            setValue('path', derived, { shouldValidate: false });
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [watchedLabel]);
-
-    function showToast(msg: string, type: 'success' | 'error') {
-        setToast({ msg, type });
-        setTimeout(() => setToast(null), 3000);
-    }
-
-    async function onSubmit(data: FormValues) {
-        try {
-            const res = await fetch('/api/setting/module', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    label: data.label.trim(),
-                    key: data.key.trim(),
-                    path: data.path.trim(),
-                    component: data.component.trim(),
-                    icon: data.icon.trim() || null,
-                    parent_id: data.parent_id ?? null,
-                    sort_order: data.sort_order,
-                    type: data.type,
-                    is_active: data.is_active,
-                    is_initial_data: data.is_initial_data,
-                }),
-            });
-
-            const json = await res.json();
-            if (!res.ok) {
-                throw new Error(
-                    typeof json.error === 'string'
-                        ? json.error
-                        : 'Failed to create module',
-                );
+        if (!id) return;
+        (async () => {
+            setLoading(true);
+            try {
+                const res = await fetch(`/api/setting/module/${id}`);
+                const json = await res.json();
+                const record: AppModuleNested = json.data;
+                if (record) {
+                    setData(record);
+                    const flat: FlatChild[] = [];
+                    for (const child of record.children) {
+                        flat.push({ ...child, level: 1 });
+                        for (const gc of child.children) {
+                            flat.push({ ...gc, level: 2 });
+                        }
+                    }
+                    setFlatChildren(flat);
+                }
+            } finally {
+                setLoading(false);
             }
+        })();
+    }, [id]);
 
-            showToast('Module created successfully', 'success');
-            setTimeout(() => router.push('/setting/module'), 1000);
-        } catch (err) {
-            showToast(
-                err instanceof Error ? err.message : 'Something went wrong',
-                'error',
-            );
-        }
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center h-64">
+                <Loader2 className="animate-spin text-emerald-500" size={28} />
+            </div>
+        );
     }
 
-    return (
-        <div>
-            {/* Toast */}
-            {toast && (
-                <div
-                    className={`fixed right-4 top-4 z-50 rounded-xl px-4 py-3 text-sm font-medium shadow-lg transition-all ${
-                        toast.type === 'success'
-                            ? 'bg-emerald-500 text-white'
-                            : 'bg-rose-500 text-white'
+    const childColumns: DataTableColumn<FlatChild>[] = [
+        {
+            key: 'label',
+            header: 'Label',
+            cell: (row) => (
+                <span className="flex items-center gap-1">
+                    {row.level === 2 && (
+                        <span className="text-muted-foreground">↳</span>
+                    )}
+                    <span
+                        style={{
+                            marginLeft: row.level === 2 ? '0.5rem' : undefined,
+                        }}
+                    >
+                        {row.label}
+                    </span>
+                </span>
+            ),
+        },
+        {
+            key: 'type',
+            header: 'Type',
+            cell: (row) => (
+                <span className="text-xs font-mono">{row.type}</span>
+            ),
+        },
+        {
+            key: 'path',
+            header: 'Path',
+            cell: (row) => (
+                <span className="text-xs font-mono text-muted-foreground">
+                    {row.path}
+                </span>
+            ),
+        },
+        {
+            key: 'component',
+            header: 'Component',
+            cell: (row) => (
+                <span className="text-xs font-mono">{row.component}</span>
+            ),
+        },
+        {
+            key: 'active',
+            header: 'Active',
+            cell: (row) => (
+                <span
+                    className={`text-xs font-medium ${
+                        row.is_active ? 'text-emerald-600' : 'text-rose-500'
                     }`}
                 >
-                    {toast.msg}
-                </div>
-            )}
+                    {row.is_active ? 'Yes' : 'No'}
+                </span>
+            ),
+        },
+        {
+            key: 'action',
+            header: 'Action',
+            cell: (row) => {
+                const id = row.id;
 
+                const segments = pathname.split('/');
+
+                const numberIndex = segments.findIndex(
+                    (segment) => segment !== '' && !isNaN(Number(segment)),
+                );
+
+                if (numberIndex !== -1) {
+                    segments[numberIndex] = String(id);
+                }
+
+                const urlView = segments.join('/');
+
+                return (
+                    <Link href={urlView}>
+                        <EyeIcon className="w-4 text-blue-400" />
+                    </Link>
+                );
+            },
+        },
+    ];
+
+    return (
+        <div className="space-y-6">
             {/* Header */}
             <div className="flex items-start justify-between">
                 <div className="space-y-1">
                     <h1 className="text-3xl font-bold tracking-tight">
-                        {watchedLabel || 'Module'}
+                        {data?.label ?? 'Module'}
                     </h1>
                     <p className="text-sm text-muted-foreground">
-                        Module Configuration • New
+                        Module Configuration • Detail
                     </p>
                 </div>
-                <div className="flex gap-2">
-                    <Button
-                        type="button"
-                        className="border-none shadow-sm"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => router.push('/setting/module')}
-                        disabled={isSubmitting}
-                    >
-                        <ArrowLeft className="mr-1.5 size-4" />
-                        Back
-                    </Button>
-                    <Button
-                        type="button"
-                        size="sm"
-                        onClick={handleSubmit(onSubmit)}
-                        disabled={isSubmitting}
-                    >
-                        {isSubmitting ? (
-                            <Loader2 className="mr-1.5 size-4 animate-spin" />
-                        ) : (
-                            <Save className="mr-1.5 size-4" />
-                        )}
-                        {isSubmitting ? 'Saving...' : 'Save Module'}
-                    </Button>
-                </div>
+                <Button
+                    type="button"
+                    className="border-none shadow-sm"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => router.push('/setting/module')}
+                >
+                    <ArrowLeft className="mr-1.5 size-4" />
+                    Back
+                </Button>
             </div>
 
-            {/* Tabs Navigation */}
             <Tabs
                 defaultValue="basic-information"
                 className="w-full flex-col h-full"
@@ -212,101 +194,61 @@ export default function ModuleCreate({
                     <TabsTrigger value="configuration">
                         Configuration
                     </TabsTrigger>
-                    <TabsTrigger value="childrent">Childrent</TabsTrigger>
+                    <TabsTrigger value="children">Children</TabsTrigger>
                 </TabsList>
 
-                {/* Basic Information Tab */}
+                {/* Basic Information */}
                 <TabsContent
                     value="basic-information"
                     className="space-y-6 w-full"
                 >
                     <Card className="border-none w-full">
                         <CardContent className="grid grid-cols-2 gap-3 pt-4">
-                            {/* Key */}
                             <div className="space-y-2">
-                                <Label htmlFor="key">Key</Label>
+                                <Label>Key</Label>
                                 <Input
-                                    id="key"
-                                    placeholder="/sale/create"
-                                    className="font-mono text-sm"
-                                    {...register('key', {
-                                        required: 'Required',
-                                    })}
-                                />
-                                {errors.key && (
-                                    <p className="text-xs text-destructive">
-                                        {errors.key.message}
-                                    </p>
-                                )}
-                            </div>
-
-                            {/* Label */}
-                            <div className="space-y-2">
-                                <Label htmlFor="label">Label</Label>
-                                <Input
-                                    id="label"
-                                    placeholder="Sale"
-                                    {...register('label', {
-                                        required: 'Required',
-                                    })}
-                                />
-                                {errors.label && (
-                                    <p className="text-xs text-destructive">
-                                        {errors.label.message}
-                                    </p>
-                                )}
-                            </div>
-
-                            {/* Component */}
-                            <div className="space-y-2">
-                                <Label htmlFor="component">Component</Label>
-                                <Input
-                                    id="component"
-                                    placeholder="e.g. SaleModule"
-                                    className="font-mono text-sm"
-                                    {...register('component', {
-                                        required: 'Required',
-                                    })}
-                                />
-                                {errors.component && (
-                                    <p className="text-xs text-destructive">
-                                        {errors.component.message}
-                                    </p>
-                                )}
-                            </div>
-
-                            {/* Icon */}
-                            <div className="space-y-2">
-                                <Label htmlFor="icon">Icon</Label>
-                                <Input
-                                    id="icon"
-                                    placeholder="e.g. Box"
-                                    {...register('icon')}
+                                    readOnly
+                                    value={data?.key ?? ''}
+                                    className="font-mono text-sm bg-muted"
                                 />
                             </div>
-
-                            {/* Type */}
                             <div className="space-y-2">
-                                <Label htmlFor="type">Type</Label>
-                                <select
-                                    id="type"
-                                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                                    {...register('type')}
-                                >
-                                    <option value="transaction">
-                                        Transaction
-                                    </option>
-                                    <option value="configuration">
-                                        Configuration
-                                    </option>
-                                    <option value="action">Action</option>
-                                </select>
+                                <Label>Label</Label>
+                                <Input
+                                    readOnly
+                                    value={data?.label ?? ''}
+                                    className="bg-muted"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Component</Label>
+                                <Input
+                                    readOnly
+                                    value={data?.component ?? ''}
+                                    className="font-mono text-sm bg-muted"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Icon</Label>
+                                <Input
+                                    readOnly
+                                    value={data?.icon ?? ''}
+                                    className="bg-muted"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Type</Label>
+                                <Input
+                                    readOnly
+                                    value={data?.type ?? ''}
+                                    className="bg-muted"
+                                />
                             </div>
                         </CardContent>
                     </Card>
                 </TabsContent>
 
-                {/* Navigation Tab */}
+                {/* Navigation */}
                 <TabsContent value="navigation">
                     <Card className="border-none">
                         <CardHeader>
@@ -316,74 +258,39 @@ export default function ModuleCreate({
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="grid grid-cols-2 gap-3">
-                            {/* Path URL */}
                             <div className="space-y-2">
-                                <Label htmlFor="path">Path URL</Label>
+                                <Label>Path URL</Label>
                                 <Input
-                                    id="path"
-                                    placeholder="e.g. /inventory/stock-item"
-                                    className="font-mono text-sm"
-                                    {...register('path', {
-                                        required: 'Required',
-                                    })}
+                                    readOnly
+                                    value={data?.path ?? ''}
+                                    className="font-mono text-sm bg-muted"
                                 />
-                                {errors.path && (
-                                    <p className="text-xs text-destructive">
-                                        {errors.path.message}
-                                    </p>
-                                )}
                             </div>
-
-                            {/* Parent Menu */}
                             <div className="space-y-2">
-                                <Label htmlFor="parent_id">Parent Menu</Label>
-                                <InputGroup className="h-10">
-                                    <InputGroupInput
-                                        id="parent_id"
-                                        placeholder="Search parent module..."
-                                        readOnly
-                                        value={parentLabel}
-                                    />
-                                    <InputGroupAddon align="inline-end">
-                                        <button
-                                            type="button"
-                                            className="cursor-pointer"
-                                            onClick={() =>
-                                                setParentPopupOpen(true)
-                                            }
-                                        >
-                                            <Search className="w-4" />
-                                        </button>
-                                    </InputGroupAddon>
-                                </InputGroup>
-                            </div>
-
-                            {/* Sort Order */}
-                            <div className="space-y-2">
-                                <Label htmlFor="sort_order">Ordering</Label>
+                                <Label>Parent</Label>
                                 <Input
-                                    id="sort_order"
-                                    type="number"
-                                    placeholder="0"
-                                    {...register('sort_order', {
-                                        valueAsNumber: true,
-                                        min: {
-                                            value: 0,
-                                            message: 'Must be 0 or higher',
-                                        },
-                                    })}
+                                    readOnly
+                                    value={
+                                        data?.parent != null
+                                            ? String(data.parent.label)
+                                            : '—'
+                                    }
+                                    className="bg-muted font-mono text-sm"
                                 />
-                                {errors.sort_order && (
-                                    <p className="text-xs text-destructive">
-                                        {errors.sort_order.message}
-                                    </p>
-                                )}
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Sort Order</Label>
+                                <Input
+                                    readOnly
+                                    value={String(data?.sort_order ?? 0)}
+                                    className="bg-muted"
+                                />
                             </div>
                         </CardContent>
                     </Card>
                 </TabsContent>
 
-                {/* Configuration Tab */}
+                {/* Configuration */}
                 <TabsContent value="configuration">
                     <Card className="border-none">
                         <CardHeader>
@@ -393,7 +300,6 @@ export default function ModuleCreate({
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-6">
-                            {/* Active Status */}
                             <div className="flex items-center justify-between">
                                 <div className="space-y-0.5">
                                     <Label>Status</Label>
@@ -401,19 +307,11 @@ export default function ModuleCreate({
                                         Enable this module
                                     </p>
                                 </div>
-                                <Controller
-                                    name="is_active"
-                                    control={control}
-                                    render={({ field }) => (
-                                        <Switch
-                                            checked={field.value}
-                                            onCheckedChange={field.onChange}
-                                        />
-                                    )}
+                                <Switch
+                                    checked={data?.is_active ?? false}
+                                    disabled
                                 />
                             </div>
-
-                            {/* Initial Data */}
                             <div className="flex items-center justify-between">
                                 <div className="space-y-0.5">
                                     <Label>Initial Data</Label>
@@ -421,65 +319,37 @@ export default function ModuleCreate({
                                         Part of base configuration
                                     </p>
                                 </div>
-                                <Controller
-                                    name="is_initial_data"
-                                    control={control}
-                                    render={({ field }) => (
-                                        <Switch
-                                            checked={field.value}
-                                            onCheckedChange={field.onChange}
-                                        />
-                                    )}
+                                <Switch
+                                    checked={data?.is_initial_data ?? false}
+                                    disabled
                                 />
                             </div>
                         </CardContent>
                     </Card>
                 </TabsContent>
-            </Tabs>
 
-            {/* Parent Menu Popup */}
-            <PopUpSearch
-                open={parentPopupOpen}
-                title="Parent Menu"
-                placeholder="Search module..."
-                onClose={() => setParentPopupOpen(false)}
-            >
-                <PopUpSearchTable<
-                    { id: number; label: string } & Record<string, unknown>
-                >
-                    apiUrl="/api/setting/module/lookup"
-                    flatData
-                    selectedId={watch('parent_id')}
-                    onRowSelect={(row) => {
-                        setValue('parent_id', row.id, { shouldDirty: true });
-                        setParentLabel(String(row.label ?? ''));
-                        setParentPopupOpen(false);
-                    }}
-                    columns={[
-                        {
-                            key: 'id',
-                            header: '#',
-                            className: 'w-16 text-muted-foreground',
-                        },
-                        {
-                            key: 'label',
-                            header: 'Module',
-                            filterable: true,
-                            getValue: (r) => String(r.label ?? ''),
-                        },
-                        {
-                            key: 'type',
-                            header: 'Type',
-                            className: 'w-28',
-                        },
-                        {
-                            key: 'path',
-                            header: 'Path',
-                            className: 'font-mono text-xs',
-                        },
-                    ]}
-                />
-            </PopUpSearch>
+                {/* Children */}
+                <TabsContent value="children">
+                    <Card className="border-none">
+                        <CardHeader>
+                            <CardTitle>Children</CardTitle>
+                            <CardDescription>
+                                Sub-modules nested under this module
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <DataTable
+                                columns={childColumns}
+                                data={flatChildren}
+                                keyExtractor={(row) => row.id}
+                                pageSize={20}
+                                emptyTitle="No children"
+                                emptyDescription="This module has no sub-modules."
+                            />
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+            </Tabs>
         </div>
     );
 }

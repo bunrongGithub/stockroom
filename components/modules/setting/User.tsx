@@ -3,7 +3,7 @@
 import type { DataTableColumn } from '@/components/ui/DataTable';
 import { DataTable } from '@/components/ui/DataTable';
 import { Badge } from '@/components/ui/badge';
-import { useModuleActions } from '@/hook/usePageAction';
+import { useRegisterModule } from '@/hook/useModule';
 import type { ModuleProps } from '@/lib/registry';
 import { Users } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -81,7 +81,7 @@ const COLUMNS: DataTableColumn<UserRow>[] = [
 ];
 
 export default function User({ module, permission, actionModules }: ModuleProps) {
-    useModuleActions({ actionModules, permission, modulePath: module.path });
+    useRegisterModule({ actionModules, permission, modulePath: module.path });
     const [users, setUsers] = useState<UserRow[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -98,7 +98,7 @@ export default function User({ module, permission, actionModules }: ModuleProps)
     }, []);
 
     return (
-        <div className="p-6 max-w-5xl mx-auto space-y-6 animate-in fade-in duration-300">
+        <div className=" mx-auto animate-in fade-in duration-300">
             <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
                     <Users size={20} className="text-emerald-600" />

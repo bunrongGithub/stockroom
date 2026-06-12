@@ -11,7 +11,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { useModuleActions } from '@/hook/usePageAction';
+import { useRegisterModule } from '@/hook/useModule';
 import type { ModuleProps } from '@/lib/registry';
 import type { AppModuleType } from '@/types/app';
 import { ArrowLeft, Loader2, Save, Search } from 'lucide-react';
@@ -53,7 +53,7 @@ export default function ModuleCreate({
     permission,
     actionModules,
 }: ModuleProps) {
-    useModuleActions({ actionModules, permission, modulePath: module.path });
+    useRegisterModule({ actionModules, permission, modulePath: module.path });
 
     const router = useRouter();
     const [parentLabel, setParentLabel] = useState('');
@@ -313,7 +313,7 @@ export default function ModuleCreate({
                             {/* Parent Menu */}
                             <div className="space-y-2">
                                 <Label htmlFor="parent_id">Parent Menu</Label>
-                                <InputGroup className="h-10">
+                                <InputGroup className="h-8">
                                     <InputGroupInput
                                         id="parent_id"
                                         placeholder="Search parent module..."

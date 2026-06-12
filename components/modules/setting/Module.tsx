@@ -2,7 +2,8 @@
 
 import { DataTable, type DataTableColumn } from '@/components/ui/DataTable';
 import PopUpDeleteTransactionModal from '@/components/ui/PopUpDeleteModal';
-import { useModuleActions, usePageActions } from '@/hook/usePageAction';
+import { useRegisterModule } from '@/hook/useModule';
+import { usePageActions } from '@/hook/usePageAction';
 import type { ModuleProps } from '@/lib/registry';
 import type { AppModule, TMeta } from '@/types/app';
 import { resolveHref } from '@/utils/utils';
@@ -18,14 +19,13 @@ export default function ModuleComponent({
     initialMeta,
     actionModules,
 }: ModuleProps) {
-    useModuleActions({ actionModules, permission, modulePath: module.path });
+    useRegisterModule({ actionModules, permission, modulePath: module.path });
 
     const pageAction = usePageActions();
+
     const staticActions = pageAction?.actions.filter((a) => !a.dynamic) ?? [];
     const dynamicActions = pageAction?.actions.filter((a) => a.dynamic) ?? [];
 
-
-    console.log(dynamicActions)
     const displayModules = (initialData as AppModule[]) ?? [];
     const displayMeta = initialMeta ?? DEFAULT_META;
 
@@ -41,7 +41,7 @@ export default function ModuleComponent({
         if (!deletingId) return;
         try {
             setIsDeleting(true);
-            const res = await fetch(`/api/modules/${deletingId}`, {
+            const res = await fetch(`/api/setting/module/${deletingId}`, {
                 method: 'DELETE',
             });
             if (!res.ok) throw new Error('Delete failed');
@@ -114,7 +114,9 @@ export default function ModuleComponent({
                                           <button
                                               key={action.label}
                                               type="button"
-                                              onClick={() => setDeletingId(row.id)}
+                                              onClick={() =>
+                                                  setDeletingId(row.id)
+                                              }
                                               className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-medium text-rose-600 transition-colors hover:bg-rose-50"
                                           >
                                               {Icon && <Icon size={13} />}
@@ -125,7 +127,10 @@ export default function ModuleComponent({
                                   return (
                                       <Link
                                           key={action.label}
-                                          href={resolveHref(action.href as string, row.id)}
+                                          href={resolveHref(
+                                              action.href as string,
+                                              row.id,
+                                          )}
                                           className="inline-flex items-center gap-1.5 rounded-lg border border-sky-200 px-3 py-1.5 text-xs font-medium text-sky-600 transition-colors hover:bg-sky-50"
                                       >
                                           {Icon && <Icon size={13} />}
@@ -165,7 +170,9 @@ export default function ModuleComponent({
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
                 <div className="space-y-1">
-                    <h2 className="text-2xl font-bold text-slate-800">Modules</h2>
+                    <h2 className="text-2xl font-bold text-slate-800">
+                        Modules
+                    </h2>
                     <p className="text-sm text-slate-500">
                         Manage application modules and their access control
                     </p>

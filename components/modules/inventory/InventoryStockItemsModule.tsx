@@ -1,7 +1,7 @@
 'use client';
 
 import StockForm from '@/components/forms/inventory/stock/StockForm';
-import { useModuleActions } from '@/hook/usePageAction';
+import { useRegisterModule } from '@/hook/useModule';
 import type { ModuleProps } from '@/lib/registry';
 import { InventoryItemProps } from '@/types/inventory/item';
 
@@ -12,6 +12,6 @@ export default function InventoryItemsModule({
     initialData,
     initialMeta,
 }: ModuleProps) {
-    useModuleActions({ actionModules, permission, modulePath: module.path });
+    useRegisterModule({ actionModules, permission, modulePath: module.path });
     return <StockForm items={initialData as Array<InventoryItemProps>} />;
 }

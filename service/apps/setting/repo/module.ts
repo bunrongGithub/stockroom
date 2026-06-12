@@ -8,8 +8,14 @@ import type { RequestContext } from '@/types/request-context';
 
 const TABLE = 'modules' as const;
 
+type ParentRef = { id: number; label: string };
+
 export type AppModuleNested = AppModule & {
-    children: (AppModule & { children: AppModule[] })[];
+    parent: ParentRef | null;
+    children: (AppModule & {
+        parent: ParentRef | null;
+        children: (AppModule & { parent: ParentRef | null })[];
+    })[];
 };
 
 export class ModuleRepository extends BaseRepository {
@@ -36,7 +42,7 @@ export class ModuleRepository extends BaseRepository {
                     'id, key, label, path, component, parent_id, icon, sort_order, is_active, type, is_initial_data',
                     { count: 'exact' },
                 )
-                .is('parent_id', null),
+                .or('parent_id.is.null,type.eq.transaction'),
             _ctx,
         );
         return this.paginate(query, params);
@@ -57,7 +63,19 @@ export class ModuleRepository extends BaseRepository {
             throw new Error(error.message);
         }
 
-        // Fetch direct children in one query, then fan-out grandchildren in parallel
+        let moduleParent: ParentRef | null = null;
+        if (module.parent_id != null) {
+            const { data: parentRow } = await this.db
+                .from(TABLE)
+                .select('id, label')
+                .eq('id', module.parent_id)
+                .single();
+            moduleParent = parentRow
+                ? { id: parentRow.id as number, label: parentRow.label as string }
+                : { id: module.parent_id, label: '' };
+        }
+
+        // Fetch direct children, then fan-out grandchildren in parallel
         const { data: directChildren } = await this.db
             .from(TABLE)
             .select('*')
@@ -73,11 +91,25 @@ export class ModuleRepository extends BaseRepository {
                     .select('*')
                     .eq('parent_id', child.id)
                     .order('sort_order', { ascending: true });
-                return { ...child, children: grandchildren ?? [] };
+
+                const gc = (grandchildren ?? []).map((gc) => ({
+                    ...gc,
+                    parent: { id: child.id, label: child.label },
+                }));
+
+                return {
+                    ...child,
+                    parent: { id: module.id, label: module.label },
+                    children: gc,
+                };
             }),
         );
 
-        return { ...module, children: childrenWithGrandchildren };
+        return {
+            ...module,
+            parent: moduleParent,
+            children: childrenWithGrandchildren,
+        };
     }
 
     async insertOne(
@@ -120,7 +152,10 @@ export class ModuleRepository extends BaseRepository {
         if (error) throw new Error(error.message);
     }
 
-    async findAllMenu(_ctx: RequestContext, params: PaginationParams): Promise<PaginatedResult<AppModule>> {
+    async findAllMenu(
+        _ctx: RequestContext,
+        params: PaginationParams,
+    ): Promise<PaginatedResult<AppModule>> {
         const { limit = 10, page = 1, search } = params;
         const query = this.applyFilter(
             this.db
@@ -131,6 +166,11 @@ export class ModuleRepository extends BaseRepository {
                 ),
             _ctx,
         ).order('sort_order', { ascending: true });
-        return this.paginate(query, { limit, page, search, searchColumn: 'label' });
+        return this.paginate(query, {
+            limit,
+            page,
+            search,
+            searchColumn: 'label',
+        });
     }
 }

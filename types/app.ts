@@ -23,11 +23,13 @@ export interface AppModule {
     path: string;
     component: string;
     parent_id: number | null;
+    parent?: AppModule;
     icon: string | null;
     sort_order: number;
     is_active: boolean;
     type: AppModuleType;
     is_initial_data: boolean;
+    permission: AppPermission;
 }
 
 export interface AppProfile {

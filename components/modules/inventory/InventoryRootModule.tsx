@@ -1,6 +1,6 @@
 'use client';
 
-import { useModuleActions } from '@/hook/usePageAction';
+import { useRegisterModule } from '@/hook/useModule';
 import type { ModuleProps } from '@/lib/registry';
 import {
     ArrowLeftRight,
@@ -16,7 +16,7 @@ export default function InventoryRootModule({
     permission,
     actionModules,
 }: ModuleProps) {
-    useModuleActions({ actionModules, permission, modulePath: module.path });
+    useRegisterModule({ actionModules, permission, modulePath: module.path });
     const cards = [
         { href: '/inventory', icon: Package, label: 'Items', show: true },
         {

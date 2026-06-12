@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSessionFromRequest } from '@/lib/auth';
 
 const PUBLIC_PATHS = [
-    '/login',
     '/signin',
     '/unauthorized',
     '/api/auth/login',

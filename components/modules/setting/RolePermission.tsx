@@ -20,7 +20,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { useModuleActions } from '@/hook/usePageAction';
+import { useRegisterModule } from '@/hook/useModule';
 import type { ModuleProps } from '@/lib/registry';
 import type { AppModuleType } from '@/types/app';
 import { Check, KeyRound, Pencil, Plus, Trash2, X } from 'lucide-react';
@@ -146,7 +146,7 @@ export default function RolePermission({
     permission,
     actionModules,
 }: ModuleProps) {
-    useModuleActions({ actionModules, permission, modulePath: module.path });
+    useRegisterModule({ actionModules, permission, modulePath: module.path });
     const [permissions, setPermissions] = useState<PermissionRow[]>([]);
     const [roles, setRoles] = useState<RoleOption[]>([]);
     const [modules, setModules] = useState<ModuleOption[]>([]);
