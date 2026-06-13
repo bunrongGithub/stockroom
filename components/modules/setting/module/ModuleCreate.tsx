@@ -25,7 +25,7 @@ import {
     InputGroup,
     InputGroupAddon,
     InputGroupInput,
-} from '../ui/input-group';
+} from '@/components/ui/input-group';
 
 type FormValues = {
     label: string;
@@ -100,7 +100,7 @@ export default function ModuleCreate({
         if (!watchedPath || watchedPath === `/${slugify(watchedLabel)}`) {
             setValue('path', derived, { shouldValidate: false });
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [watchedLabel]);
 
     function showToast(msg: string, type: 'success' | 'error') {
@@ -215,7 +215,10 @@ export default function ModuleCreate({
                 </TabsList>
 
                 {/* Basic Information Tab */}
-                <TabsContent value="basic-information" className="space-y-6 w-full">
+                <TabsContent
+                    value="basic-information"
+                    className="space-y-6 w-full"
+                >
                     <Card className="border-none w-full">
                         <CardContent className="grid grid-cols-2 gap-3 pt-4">
                             {/* Key */}
@@ -225,10 +228,14 @@ export default function ModuleCreate({
                                     id="key"
                                     placeholder="/sale/create"
                                     className="font-mono text-sm"
-                                    {...register('key', { required: 'Required' })}
+                                    {...register('key', {
+                                        required: 'Required',
+                                    })}
                                 />
                                 {errors.key && (
-                                    <p className="text-xs text-destructive">{errors.key.message}</p>
+                                    <p className="text-xs text-destructive">
+                                        {errors.key.message}
+                                    </p>
                                 )}
                             </div>
 
@@ -238,10 +245,14 @@ export default function ModuleCreate({
                                 <Input
                                     id="label"
                                     placeholder="Sale"
-                                    {...register('label', { required: 'Required' })}
+                                    {...register('label', {
+                                        required: 'Required',
+                                    })}
                                 />
                                 {errors.label && (
-                                    <p className="text-xs text-destructive">{errors.label.message}</p>
+                                    <p className="text-xs text-destructive">
+                                        {errors.label.message}
+                                    </p>
                                 )}
                             </div>
 
@@ -252,10 +263,14 @@ export default function ModuleCreate({
                                     id="component"
                                     placeholder="e.g. SaleModule"
                                     className="font-mono text-sm"
-                                    {...register('component', { required: 'Required' })}
+                                    {...register('component', {
+                                        required: 'Required',
+                                    })}
                                 />
                                 {errors.component && (
-                                    <p className="text-xs text-destructive">{errors.component.message}</p>
+                                    <p className="text-xs text-destructive">
+                                        {errors.component.message}
+                                    </p>
                                 )}
                             </div>
 
@@ -277,8 +292,12 @@ export default function ModuleCreate({
                                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                                     {...register('type')}
                                 >
-                                    <option value="transaction">Transaction</option>
-                                    <option value="configuration">Configuration</option>
+                                    <option value="transaction">
+                                        Transaction
+                                    </option>
+                                    <option value="configuration">
+                                        Configuration
+                                    </option>
                                     <option value="action">Action</option>
                                 </select>
                             </div>
@@ -303,10 +322,14 @@ export default function ModuleCreate({
                                     id="path"
                                     placeholder="e.g. /inventory/stock-item"
                                     className="font-mono text-sm"
-                                    {...register('path', { required: 'Required' })}
+                                    {...register('path', {
+                                        required: 'Required',
+                                    })}
                                 />
                                 {errors.path && (
-                                    <p className="text-xs text-destructive">{errors.path.message}</p>
+                                    <p className="text-xs text-destructive">
+                                        {errors.path.message}
+                                    </p>
                                 )}
                             </div>
 
@@ -324,7 +347,9 @@ export default function ModuleCreate({
                                         <button
                                             type="button"
                                             className="cursor-pointer"
-                                            onClick={() => setParentPopupOpen(true)}
+                                            onClick={() =>
+                                                setParentPopupOpen(true)
+                                            }
                                         >
                                             <Search className="w-4" />
                                         </button>
@@ -341,11 +366,16 @@ export default function ModuleCreate({
                                     placeholder="0"
                                     {...register('sort_order', {
                                         valueAsNumber: true,
-                                        min: { value: 0, message: 'Must be 0 or higher' },
+                                        min: {
+                                            value: 0,
+                                            message: 'Must be 0 or higher',
+                                        },
                                     })}
                                 />
                                 {errors.sort_order && (
-                                    <p className="text-xs text-destructive">{errors.sort_order.message}</p>
+                                    <p className="text-xs text-destructive">
+                                        {errors.sort_order.message}
+                                    </p>
                                 )}
                             </div>
                         </CardContent>

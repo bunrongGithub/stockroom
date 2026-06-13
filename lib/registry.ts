@@ -69,10 +69,21 @@ const registry = new Map<string, LazyLoader>([
     // Setting modules
     ['User', () => import('@/components/modules/setting/User')],
     ['Role', () => import('@/components/modules/setting/Role')],
-    ['Module', () => import('@/components/modules/setting/Module')],
-    ['ModuleCreate', () => import('@/components/modules/ModuleCreate')],
-    ['ModuleDetail', () => import('@/components/modules/setting/ModuleDetail')],
-    ['ModuleUpdate', () => import('@/components/modules/setting/ModuleUpdate')],
+    ['Module', () => import('@/components/modules/setting/module/Module')],
+    [
+        'ModuleCreate',
+        () => import('@/components/modules/setting/module/ModuleCreate'),
+    ],
+    [
+        'ModuleDetail',
+        () => import('@/components/modules/setting/module/ModuleDetail'),
+    ],
+    [
+        'ModuleUpdate',
+        () => import('@/components/modules/setting/module/ModuleUpdate'),
+    ],
+    // Comapny
+    ['Company', () => import('@/components/modules/setting/company/Company')],
     [
         'RolePermission',
         () => import('@/components/modules/setting/RolePermission'),

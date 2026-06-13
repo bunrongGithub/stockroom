@@ -1,7 +1,7 @@
 'use client';
 
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { ButtonActionDynamicRender } from '@/components/ui/button-action';
 import type { DataTableColumn } from '@/components/ui/DataTable';
 import { DataTable } from '@/components/ui/DataTable';
 import {
@@ -15,8 +15,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import PopUpDeleteTransactionModal from '@/components/ui/PopUpDeleteModal';
 import { useRegisterModule } from '@/hook/useModule';
+import { usePageActions } from '@/hook/usePageAction';
 import type { ModuleProps } from '@/lib/registry';
-import { Eye, Pencil, Plus, ShieldCheck, Trash2 } from 'lucide-react';
+import { Plus, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import { useCallback, useState } from 'react';
 
@@ -39,7 +40,14 @@ export default function Role({
 }: ModuleProps) {
     useRegisterModule({ actionModules, permission, modulePath: module.path });
 
-    const [roles, setRoles] = useState<ListRole[]>((initialData as ListRole[]) ?? []);
+    const pageAction = usePageActions();
+
+    const staticActions = pageAction?.actions.filter((a) => !a.dynamic) ?? [];
+    const dynamicActions = pageAction?.actions.filter((a) => a.dynamic) ?? [];
+
+    const [roles, setRoles] = useState<ListRole[]>(
+        (initialData as ListRole[]) ?? [],
+    );
     const [error, setError] = useState<string | null>(null);
 
     const [dialogOpen, setDialogOpen] = useState(false);
@@ -51,7 +59,10 @@ export default function Role({
     const [deletingId, setDeletingId] = useState<number | null>(null);
     const [deleting, setDeleting] = useState(false);
 
-    const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
+    const [toast, setToast] = useState<{
+        msg: string;
+        type: 'success' | 'error';
+    } | null>(null);
 
     const showToast = (msg: string, type: 'success' | 'error') => {
         setToast({ msg, type });
@@ -91,7 +102,9 @@ export default function Role({
         setSaving(true);
         setFormError(null);
         try {
-            const url = editing ? `/api/setting/role/${editing.id}` : '/api/setting/role';
+            const url = editing
+                ? `/api/setting/role/${editing.id}`
+                : '/api/setting/role';
             const r = await fetch(url, {
                 method: editing ? 'PUT' : 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -116,7 +129,9 @@ export default function Role({
         if (!deletingId) return;
         setDeleting(true);
         try {
-            const r = await fetch(`/api/setting/role/${deletingId}`, { method: 'DELETE' });
+            const r = await fetch(`/api/setting/role/${deletingId}`, {
+                method: 'DELETE',
+            });
             if (!r.ok) throw new Error('Delete failed');
             setRoles((prev) => prev.filter((role) => role.id !== deletingId));
             showToast('Role deleted', 'success');
@@ -137,7 +152,9 @@ export default function Role({
                     <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center">
                         <ShieldCheck size={13} className="text-slate-500" />
                     </div>
-                    <span className="font-medium text-sm text-slate-800">{row.name}</span>
+                    <span className="font-medium text-sm text-slate-800">
+                        {row.name}
+                    </span>
                 </div>
             ),
         },
@@ -146,9 +163,13 @@ export default function Role({
             header: 'Description',
             cell: (row) =>
                 row.description ? (
-                    <span className="text-sm text-slate-500">{row.description}</span>
+                    <span className="text-sm text-slate-500">
+                        {row.description}
+                    </span>
                 ) : (
-                    <span className="text-xs text-muted-foreground italic">—</span>
+                    <span className="text-xs text-muted-foreground italic">
+                        —
+                    </span>
                 ),
         },
         {
@@ -156,9 +177,13 @@ export default function Role({
             header: 'Company',
             cell: (row) =>
                 row.company ? (
-                    <span className="text-sm text-slate-500">{row.company.name}</span>
+                    <span className="text-sm text-slate-500">
+                        {row.company.name}
+                    </span>
                 ) : (
-                    <span className="text-xs text-muted-foreground italic">No company</span>
+                    <span className="text-xs text-muted-foreground italic">
+                        No company
+                    </span>
                 ),
         },
         {
@@ -172,43 +197,18 @@ export default function Role({
                 </span>
             ),
         },
-        {
-            key: 'actions',
-            header: '',
-            headerClassName: 'w-28',
-            cellClassName: 'text-right',
-            cell: (row) => (
-                <div className="inline-flex items-center gap-1 justify-end">
-                    <Link
-                        href={`/setting/role/${row.id}`}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
-                        title="View permissions"
-                    >
-                        <Eye size={13} />
-                    </Link>
-                    {permission.can_update && (
-                        <button
-                            type="button"
-                            onClick={() => openEdit(row)}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-sky-600 hover:bg-sky-50 transition-colors"
-                            title="Edit"
-                        >
-                            <Pencil size={13} />
-                        </button>
-                    )}
-                    {permission.can_delete && (
-                        <button
-                            type="button"
-                            onClick={() => setDeletingId(row.id)}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
-                            title="Delete"
-                        >
-                            <Trash2 size={13} />
-                        </button>
-                    )}
-                </div>
-            ),
-        },
+        ...(dynamicActions.length > 0
+            ? [
+                  {
+                      key: 'actions',
+                      header: 'Actions',
+                      cell: (row: any) =>
+                          ButtonActionDynamicRender(dynamicActions, row, () =>
+                              setDeletingId(row.id),
+                          ),
+                  } as unknown as DataTableColumn<ListRole>,
+              ]
+            : []),
     ];
 
     return (
@@ -216,7 +216,9 @@ export default function Role({
             {toast && (
                 <div
                     className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl text-sm font-medium shadow-lg transition-all ${
-                        toast.type === 'success' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'
+                        toast.type === 'success'
+                            ? 'bg-emerald-500 text-white'
+                            : 'bg-rose-500 text-white'
                     }`}
                 >
                     {toast.msg}
@@ -231,27 +233,25 @@ export default function Role({
             />
 
             {/* Header */}
-            <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center">
-                    <ShieldCheck size={20} className="text-slate-600" />
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+                <div className="space-y-1">
+                    <h2 className="text-2xl font-bold text-slate-800">Role</h2>
+                    <p className="text-sm text-slate-500">Role in your App </p>
                 </div>
-                <div>
-                    <h2 className="text-xl font-bold text-slate-800">Roles</h2>
-                    <p className="text-sm text-slate-500">Manage system roles</p>
-                </div>
-                <div className="ml-auto flex items-center gap-2">
-                    <Badge variant="secondary">
-                        {roles.length} role{roles.length !== 1 ? 's' : ''}
-                    </Badge>
-                    {permission.can_create && (
-                        <Button
-                            size="sm"
-                            onClick={openCreate}
-                            className="gap-1.5 bg-emerald-600 hover:bg-emerald-500"
-                        >
-                            <Plus size={14} /> Add Role
-                        </Button>
-                    )}
+                <div className="flex items-center gap-2">
+                    {staticActions.map((action) => {
+                        const Icon = action.icon;
+                        return (
+                            <Link
+                                key={action.label}
+                                href={action.href as string}
+                                className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 rounded-xl text-sm font-medium shadow-sm transition-colors"
+                            >
+                                {Icon && <Icon size={16} />}
+                                {action.label}
+                            </Link>
+                        );
+                    })}
                 </div>
             </div>
 
@@ -289,7 +289,9 @@ export default function Role({
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
-                        <DialogTitle>{editing ? 'Edit Role' : 'Create Role'}</DialogTitle>
+                        <DialogTitle>
+                            {editing ? 'Edit Role' : 'Create Role'}
+                        </DialogTitle>
                     </DialogHeader>
 
                     <div className="space-y-4 py-2">
@@ -301,7 +303,12 @@ export default function Role({
                                 id="role-name"
                                 placeholder="e.g. admin, staff, viewer"
                                 value={form.name}
-                                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                                onChange={(e) =>
+                                    setForm((f) => ({
+                                        ...f,
+                                        name: e.target.value,
+                                    }))
+                                }
                             />
                         </div>
                         <div className="space-y-1.5">
@@ -311,11 +318,16 @@ export default function Role({
                                 placeholder="Optional description"
                                 value={form.description}
                                 onChange={(e) =>
-                                    setForm((f) => ({ ...f, description: e.target.value }))
+                                    setForm((f) => ({
+                                        ...f,
+                                        description: e.target.value,
+                                    }))
                                 }
                             />
                         </div>
-                        {formError && <p className="text-sm text-rose-600">{formError}</p>}
+                        {formError && (
+                            <p className="text-sm text-rose-600">{formError}</p>
+                        )}
                     </div>
 
                     <DialogFooter>

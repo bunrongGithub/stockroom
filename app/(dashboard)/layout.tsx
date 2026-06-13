@@ -7,7 +7,6 @@ import { AppProvider, useApp } from '@/context/AppContext';
 import { UserProfileProvider } from '@/context/UserProfileContext';
 import { clearAppCache } from '@/context/AppContext';
 import type { AppModule } from '@/types/app';
-import { supabase } from '@/lib/supabase/client';
 import {
     Box,
     BadgePercent,
@@ -30,7 +29,7 @@ import type { LucideIcon } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import type { Action } from '@/types';
 import { ModuleProvider, useModuleContext } from '@/context/ModuleContext';
 import { useModuleActions } from '@/hook/useModule';
@@ -380,7 +379,6 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         logo: '/icase.jpg',
     });
     const [actionList, setActionList] = useState<Action>([]);
-
 
     return (
         <div className="flex h-screen w-full overflow-hidden bg-gray-50 font-sans">

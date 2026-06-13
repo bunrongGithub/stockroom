@@ -1,12 +1,12 @@
 'use client';
 
+import { ButtonActionDynamicRender } from '@/components/ui/button-action';
 import { DataTable, type DataTableColumn } from '@/components/ui/DataTable';
 import PopUpDeleteTransactionModal from '@/components/ui/PopUpDeleteModal';
 import { useRegisterModule } from '@/hook/useModule';
 import { usePageActions } from '@/hook/usePageAction';
 import type { ModuleProps } from '@/lib/registry';
 import type { AppModule, TMeta } from '@/types/app';
-import { resolveHref } from '@/utils/utils';
 import Link from 'next/link';
 import { useState } from 'react';
 
@@ -105,48 +105,17 @@ export default function ModuleComponent({
                   {
                       key: 'actions',
                       header: 'Actions',
-                      cell: (row: AppModule) => (
-                          <div className="flex items-center gap-2">
-                              {dynamicActions.map((action) => {
-                                  const Icon = action.icon;
-                                  if (action.label.toLowerCase() === 'delete') {
-                                      return (
-                                          <button
-                                              key={action.label}
-                                              type="button"
-                                              onClick={() =>
-                                                  setDeletingId(row.id)
-                                              }
-                                              className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-medium text-rose-600 transition-colors hover:bg-rose-50"
-                                          >
-                                              {Icon && <Icon size={13} />}
-                                              {action.label}
-                                          </button>
-                                      );
-                                  }
-                                  return (
-                                      <Link
-                                          key={action.label}
-                                          href={resolveHref(
-                                              action.href as string,
-                                              row.id,
-                                          )}
-                                          className="inline-flex items-center gap-1.5 rounded-lg border border-sky-200 px-3 py-1.5 text-xs font-medium text-sky-600 transition-colors hover:bg-sky-50"
-                                      >
-                                          {Icon && <Icon size={13} />}
-                                          {action.label}
-                                      </Link>
-                                  );
-                              })}
-                          </div>
-                      ),
+                      cell: (row: AppModule) =>
+                          ButtonActionDynamicRender(dynamicActions, row, () =>
+                              setDeletingId(row.id),
+                          ),
                   } satisfies DataTableColumn<AppModule>,
               ]
             : []),
     ];
 
     return (
-        <main className="space-y-6 p-4 md:p-8">
+        <main>
             {/* Toast */}
             {toast && (
                 <div
