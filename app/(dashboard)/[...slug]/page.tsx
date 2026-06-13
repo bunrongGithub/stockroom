@@ -45,6 +45,7 @@ export default async function Page({ params, searchParams }: Props) {
     let _responsePageMeta = null;
 
     if (module.is_initial_data) {
+        console.log(`[Fetching data from ${module.component} on initial page....]`);
         try {
             const response = await fetchPaginatedData(
                 apiUrl(path),
@@ -52,6 +53,7 @@ export default async function Page({ params, searchParams }: Props) {
             );
             _responseInitailPageData = response.data;
             _responsePageMeta = response.meta;
+
         } catch (error) {
             console.error(
                 '[CatchAllModulePage] Failed to fetch initial data:',

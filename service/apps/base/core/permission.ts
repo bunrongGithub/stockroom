@@ -1,6 +1,5 @@
 import { BaseRepository } from '@/service/core';
 import { PaginationParams } from '@/service/core/pagination';
-import { AppPermission } from '@/types/app';
 import { RequestContext } from '@/types/request-context';
 
 export interface IAppPermission {
@@ -67,15 +66,4 @@ export default class AppPermissionService
     }
 }
 
-export class AppRole extends BaseRepository {
-    async findAll(context: RequestContext, params: PaginationParams) {
-        const query = this.applyFilter(
-            this.db
-                .from('roles')
-                .select('id, name, description, created_at, company(id, name)')
-                .order('id', { ascending: false }),
-            context,
-        );
-        return this.paginate(query, params);
-    }
-}
+

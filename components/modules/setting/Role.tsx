@@ -1,7 +1,10 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { ButtonActionDynamicRender } from '@/components/ui/button-action';
+import {
+    ButtonActionDynamicRender,
+    ButtonActionStaticRender,
+} from '@/components/ui/button-action';
 import type { DataTableColumn } from '@/components/ui/DataTable';
 import { DataTable } from '@/components/ui/DataTable';
 import {
@@ -18,8 +21,7 @@ import { useRegisterModule } from '@/hook/useModule';
 import { usePageActions } from '@/hook/usePageAction';
 import type { ModuleProps } from '@/lib/registry';
 import { Plus, ShieldCheck } from 'lucide-react';
-import Link from 'next/link';
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 
 type ListRole = {
     id: number;
@@ -29,9 +31,15 @@ type ListRole = {
     company: { id: number; name: string } | null;
 };
 
-type FormState = { name: string; description: string };
-const EMPTY_FORM: FormState = { name: '', description: '' };
+type FormState = {
+    name: string;
+    description: string;
+    company_id: number | null;
+    company: { id: number; name: string };
+};
 
+type EmptyForm = Omit<FormState, 'company'>;
+const emptyForm: EmptyForm = { name: '', description: '', company_id: null };
 export default function Role({
     module,
     permission,
@@ -41,18 +49,15 @@ export default function Role({
     useRegisterModule({ actionModules, permission, modulePath: module.path });
 
     const pageAction = usePageActions();
-
     const staticActions = pageAction?.actions.filter((a) => !a.dynamic) ?? [];
     const dynamicActions = pageAction?.actions.filter((a) => a.dynamic) ?? [];
 
-    const [roles, setRoles] = useState<ListRole[]>(
+    const [data, setData] = useState<ListRole[]>(
         (initialData as ListRole[]) ?? [],
     );
-    const [error, setError] = useState<string | null>(null);
 
     const [dialogOpen, setDialogOpen] = useState(false);
-    const [editing, setEditing] = useState<ListRole | null>(null);
-    const [form, setForm] = useState<FormState>(EMPTY_FORM);
+    const [form, setForm] = useState<EmptyForm>(emptyForm);
     const [saving, setSaving] = useState(false);
     const [formError, setFormError] = useState<string | null>(null);
 
@@ -68,60 +73,43 @@ export default function Role({
         setToast({ msg, type });
         setTimeout(() => setToast(null), 3000);
     };
-
-    const fetchRoles = useCallback(async () => {
-        try {
-            const r = await fetch('/api/setting/role');
-            const d = await r.json();
-            if (d.error) setError(d.error);
-            else setRoles(d.data?.data ?? d.data ?? []);
-        } catch (e) {
-            setError(String(e));
-        }
-    }, []);
-
     const openCreate = () => {
-        setEditing(null);
-        setForm(EMPTY_FORM);
+        setForm(emptyForm);
         setFormError(null);
         setDialogOpen(true);
     };
 
     const openEdit = (row: ListRole) => {
-        setEditing(row);
-        setForm({ name: row.name, description: row.description ?? '' });
+        setForm({
+            name: row.name,
+            description: row.description ?? '',
+            company_id: 1,
+        });
         setFormError(null);
         setDialogOpen(true);
     };
 
     const handleSave = async () => {
-        if (!form.name.trim()) {
-            setFormError('Name is required');
-            return;
-        }
-        setSaving(true);
-        setFormError(null);
         try {
-            const url = editing
-                ? `/api/setting/role/${editing.id}`
-                : '/api/setting/role';
-            const r = await fetch(url, {
-                method: editing ? 'PUT' : 'POST',
+            const apiUrl = `/api/setting/role`;
+
+            const res = await fetch(apiUrl, {
+                method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(form),
+                body: JSON.stringify({
+                    ...form,
+                }),
             });
-            const d = await r.json();
-            if (!r.ok) {
-                setFormError(d.error ?? 'Failed to save');
-                return;
-            }
-            showToast(editing ? 'Role updated' : 'Role created', 'success');
+
+            if (!res.ok) return;
+            const json = await res.json();
+
+            console.log(json);
+
             setDialogOpen(false);
-            fetchRoles();
         } catch (e) {
-            setFormError(String(e));
-        } finally {
-            setSaving(false);
+            console.log(e);
+            return;
         }
     };
 
@@ -133,7 +121,7 @@ export default function Role({
                 method: 'DELETE',
             });
             if (!r.ok) throw new Error('Delete failed');
-            setRoles((prev) => prev.filter((role) => role.id !== deletingId));
+            setData((prev) => prev.filter((role) => role.id !== deletingId));
             showToast('Role deleted', 'success');
         } catch {
             showToast('Delete failed', 'error');
@@ -242,28 +230,19 @@ export default function Role({
                     {staticActions.map((action) => {
                         const Icon = action.icon;
                         return (
-                            <Link
-                                key={action.label}
-                                href={action.href as string}
-                                className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 rounded-xl text-sm font-medium shadow-sm transition-colors"
-                            >
-                                {Icon && <Icon size={16} />}
-                                {action.label}
-                            </Link>
+                            <span key={action.href}>
+                                {ButtonActionStaticRender(action, true, () =>
+                                    setDialogOpen(true),
+                                )}
+                            </span>
                         );
                     })}
                 </div>
             </div>
 
-            {error && (
-                <div className="rounded-xl bg-rose-50 border border-rose-200 px-4 py-3 text-sm text-rose-700">
-                    {error}
-                </div>
-            )}
-
             <DataTable
                 columns={columns}
-                data={roles}
+                data={data}
                 keyExtractor={(r) => r.id}
                 searchFn={(row, q) =>
                     row.name.toLowerCase().includes(q) ||
@@ -287,11 +266,9 @@ export default function Role({
 
             {/* Create / Edit dialog */}
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-                <DialogContent className="sm:max-w-md">
+                <DialogContent className="sm:max-w-md border-none">
                     <DialogHeader>
-                        <DialogTitle>
-                            {editing ? 'Edit Role' : 'Create Role'}
-                        </DialogTitle>
+                        <DialogTitle>Role</DialogTitle>
                     </DialogHeader>
 
                     <div className="space-y-4 py-2">
@@ -343,13 +320,7 @@ export default function Role({
                             disabled={saving}
                             className="bg-emerald-600 hover:bg-emerald-500 min-w-20"
                         >
-                            {saving ? (
-                                <div className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
-                            ) : editing ? (
-                                'Save'
-                            ) : (
-                                'Create'
-                            )}
+                            Save
                         </Button>
                     </DialogFooter>
                 </DialogContent>

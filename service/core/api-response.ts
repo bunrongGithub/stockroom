@@ -60,4 +60,10 @@ export class ApiResponseSuccess<T> {
         this.message = message;
         this.status = status;
     }
+    toResponse(): NextResponse {
+        return NextResponse.json(
+            { ...(this.data as Record<string, unknown>), message: this.message },
+            { status: this.status },
+        );
+    }
 }

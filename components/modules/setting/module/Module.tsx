@@ -1,6 +1,9 @@
 'use client';
 
-import { ButtonActionDynamicRender } from '@/components/ui/button-action';
+import {
+    ButtonActionDynamicRender,
+    ButtonActionStaticRender,
+} from '@/components/ui/button-action';
 import { DataTable, type DataTableColumn } from '@/components/ui/DataTable';
 import PopUpDeleteTransactionModal from '@/components/ui/PopUpDeleteModal';
 import { useRegisterModule } from '@/hook/useModule';
@@ -150,14 +153,9 @@ export default function ModuleComponent({
                     {staticActions.map((action) => {
                         const Icon = action.icon;
                         return (
-                            <Link
-                                key={action.label}
-                                href={action.href as string}
-                                className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 rounded-xl text-sm font-medium shadow-sm transition-colors"
-                            >
-                                {Icon && <Icon size={16} />}
-                                {action.label}
-                            </Link>
+                            <span key={action.href}>
+                                {ButtonActionStaticRender(action, false)}
+                            </span>
                         );
                     })}
                 </div>

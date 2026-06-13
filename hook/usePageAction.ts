@@ -4,11 +4,18 @@ import {
     PageActionContext,
     PageActionContextValue,
 } from '@/context/PageActionContext';
-import { useModuleContext } from '@/context/ModuleContext';
-import { resolveIcon } from '@/lib/resolve-icon';
 import type { Action } from '@/types';
 import type { AppModule, AppPermission } from '@/types/app';
-import { useCallback, useContext, useEffect } from 'react';
+import * as LucideIcons from 'lucide-react';
+import type { LucideIcon as TLucideIcon } from 'lucide-react';
+import { useContext } from 'react';
+
+function LucideIcon(name: string | null): TLucideIcon | null {
+    if (!name) return null;
+    return (
+        (LucideIcons as unknown as Record<string, TLucideIcon>)[name] ?? null
+    );
+}
 
 export function usePageActions(): PageActionContextValue {
     const ctx = useContext(PageActionContext);
@@ -19,7 +26,6 @@ export function usePageActions(): PageActionContextValue {
     }
     return ctx;
 }
-
 
 export const getStaticActions = (
     actions: AppModule[] | undefined,
@@ -36,7 +42,7 @@ export const getStaticActions = (
             href: item.path,
             type: 'user_action' as const,
             dynamic: false,
-            icon: resolveIcon(item.icon),
+            icon: LucideIcon(item?.icon ?? null),
         }));
 };
 
@@ -63,6 +69,6 @@ export const getDynamicActions = (
             href: item.path.replace('[id]', ':id'),
             type: 'user_action' as const,
             dynamic: true,
-            icon: resolveIcon(item.icon),
+            icon: LucideIcon(item.icon),
         }));
 };

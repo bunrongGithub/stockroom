@@ -43,6 +43,34 @@ export function ButtonActionDynamicRender(
     }
 }
 
-export function ButtonActionStaticRender(staticActions: any) {
-    
+export function ButtonActionStaticRender(
+    staticAction: any,
+    isPopup = false,
+    onClick?: () => void,
+) {
+    if (staticAction && isPopup === false) {
+        const Icon = staticAction.icon;
+        return (
+            <Link
+                href={staticAction.href as string}
+                className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 rounded-xl text-sm font-medium shadow-sm transition-colors"
+            >
+                {Icon && <Icon size={16} />}
+                {staticAction.label}
+            </Link>
+        );
+    } else if (staticAction && isPopup === true) {
+        const Icon = staticAction.icon;
+
+        return (
+            <button
+                onClick={onClick}
+                className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 rounded-xl text-sm font-medium shadow-sm transition-colors"
+            >
+                {Icon && <Icon size={16} />}
+                {staticAction.label}
+            </button>
+        );
+    }
+    return;
 }
