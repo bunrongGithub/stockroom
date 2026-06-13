@@ -6,16 +6,15 @@ import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 
 export default function DashboardHome() {
-    const { visibleRootModules, isLoading } = useApp();
-    const router = useRouter();
+    const { visibleRootModules } = useApp();
 
+    const router = useRouter();
     useEffect(() => {
-        if (isLoading) return;
         const first = visibleRootModules[0];
         if (first) {
             router.replace(first.path);
         }
-    }, [isLoading, visibleRootModules, router]);
+    }, [visibleRootModules, router]);
 
     return (
         <div className="flex h-full items-center justify-center">
