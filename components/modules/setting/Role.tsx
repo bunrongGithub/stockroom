@@ -31,22 +31,23 @@ type ListRole = {
     company: { id: number; name: string } | null;
 };
 
-type FormState = {
+type EmptyForm = {
     name: string;
     description: string;
     company_id: number | null;
-    company: { id: number; name: string };
 };
-
-type EmptyForm = Omit<FormState, 'company'>;
 const emptyForm: EmptyForm = { name: '', description: '', company_id: null };
 export default function Role({
-    module,
+    currentPath,
     permission,
     initialData,
-    actionModules,
+    currentPathActions,
 }: ModuleProps) {
-    useRegisterModule({ actionModules, permission, modulePath: module.path });
+    useRegisterModule({
+        actionModules: currentPathActions,
+        permission,
+        modulePath: currentPath.path,
+    });
 
     const pageAction = usePageActions();
     const staticActions = pageAction?.actions.filter((a) => !a.dynamic) ?? [];
@@ -55,6 +56,10 @@ export default function Role({
     const [data, setData] = useState<ListRole[]>(
         (initialData as ListRole[]) ?? [],
     );
+
+    const apiBase = pageAction.actions.find(
+        (item) => item.label.toLocaleLowerCase() === 'create',
+    )?.key!;
 
     const [dialogOpen, setDialogOpen] = useState(false);
     const [form, setForm] = useState<EmptyForm>(emptyForm);
@@ -73,43 +78,50 @@ export default function Role({
         setToast({ msg, type });
         setTimeout(() => setToast(null), 3000);
     };
+
     const openCreate = () => {
         setForm(emptyForm);
         setFormError(null);
         setDialogOpen(true);
     };
 
-    const openEdit = (row: ListRole) => {
-        setForm({
-            name: row.name,
-            description: row.description ?? '',
-            company_id: 1,
-        });
-        setFormError(null);
-        setDialogOpen(true);
+    const loadData = async () => {
+        const res = await fetch(apiBase);
+        if (res.ok) {
+            const json = await res.json();
+            setData(json.data ?? []);
+        }
     };
 
     const handleSave = async () => {
+        setSaving(true);
+        setFormError(null);
         try {
-            const apiUrl = `/api/setting/role`;
-
-            const res = await fetch(apiUrl, {
+            const res = await fetch(apiBase, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    ...form,
-                }),
+                body: JSON.stringify(form),
             });
 
-            if (!res.ok) return;
             const json = await res.json();
 
-            console.log(json);
+            if (!res.ok) {
+                const msg = json.details
+                    ? Object.values(json.details as Record<string, string[]>)
+                          .flat()
+                          .join(', ')
+                    : (json.error ?? 'Save failed');
+                setFormError(msg);
+                return;
+            }
 
+            await loadData();
             setDialogOpen(false);
-        } catch (e) {
-            console.log(e);
-            return;
+            showToast('Role saved successfully', 'success');
+        } catch {
+            setFormError('An unexpected error occurred');
+        } finally {
+            setSaving(false);
         }
     };
 
@@ -117,10 +129,10 @@ export default function Role({
         if (!deletingId) return;
         setDeleting(true);
         try {
-            const r = await fetch(`/api/setting/role/${deletingId}`, {
+            const res = await fetch(`${apiBase}/${deletingId}`, {
                 method: 'DELETE',
             });
-            if (!r.ok) throw new Error('Delete failed');
+            if (!res.ok) throw new Error('Delete failed');
             setData((prev) => prev.filter((role) => role.id !== deletingId));
             showToast('Role deleted', 'success');
         } catch {

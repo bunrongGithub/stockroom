@@ -6,12 +6,16 @@ import type { ModuleProps } from '@/lib/registry';
 import { InventoryItemProps } from '@/types/inventory/item';
 
 export default function InventoryItemsModule({
-    module,
+    currentPath,
     permission,
-    actionModules,
+    currentPathActions,
     initialData,
     initialMeta,
 }: ModuleProps) {
-    useRegisterModule({ actionModules, permission, modulePath: module.path });
+    useRegisterModule({
+        actionModules: currentPathActions,
+        permission,
+        modulePath: currentPath.path,
+    });
     return <StockForm items={initialData as Array<InventoryItemProps>} />;
 }

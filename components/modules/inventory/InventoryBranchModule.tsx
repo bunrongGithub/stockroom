@@ -5,11 +5,15 @@ import type { ModuleProps } from '@/lib/registry';
 import { Warehouse } from 'lucide-react';
 
 export default function InventoryBranchModule({
-    module,
+    currentPath,
     permission,
-    actionModules,
+    currentPathActions,
 }: ModuleProps) {
-    useRegisterModule({ actionModules, permission, modulePath: module.path });
+    useRegisterModule({
+        actionModules: currentPathActions,
+        permission,
+        modulePath: currentPath.path,
+    });
     return (
         <div className="p-6 space-y-4">
             <div className="flex items-center gap-2">

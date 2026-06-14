@@ -80,8 +80,16 @@ const COLUMNS: DataTableColumn<UserRow>[] = [
     },
 ];
 
-export default function User({ module, permission, actionModules }: ModuleProps) {
-    useRegisterModule({ actionModules, permission, modulePath: module.path });
+export default function User({
+    currentPath,
+    permission,
+    currentPathActions,
+}: ModuleProps) {
+    useRegisterModule({
+        actionModules: currentPathActions,
+        permission,
+        modulePath: currentPath.path,
+    });
     const [users, setUsers] = useState<UserRow[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);

@@ -43,6 +43,7 @@ export const getStaticActions = (
             type: 'user_action' as const,
             dynamic: false,
             icon: LucideIcon(item?.icon ?? null),
+            key: item.key,
         }));
 };
 
@@ -69,6 +70,7 @@ export const getDynamicActions = (
             href: item.path.replace('[id]', ':id'),
             type: 'user_action' as const,
             dynamic: true,
+            key: item.key,
             icon: LucideIcon(item.icon),
         }));
 };

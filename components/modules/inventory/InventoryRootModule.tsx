@@ -12,11 +12,15 @@ import {
 import Link from 'next/link';
 
 export default function InventoryRootModule({
-    module,
+    currentPath,
     permission,
-    actionModules,
+    currentPathActions,
 }: ModuleProps) {
-    useRegisterModule({ actionModules, permission, modulePath: module.path });
+    useRegisterModule({
+        actionModules: currentPathActions,
+        permission,
+        modulePath: currentPath.path,
+    });
     const cards = [
         { href: '/inventory', icon: Package, label: 'Items', show: true },
         {

@@ -36,11 +36,15 @@ type FormValues = {
 };
 
 export default function ModuleUpdate({
-    module,
+    currentPath,
     permission,
-    actionModules,
+    currentPathActions,
 }: ModuleProps) {
-    useRegisterModule({ actionModules, permission, modulePath: module.path });
+    useRegisterModule({
+        actionModules: currentPathActions,
+        permission,
+        modulePath: currentPath.path,
+    });
 
     const router = useRouter();
     const params = useParams();

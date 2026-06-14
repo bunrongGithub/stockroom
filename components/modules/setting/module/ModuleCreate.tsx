@@ -49,11 +49,15 @@ function slugify(value: string): string {
 }
 
 export default function ModuleCreate({
-    module,
+    currentPath,
     permission,
-    actionModules,
+    currentPathActions,
 }: ModuleProps) {
-    useRegisterModule({ actionModules, permission, modulePath: module.path });
+    useRegisterModule({
+        actionModules: currentPathActions,
+        permission,
+        modulePath: module.path,
+    });
 
     const router = useRouter();
     const [parentLabel, setParentLabel] = useState('');

@@ -25,11 +25,11 @@ import Link from 'next/link';
 type FlatChild = AppModule & { level: 1 | 2 };
 
 export default function ModuleDetail({
-    module: _module,
+    currentPath,
     permission,
-    actionModules,
+    currentPathActions,
 }: ModuleProps) {
-    useRegisterModule({ actionModules, permission });
+    useRegisterModule({ actionModules: currentPathActions, permission });
 
     const router = useRouter();
     const params = useParams();

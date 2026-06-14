@@ -5,11 +5,15 @@ import type { ModuleProps } from '@/lib/registry';
 import { Award } from 'lucide-react';
 
 export default function InventoryBrandModule({
-    module,
+    currentPath,
     permission,
-    actionModules,
+    currentPathActions,
 }: ModuleProps) {
-    useRegisterModule({ actionModules, permission, modulePath: module.path });
+    useRegisterModule({
+        actionModules: currentPathActions,
+        permission,
+        modulePath: currentPath.path,
+    });
 
     return (
         <div className="p-6 space-y-4">

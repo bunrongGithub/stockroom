@@ -142,11 +142,15 @@ function PermToggle({
 // ── Main component ─────────────────────────────────────────────────────────
 
 export default function RolePermission({
-    module,
+    currentPath,
     permission,
-    actionModules,
+    currentPathActions,
 }: ModuleProps) {
-    useRegisterModule({ actionModules, permission, modulePath: module.path });
+    useRegisterModule({
+        actionModules: currentPathActions,
+        permission,
+        modulePath: module.path,
+    });
     const [permissions, setPermissions] = useState<PermissionRow[]>([]);
     const [roles, setRoles] = useState<RoleOption[]>([]);
     const [modules, setModules] = useState<ModuleOption[]>([]);

@@ -9,13 +9,17 @@ import type { TCategory } from '@/types/inventory/item';
 const DEFAULT_META: TMeta = { total: 0, page: 1, limit: 10, totalPages: 0 };
 
 export default function InventoryCategoryModule({
-    module,
+    currentPath,
     permission,
     initialData,
     initialMeta,
-    actionModules,
+    currentPathActions,
 }: ModuleProps) {
-    useRegisterModule({ actionModules, permission, modulePath: module.path });
+    useRegisterModule({
+        actionModules: currentPathActions,
+        permission,
+        modulePath: currentPath.path,
+    });
 
     return (
         <CategoryListForm

@@ -11,8 +11,16 @@ type FormState = {
     reference_no: string;
 };
 
-function CategoryUpdateForm({ module, permission, actionModules }: ModuleProps) {
-    useRegisterModule({ actionModules, permission, modulePath: module.path });
+function CategoryUpdateForm({
+    currentPath,
+    permission,
+    currentPathActions,
+}: ModuleProps) {
+    useRegisterModule({
+        actionModules: currentPathActions,
+        permission,
+        modulePath: currentPath.path,
+    });
 
     const router = useRouter();
     const params = useParams();
@@ -27,7 +35,10 @@ function CategoryUpdateForm({ module, permission, actionModules }: ModuleProps) 
             .then((r) => r.json())
             .then((json) => {
                 const d = json.data;
-                setForm({ name: d?.name ?? '', reference_no: d?.reference_no ?? '' });
+                setForm({
+                    name: d?.name ?? '',
+                    reference_no: d?.reference_no ?? '',
+                });
             })
             .finally(() => setLoading(false));
     }, [id]);

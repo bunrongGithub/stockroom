@@ -2,14 +2,25 @@ import { getServerClient } from '@/lib/supabase/server';
 import type { AppModule } from '@/types/app';
 
 type UserModuleRow = {
-    id: number; key: string; label: string; path: string; component: string;
-    parent_id: number | null; icon: string | null; sort_order: number;
-    is_active: boolean; type: string | null; is_initial_data: boolean;
-    can_view: boolean; can_create: boolean; can_update: boolean;
-    can_delete: boolean; can_export: boolean;
+    id: number;
+    key: string;
+    label: string;
+    path: string;
+    component: string;
+    parent_id: number | null;
+    icon: string | null;
+    sort_order: number;
+    is_active: boolean;
+    type: string | null;
+    is_initial_data: boolean;
+    can_view: boolean;
+    can_create: boolean;
+    can_update: boolean;
+    can_delete: boolean;
+    can_export: boolean;
 };
 
-export async function getUserModulesWithPermissions(
+export async function getMenu(
     userId: string,
     companyId: number,
 ): Promise<AppModule[]> {
@@ -25,7 +36,7 @@ export async function getUserModulesWithPermissions(
         return [];
     }
 
-    return (data as UserModuleRow[] ?? []).map((row) => ({
+    return ((data as UserModuleRow[]) ?? []).map((row) => ({
         id: row.id,
         key: row.key,
         label: row.label,
@@ -47,9 +58,9 @@ export async function getUserModulesWithPermissions(
     }));
 }
 
-export interface ResolvedModule {
-    module: AppModule;
-    actionModules: AppModule[];
+export interface MenuPath {
+    path: AppModule;
+    pathActions: AppModule[];
 }
 
 function isDynamic(seg: string): boolean {
@@ -63,18 +74,18 @@ function pathMatches(pattern: string, actual: string): boolean {
     return a.every((seg, i) => isDynamic(seg) || seg === b[i]);
 }
 
-export async function resolveModuleByPath(
+export async function getCurrentPath(
     path: string,
     userId: string,
     companyId: number,
-): Promise<ResolvedModule | null> {
-    const modules = await getUserModulesWithPermissions(userId, companyId);
-    const _module =
-        modules.find((m) => m.path === path) ??
-        modules.find((m) => pathMatches(m.path, path));
-    if (!_module) return null;
-    const actionModules = modules.filter(
-        (m) => m.type === 'action' && m.parent_id === _module.id,
+): Promise<MenuPath | null> {
+    const menus = await getMenu(userId, companyId);
+    const currentPath =
+        menus.find((m) => m.path === path) ??
+        menus.find((m) => pathMatches(m.path, path));
+    if (!currentPath) return null;
+    const actionModules = menus.filter(
+        (m) => m.type === 'action' && m.parent_id === currentPath.id,
     );
-    return { module: _module, actionModules };
+    return { path: currentPath, pathActions: actionModules };
 }

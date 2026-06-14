@@ -7,11 +7,11 @@ import type { AppModule, AppPermission, TMeta } from '@/types/app';
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface ModuleProps {
-    module: AppModule;
+    currentPath: AppModule;
     permission: AppPermission;
     initialData?: unknown[] | null;
     initialMeta?: TMeta | null;
-    actionModules?: AppModule[];
+    currentPathActions?: AppModule[];
 }
 
 type LazyLoader = () => Promise<{ default: ComponentType<ModuleProps> }>;
@@ -69,6 +69,7 @@ const registry = new Map<string, LazyLoader>([
     // Setting modules
     ['User', () => import('@/components/modules/setting/User')],
     ['Role', () => import('@/components/modules/setting/Role')],
+    ['RoleRead', () => import('@/components/modules/setting/RoleRead')],
     ['Module', () => import('@/components/modules/setting/module/Module')],
     [
         'ModuleCreate',

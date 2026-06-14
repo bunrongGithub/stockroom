@@ -4,5 +4,6 @@ export type Action = Array<{
     href: string | null;
     type: 'user_action';
     dynamic: boolean;
+    key: string;
     icon: LucideIcon | null;
 }>;
