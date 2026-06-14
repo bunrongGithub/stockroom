@@ -22,14 +22,7 @@ import { usePageActions } from '@/hook/usePageAction';
 import type { ModuleProps } from '@/lib/registry';
 import { Plus, ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
-
-type ListRole = {
-    id: number;
-    name: string;
-    description: string | null;
-    created_at: string;
-    company: { id: number; name: string } | null;
-};
+import { getRoleColumns, TRole } from './columns';
 
 type EmptyForm = {
     name: string;
@@ -53,9 +46,7 @@ export default function Role({
     const staticActions = pageAction?.actions.filter((a) => !a.dynamic) ?? [];
     const dynamicActions = pageAction?.actions.filter((a) => a.dynamic) ?? [];
 
-    const [data, setData] = useState<ListRole[]>(
-        (initialData as ListRole[]) ?? [],
-    );
+    const [data, setData] = useState<TRole[]>((initialData as TRole[]) ?? []);
 
     const apiBase = pageAction.actions.find(
         (item) => item.label.toLocaleLowerCase() === 'create',
@@ -143,74 +134,6 @@ export default function Role({
         }
     };
 
-    const columns: DataTableColumn<ListRole>[] = [
-        {
-            key: 'name',
-            header: 'Role',
-            cell: (row) => (
-                <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center">
-                        <ShieldCheck size={13} className="text-slate-500" />
-                    </div>
-                    <span className="font-medium text-sm text-slate-800">
-                        {row.name}
-                    </span>
-                </div>
-            ),
-        },
-        {
-            key: 'description',
-            header: 'Description',
-            cell: (row) =>
-                row.description ? (
-                    <span className="text-sm text-slate-500">
-                        {row.description}
-                    </span>
-                ) : (
-                    <span className="text-xs text-muted-foreground italic">
-                        —
-                    </span>
-                ),
-        },
-        {
-            key: 'company',
-            header: 'Company',
-            cell: (row) =>
-                row.company ? (
-                    <span className="text-sm text-slate-500">
-                        {row.company.name}
-                    </span>
-                ) : (
-                    <span className="text-xs text-muted-foreground italic">
-                        No company
-                    </span>
-                ),
-        },
-        {
-            key: 'created',
-            header: 'Created',
-            headerClassName: 'text-right',
-            cellClassName: 'text-right',
-            cell: (row) => (
-                <span className="text-xs text-muted-foreground">
-                    {new Date(row.created_at).toLocaleDateString()}
-                </span>
-            ),
-        },
-        ...(dynamicActions.length > 0
-            ? [
-                  {
-                      key: 'actions',
-                      header: 'Actions',
-                      cell: (row: any) =>
-                          ButtonActionDynamicRender(dynamicActions, row, () =>
-                              setDeletingId(row.id),
-                          ),
-                  } as unknown as DataTableColumn<ListRole>,
-              ]
-            : []),
-    ];
-
     return (
         <div className=" mx-auto animate-in fade-in duration-300">
             {toast && (
@@ -253,7 +176,10 @@ export default function Role({
             </div>
 
             <DataTable
-                columns={columns}
+                columns={getRoleColumns({
+                    dynamicActions: dynamicActions,
+                    onDelete: handleDelete,
+                })}
                 data={data}
                 keyExtractor={(r) => r.id}
                 searchFn={(row, q) =>

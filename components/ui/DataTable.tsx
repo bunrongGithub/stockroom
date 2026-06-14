@@ -191,7 +191,7 @@ export function DataTable<T>({
                                 <TableHead
                                     key={col.key}
                                     className={cn(
-                                        'text-xs font-semibold uppercase tracking-wide text-muted-foreground',
+                                        'text-xs font-mono tracking-wide text-muted-foreground',
                                         col.headerClassName,
                                     )}
                                 >

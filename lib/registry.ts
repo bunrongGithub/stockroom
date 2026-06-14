@@ -68,8 +68,8 @@ const registry = new Map<string, LazyLoader>([
     ],
     // Setting modules
     ['User', () => import('@/components/modules/setting/User')],
-    ['Role', () => import('@/components/modules/setting/Role')],
-    ['RoleRead', () => import('@/components/modules/setting/RoleRead')],
+    ['Role', () => import('@/components/modules/setting/role/page')],
+    ['RoleRead', () => import('@/components/modules/setting/role/action/RoleRead')],
     ['Module', () => import('@/components/modules/setting/module/page')],
     [
         'ModuleCreate',
@@ -87,7 +87,7 @@ const registry = new Map<string, LazyLoader>([
     ['Company', () => import('@/components/modules/setting/company/Company')],
     [
         'RolePermission',
-        () => import('@/components/modules/setting/RolePermission'),
+        () => import('@/components/modules/setting/role/action/RolePermission'),
     ],
     // Sales (stub — add real component when ready)
     [

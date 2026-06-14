@@ -17,7 +17,7 @@ export function ButtonActionDynamicRender(
                                 key={action.label}
                                 type="button"
                                 onClick={onClick}
-                                className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-medium text-rose-600 transition-colors hover:bg-rose-50"
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 px-3 py-1.5 text-xs text-rose-600 transition-colors hover:bg-rose-50 font-mono "
                             >
                                 {Icon && <Icon size={13} />}
                                 {action.label}
@@ -31,7 +31,7 @@ export function ButtonActionDynamicRender(
                                 action.href as string,
                                 currentRow.id,
                             )}
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-sky-200 px-3 py-1.5 text-xs font-medium text-sky-600 transition-colors hover:bg-sky-50"
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-sky-200 px-3 py-1.5 text-xs text-sky-600 transition-colors hover:bg-sky-50 font-mono"
                         >
                             {Icon && <Icon size={13} />}
                             {action.label}
@@ -53,7 +53,7 @@ export function ButtonActionStaticRender(
         return (
             <Link
                 href={staticAction.href as string}
-                className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 rounded-xl text-sm font-medium shadow-sm transition-colors"
+                className="inline-flex items-center gap-1 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-xl text-sm shadow-sm transition- font-mono"
             >
                 {Icon && <Icon size={16} />}
                 {staticAction.label}
@@ -65,7 +65,7 @@ export function ButtonActionStaticRender(
         return (
             <button
                 onClick={onClick}
-                className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 rounded-xl text-sm font-medium shadow-sm transition-colors"
+                className="inline-flex items-center gap-1 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-xl text-sm shadow-sm transition- font-mono"
             >
                 {Icon && <Icon size={16} />}
                 {staticAction.label}

@@ -28,7 +28,7 @@ export default function RootLayout({
         <html
             lang="en"
             suppressHydrationWarning
-            className={`${fontMono.variable} font-medium antialiased`}
+            className={`${fontMono.variable} font-mono font-medium antialiased`}
         >
             <body className={inter.className}>{children}</body>
         </html>

@@ -1,3 +1,5 @@
+import { Action } from ".";
+
 export interface AppPermission {
     can_view: boolean;
     can_create: boolean;
@@ -54,4 +56,10 @@ export interface TMeta {
 export interface TPaginatedResponse<T> {
     data: T[];
     meta: TMeta;
+}
+
+
+export interface ColumnsOptionsProps {
+    dynamicActions: Action;
+    onDelete: (id: number) => void;
 }
