@@ -86,12 +86,8 @@ export default function Page({
 
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
                 <div className="space-y-1">
-                    <h2 className="text-2xl font-bold text-slate-800">Modules</h2>
-                    <p className="text-sm text-slate-500">
-                        Manage application modules and their access control
-                    </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center">
                     {staticActions.map((action) => (
                         <span key={action.href}>
                             {ButtonActionStaticRender(action, false)}

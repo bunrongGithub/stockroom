@@ -156,12 +156,12 @@ export default function Role({
             />
 
             {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+            <div className="flex flex-col md:flex-row md:items-end justify-between">
                 <div className="space-y-1">
-                    <h2 className="text-2xl font-bold text-slate-800">Role</h2>
-                    <p className="text-sm text-slate-500">Role in your App </p>
+                    {/* <h2 className="text-2xl font-bold text-slate-800">Role</h2>
+                    <p className="text-sm text-slate-500">Role in your App </p> */}
                 </div>
-                <div className="flex items-center gap-2">
+                <div>
                     {staticActions.map((action) => {
                         const Icon = action.icon;
                         return (
@@ -204,7 +204,7 @@ export default function Role({
 
             {/* Create / Edit dialog */}
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-                <DialogContent className="sm:max-w-md border-none">
+                <DialogContent className="sm:max-w-md border-none font-mono text-xs">
                     <DialogHeader>
                         <DialogTitle>Role</DialogTitle>
                     </DialogHeader>
@@ -250,6 +250,7 @@ export default function Role({
                             variant="outline"
                             onClick={() => setDialogOpen(false)}
                             disabled={saving}
+                            className='border-none bg-gray-100'
                         >
                             Cancel
                         </Button>

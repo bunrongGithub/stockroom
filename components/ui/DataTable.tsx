@@ -154,7 +154,7 @@ export function DataTable<T>({
     }, [totalPages, safePage]);
 
     return (
-        <div className={cn('space-y-3', className)}>
+        <div className={cn('space-y-3 font-mono text-xs', className)}>
             {/* Toolbar row */}
             {(searchFn || toolbar) && (
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -213,7 +213,7 @@ export function DataTable<T>({
                                                 {emptyIcon}
                                             </div>
                                         )}
-                                        <p className="text-sm font-medium text-foreground">
+                                        <p className=" text-foreground">
                                             {emptyTitle}
                                         </p>
                                         {emptyDescription && (
@@ -282,17 +282,19 @@ export function DataTable<T>({
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                             {/* Page size selector */}
                             <div className="flex items-center gap-2">
-                                <span className="text-xs font-medium">
+                                <span className="">
                                     Rows per page
                                 </span>
                                 <Select
                                     value={String(pageSize)}
-                                    onValueChange={(v) => handlePageSizeChange(Number(v))}
+                                    onValueChange={(v) =>
+                                        handlePageSizeChange(Number(v))
+                                    }
                                 >
-                                    <SelectTrigger className="h-9 w-16 text-xs font-medium">
+                                    <SelectTrigger className="h-9 w-16 text-xs">
                                         <SelectValue />
                                     </SelectTrigger>
-                                    <SelectContent className="w-10 p-0 text-xs border-none font-medium">
+                                    <SelectContent className="w-10 p-0 text-xs border-none">
                                         {pageSizeOptions.map((s) => (
                                             <SelectItem
                                                 key={s}
@@ -314,7 +316,14 @@ export function DataTable<T>({
                                             <Button
                                                 variant="ghost"
                                                 className="h-10 rounded-xl px-2"
-                                                onClick={() => handlePageChange(Math.max(1, safePage - 1))}
+                                                onClick={() =>
+                                                    handlePageChange(
+                                                        Math.max(
+                                                            1,
+                                                            safePage - 1,
+                                                        ),
+                                                    )
+                                                }
                                                 disabled={safePage === 1}
                                             >
                                                 <ChevronLeft className="size-5" />
@@ -341,7 +350,11 @@ export function DataTable<T>({
                                                             safePage === p &&
                                                                 'shadow-[0_0_0_1px_rgba(255,255,255,0.08)]',
                                                         )}
-                                                        onClick={() => handlePageChange(p as number)}
+                                                        onClick={() =>
+                                                            handlePageChange(
+                                                                p as number,
+                                                            )
+                                                        }
                                                     >
                                                         {p}
                                                     </Button>
@@ -355,7 +368,14 @@ export function DataTable<T>({
                                                 className={cn(
                                                     'h-10 rounded-xl px-2',
                                                 )}
-                                                onClick={() => handlePageChange(Math.min(totalPages, safePage + 1))}
+                                                onClick={() =>
+                                                    handlePageChange(
+                                                        Math.min(
+                                                            totalPages,
+                                                            safePage + 1,
+                                                        ),
+                                                    )
+                                                }
                                                 disabled={
                                                     safePage === totalPages
                                                 }
