@@ -47,4 +47,18 @@ export class Role extends BaseRepository {
 
         return data;
     }
+
+    async findOne(context: RequestContext, id: number) {
+        const { data, error } = await this.applyFilter(
+            this.db
+                .from('roles')
+                .select(
+                    '*, company(id, name), role_module_permission(id,can_view,can_create,can_update,can_delete,module:modules(id,key,label,path))',
+                )
+                .eq('id', id),
+            context,
+        ).single();
+        if (error) throw new ApiError(error.details, 1, error.code);
+        return data;
+    }
 }

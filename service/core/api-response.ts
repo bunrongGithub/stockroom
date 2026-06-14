@@ -53,7 +53,10 @@ export class ForbiddenError extends ApiError {
 export class ApiResponseSuccess<T> {
     constructor(
         public readonly data: T,
-        public readonly message: string = 'Success',
+        public readonly message:
+            | 'Success'
+            | 'Created'
+            | 'Unexpected Error' = 'Success',
         public readonly status: number = 200,
     ) {
         this.data = data;
@@ -62,7 +65,10 @@ export class ApiResponseSuccess<T> {
     }
     toResponse(): NextResponse {
         return NextResponse.json(
-            { ...(this.data as Record<string, unknown>), message: this.message },
+            {
+                ...(this.data as Record<string, unknown>),
+                message: this.message,
+            },
             { status: this.status },
         );
     }

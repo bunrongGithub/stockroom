@@ -8,10 +8,15 @@ end_of_line = lf
 trim_trailing_whitespace = true
 insert_final_newline = true
 
-# Specific rules for TypeScript and TSX
-[*.{ts,tsx}]
+# Specific rules for TypeScript
+[*.ts]
 quote_type = single
 indent_size = 4
+
+# Specific rules for TSX
+[*.tsx]
+quote_type = single
+indent_size = 2
 
 # Documentation and configuration overrides
 [*.md]
