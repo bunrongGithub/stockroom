@@ -1,10 +1,15 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import {
+    Pagination,
+    PaginationContent,
+    PaginationItem,
+} from '@/components/ui/pagination';
 import {
     Select,
     SelectContent,
@@ -30,6 +35,15 @@ export interface DataTableColumn<T> {
     cellClassName?: string;
 }
 
+/** Pass this to enable server-driven pagination (the server already sliced the data). */
+export interface ServerSidePagination {
+    total: number;
+    page: number;
+    totalPages: number;
+    onPageChange: (page: number) => void;
+    onPageSizeChange?: (limit: number) => void;
+}
+
 /* ── Props ── */
 export interface DataTableProps<T> {
     columns: DataTableColumn<T>[];
@@ -43,9 +57,12 @@ export interface DataTableProps<T> {
     /** Rendered in the top-right beside the search input (e.g. action buttons). */
     toolbar?: React.ReactNode;
 
-    /** Pagination. Omit or set to 0 to disable. Default: 10 */
+    /** Client-side pagination page size. Omit or set to 0 to disable. Default: 10 */
     pageSize?: number;
     pageSizeOptions?: number[];
+
+    /** Server-side pagination — skips client slicing and uses server totals. */
+    serverSide?: ServerSidePagination;
 
     /** Empty state */
     emptyIcon?: React.ReactNode;
@@ -68,6 +85,7 @@ export function DataTable<T>({
     toolbar,
     pageSize: pageSizeProp = DEFAULT_PAGE_SIZE,
     pageSizeOptions = DEFAULT_PAGE_SIZE_OPTIONS,
+    serverSide,
     emptyIcon,
     emptyTitle = 'No records found',
     emptyDescription,
@@ -76,34 +94,58 @@ export function DataTable<T>({
 }: DataTableProps<T>) {
     const [query, setQuery] = useState('');
     const [page, setPage] = useState(1);
-    const [pageSize, setPageSize] = useState(pageSizeProp > 0 ? pageSizeProp : DEFAULT_PAGE_SIZE);
+    const [pageSize, setPageSize] = useState(
+        pageSizeProp > 0 ? pageSizeProp : DEFAULT_PAGE_SIZE,
+    );
 
     const paginated = pageSizeProp > 0;
 
     const filtered = useMemo(() => {
-        setPage(1);
         if (!query.trim() || !searchFn) return data;
         return data.filter((row) => searchFn(row, query.toLowerCase()));
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [data, query, searchFn]);
 
-    const totalPages = paginated ? Math.max(1, Math.ceil(filtered.length / pageSize)) : 1;
-    const safePage = Math.min(page, totalPages);
+    // Server-side: server already sliced; use server totals
+    const totalPages = serverSide
+        ? serverSide.totalPages
+        : paginated
+          ? Math.max(1, Math.ceil(filtered.length / pageSize))
+          : 1;
+
+    const safePage = serverSide ? serverSide.page : Math.min(page, totalPages);
 
     const visible = useMemo(() => {
+        if (serverSide) return filtered; // server already paged
         if (!paginated) return filtered;
         const start = (safePage - 1) * pageSize;
         return filtered.slice(start, start + pageSize);
-    }, [filtered, safePage, pageSize, paginated]);
+    }, [filtered, safePage, pageSize, paginated, serverSide]);
 
-    const from = filtered.length === 0 ? 0 : (safePage - 1) * pageSize + 1;
-    const to = Math.min(safePage * pageSize, filtered.length);
+    const displayTotal = serverSide ? serverSide.total : filtered.length;
+    const from = displayTotal === 0 ? 0 : (safePage - 1) * pageSize + 1;
+    const to = Math.min(safePage * pageSize, displayTotal);
+
+    const handlePageChange = (next: number) => {
+        if (serverSide) serverSide.onPageChange(next);
+        else setPage(next);
+    };
+
+    const handlePageSizeChange = (size: number) => {
+        setPageSize(size);
+        if (serverSide) serverSide.onPageSizeChange?.(size);
+        else setPage(1);
+    };
 
     const pageNumbers = useMemo(() => {
-        if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
+        if (totalPages <= 7)
+            return Array.from({ length: totalPages }, (_, i) => i + 1);
         const pages: (number | '…')[] = [1];
         if (safePage > 3) pages.push('…');
-        for (let i = Math.max(2, safePage - 1); i <= Math.min(totalPages - 1, safePage + 1); i++) {
+        for (
+            let i = Math.max(2, safePage - 1);
+            i <= Math.min(totalPages - 1, safePage + 1);
+            i++
+        ) {
             pages.push(i);
         }
         if (safePage < totalPages - 2) pages.push('…');
@@ -122,7 +164,10 @@ export function DataTable<T>({
                             <Input
                                 placeholder={searchPlaceholder}
                                 value={query}
-                                onChange={(e) => setQuery(e.target.value)}
+                                onChange={(e) => {
+                                    setQuery(e.target.value);
+                                    setPage(1);
+                                }}
                                 className="pl-9"
                             />
                         </div>
@@ -130,7 +175,9 @@ export function DataTable<T>({
                         <div />
                     )}
                     {toolbar && (
-                        <div className="flex shrink-0 items-center gap-2">{toolbar}</div>
+                        <div className="flex shrink-0 items-center gap-2">
+                            {toolbar}
+                        </div>
                     )}
                 </div>
             )}
@@ -156,10 +203,15 @@ export function DataTable<T>({
                     <TableBody>
                         {visible.length === 0 ? (
                             <TableRow className="hover:bg-transparent">
-                                <TableCell colSpan={columns.length} className="h-44 text-center">
+                                <TableCell
+                                    colSpan={columns.length}
+                                    className="h-44 text-center"
+                                >
                                     <div className="flex flex-col items-center gap-2 py-4">
                                         {emptyIcon && (
-                                            <div className="text-muted-foreground/40">{emptyIcon}</div>
+                                            <div className="text-muted-foreground/40">
+                                                {emptyIcon}
+                                            </div>
                                         )}
                                         <p className="text-sm font-medium text-foreground">
                                             {emptyTitle}
@@ -169,7 +221,11 @@ export function DataTable<T>({
                                                 {emptyDescription}
                                             </p>
                                         )}
-                                        {emptyAction && <div className="mt-2">{emptyAction}</div>}
+                                        {emptyAction && (
+                                            <div className="mt-2">
+                                                {emptyAction}
+                                            </div>
+                                        )}
                                     </div>
                                 </TableCell>
                             </TableRow>
@@ -180,11 +236,17 @@ export function DataTable<T>({
                                     className="border-b border-border/40 text-sm text-foreground transition-colors hover:bg-muted/30"
                                 >
                                     {columns.map((col) => {
-                                        const value = col.cell(row, (safePage - 1) * pageSize + index);
+                                        const value = col.cell(
+                                            row,
+                                            (safePage - 1) * pageSize + index,
+                                        );
                                         return (
                                             <TableCell
                                                 key={col.key}
-                                                className={cn('py-3', col.cellClassName)}
+                                                className={cn(
+                                                    'py-3',
+                                                    col.cellClassName,
+                                                )}
                                             >
                                                 {value == null ? (
                                                     <span className="text-xs text-muted-foreground/50">
@@ -205,19 +267,19 @@ export function DataTable<T>({
 
             {/* Footer */}
             {(data.length > 0 || paginated) && (
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-col gap-4 rounded-xl text-gray-900 sm:flex-row sm:items-center sm:justify-between">
                     {/* Record count */}
-                    <p className="text-xs text-muted-foreground">
-                        {filtered.length === 0
+                    <p className="text-xs">
+                        {displayTotal === 0
                             ? 'No records'
                             : paginated
-                              ? `${from}–${to} of ${filtered.length} record${filtered.length !== 1 ? 's' : ''}${filtered.length < data.length ? ` (filtered from ${data.length})` : ''}`
-                              : `${data.length} record${data.length !== 1 ? 's' : ''}`}
+                              ? `${from}–${to} of ${displayTotal} record${displayTotal !== 1 ? 's' : ''}`
+                              : `${displayTotal} record${displayTotal !== 1 ? 's' : ''}`}
                     </p>
 
                     {/* Pagination controls — always visible when pagination is enabled */}
                     {paginated && (
-                        <div className="flex items-center gap-4">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                             {/* Page size selector */}
                             <div className="flex items-center gap-2">
                                 <span className="text-xs font-medium">
@@ -225,17 +287,18 @@ export function DataTable<T>({
                                 </span>
                                 <Select
                                     value={String(pageSize)}
-                                    onValueChange={(v) => {
-                                        setPageSize(Number(v));
-                                        setPage(1);
-                                    }}
+                                    onValueChange={(v) => handlePageSizeChange(Number(v))}
                                 >
-                                    <SelectTrigger className="h-7 w-14 border-0 bg-muted/50 text-xs font-medium shadow-none focus:ring-0">
+                                    <SelectTrigger className="h-9 w-16 text-xs font-medium">
                                         <SelectValue />
                                     </SelectTrigger>
-                                    <SelectContent className="w-14 border-0 p-0 text-xs shadow-none">
+                                    <SelectContent className="w-10 p-0 text-xs border-none font-medium">
                                         {pageSizeOptions.map((s) => (
-                                            <SelectItem key={s} value={String(s)} className="text-xs">
+                                            <SelectItem
+                                                key={s}
+                                                value={String(s)}
+                                                className="text-xs border-none"
+                                            >
                                                 {s}
                                             </SelectItem>
                                         ))}
@@ -245,71 +308,64 @@ export function DataTable<T>({
 
                             {/* Page nav — only when more than 1 page */}
                             {totalPages > 1 && (
-                                <div className="flex items-center gap-0.5">
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="size-7 text-muted-foreground hover:text-foreground"
-                                        onClick={() => setPage(1)}
-                                        disabled={safePage === 1}
-                                    >
-                                        <ChevronsLeft className="size-3.5" />
-                                    </Button>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="size-7 text-muted-foreground hover:text-foreground"
-                                        onClick={() => setPage((p) => Math.max(1, p - 1))}
-                                        disabled={safePage === 1}
-                                    >
-                                        <ChevronLeft className="size-3.5" />
-                                    </Button>
-
-                                    {pageNumbers.map((p, i) =>
-                                        p === '…' ? (
-                                            <span
-                                                key={`ellipsis-${i}`}
-                                                className="w-7 text-center text-xs text-muted-foreground"
-                                            >
-                                                …
-                                            </span>
-                                        ) : (
+                                <Pagination className="mx-0 w-auto justify-start sm:justify-end">
+                                    <PaginationContent className="gap-1">
+                                        <PaginationItem>
                                             <Button
-                                                key={p}
                                                 variant="ghost"
-                                                size="icon"
-                                                className={cn(
-                                                    'size-7 text-xs font-medium',
-                                                    safePage === p
-                                                        ? 'bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground'
-                                                        : 'text-muted-foreground hover:text-foreground',
-                                                )}
-                                                onClick={() => setPage(p)}
+                                                className="h-10 rounded-xl px-2"
+                                                onClick={() => handlePageChange(Math.max(1, safePage - 1))}
+                                                disabled={safePage === 1}
                                             >
-                                                {p}
+                                                <ChevronLeft className="size-5" />
+                                                Previous
                                             </Button>
-                                        ),
-                                    )}
+                                        </PaginationItem>
 
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="size-7 text-muted-foreground hover:text-foreground"
-                                        onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                                        disabled={safePage === totalPages}
-                                    >
-                                        <ChevronRight className="size-3.5" />
-                                    </Button>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="size-7 text-muted-foreground hover:text-foreground"
-                                        onClick={() => setPage(totalPages)}
-                                        disabled={safePage === totalPages}
-                                    >
-                                        <ChevronsRight className="size-3.5" />
-                                    </Button>
-                                </div>
+                                        {pageNumbers.map((p, i) =>
+                                            p === '…' ? (
+                                                <PaginationItem
+                                                    key={`ellipsis-${i}`}
+                                                >
+                                                    <span className="flex size-10 items-center justify-center">
+                                                        …
+                                                    </span>
+                                                </PaginationItem>
+                                            ) : (
+                                                <PaginationItem key={p}>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className={cn(
+                                                            'size-8 rounded-xl bg-gray-200',
+                                                            safePage === p &&
+                                                                'shadow-[0_0_0_1px_rgba(255,255,255,0.08)]',
+                                                        )}
+                                                        onClick={() => handlePageChange(p as number)}
+                                                    >
+                                                        {p}
+                                                    </Button>
+                                                </PaginationItem>
+                                            ),
+                                        )}
+
+                                        <PaginationItem>
+                                            <Button
+                                                variant="ghost"
+                                                className={cn(
+                                                    'h-10 rounded-xl px-2',
+                                                )}
+                                                onClick={() => handlePageChange(Math.min(totalPages, safePage + 1))}
+                                                disabled={
+                                                    safePage === totalPages
+                                                }
+                                            >
+                                                Next
+                                                <ChevronRight className="size-5" />
+                                            </Button>
+                                        </PaginationItem>
+                                    </PaginationContent>
+                                </Pagination>
                             )}
                         </div>
                     )}

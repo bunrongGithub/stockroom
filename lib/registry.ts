@@ -70,18 +70,18 @@ const registry = new Map<string, LazyLoader>([
     ['User', () => import('@/components/modules/setting/User')],
     ['Role', () => import('@/components/modules/setting/Role')],
     ['RoleRead', () => import('@/components/modules/setting/RoleRead')],
-    ['Module', () => import('@/components/modules/setting/module/Module')],
+    ['Module', () => import('@/components/modules/setting/module/page')],
     [
         'ModuleCreate',
-        () => import('@/components/modules/setting/module/ModuleCreate'),
+        () => import('@/components/modules/setting/module/action/Create'),
     ],
     [
         'ModuleDetail',
-        () => import('@/components/modules/setting/module/ModuleDetail'),
+        () => import('@/components/modules/setting/module/action/Get'),
     ],
     [
         'ModuleUpdate',
-        () => import('@/components/modules/setting/module/ModuleUpdate'),
+        () => import('@/components/modules/setting/module/action/Update'),
     ],
     // Comapny
     ['Company', () => import('@/components/modules/setting/company/Company')],

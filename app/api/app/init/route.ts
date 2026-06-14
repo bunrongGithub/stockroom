@@ -1,4 +1,4 @@
-import { getUserModulesWithPermissions } from '@/lib/modules-rpc';
+import { getMenu } from '@/lib/modules-rpc';
 import { getRequestContext } from '@/lib/request-context';
 import type { AppInitData } from '@/types/app';
 import { NextRequest, NextResponse } from 'next/server';
@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'Invalid session' }, { status: 400 });
     }
 
-    const modules = await getUserModulesWithPermissions(ctx.userId, companyId);
+    const modules = await getMenu(ctx.userId, companyId);
 
     const payload: AppInitData = {
         profile: {
