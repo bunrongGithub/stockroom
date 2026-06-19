@@ -66,6 +66,36 @@ const registry = new Map<string, LazyLoader>([
         () =>
             import('@/components/forms/inventory/category/CategoryFormCreate'),
     ],
+    // Stock item actions
+    [
+        'InventoryStockItemCreate',
+        () => import('@/components/modules/inventory/stock/action/Create'),
+    ],
+    [
+        'InventoryStockItemView',
+        () => import('@/components/modules/inventory/stock/action/View'),
+    ],
+    [
+        'InventoryStockItemUpdate',
+        () => import('@/components/modules/inventory/stock/action/Update'),
+    ],
+    // Non-stock item module and actions
+    [
+        'InventoryNonStockModule',
+        () => import('@/components/modules/inventory/non-stock/page'),
+    ],
+    [
+        'InventoryNonStockCreate',
+        () => import('@/components/modules/inventory/non-stock/action/Create'),
+    ],
+    [
+        'InventoryNonStockView',
+        () => import('@/components/modules/inventory/non-stock/action/View'),
+    ],
+    [
+        'InventoryNonStockUpdate',
+        () => import('@/components/modules/inventory/non-stock/action/Update'),
+    ],
     // Setting modules
     ['User', () => import('@/components/modules/setting/User')],
     ['Role', () => import('@/components/modules/setting/role/page')],

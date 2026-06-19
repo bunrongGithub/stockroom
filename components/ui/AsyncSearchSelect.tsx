@@ -7,254 +7,248 @@ import PopUpSearch from './PopUpSearch';
 import { PopUpSearchTable } from './PopUpSearchTable';
 
 type Option = {
-    value: string | number;
-    label: string;
+  value: string | number;
+  label: string;
 };
 
 type SearchApiItem = {
-    id: string | number;
-    name: string;
+  id: string | number;
+  name: string;
 };
 
 type AsyncSearchSelectProps = {
-    label: string;
-    placeholder?: string;
-    apiUrl: string;
+  label: string;
+  placeholder?: string;
+  apiUrl: string;
 
-    /** Pass the selected item's ID here (not the name). */
-    value: string | number | null;
-    /** Returns the full selected option so callers can grab both id and name. */
-    onChange: (
-        selected: { id: string | number | null; name: string } | null,
-    ) => void;
+  /** Pass the selected item's ID here (not the name). */
+  value: string | number | null;
+  /** Returns the full selected option so callers can grab both id and name. */
+  onChange: (
+    selected: { id: string | number | null; name: string } | null,
+  ) => void;
 
-    required?: boolean;
-    selectedLabel?: string;
-    popupTitle?: string;
-    enablePopupSearch?: boolean;
-    /** Field name to use as the option label. Defaults to "name". */
-    nameKey?: string;
-    /** Set true when the API returns { data: [...] } instead of { data: { data: [...] } }. */
-    flatData?: boolean;
+  required?: boolean;
+  selectedLabel?: string;
+  popupTitle?: string;
+  enablePopupSearch?: boolean;
+  /** Field name to use as the option label. Defaults to "name". */
+  nameKey?: string;
+  /** Set true when the API returns { data: [...] } instead of { data: { data: [...] } }. */
+  flatData?: boolean;
 };
 
 export default function AsyncSearchSelect({
-    label,
-    placeholder = 'Search...',
-    apiUrl,
-    value,
-    onChange,
-    required,
-    selectedLabel: selectedLabelProp = '',
-    popupTitle,
-    enablePopupSearch = false,
-    nameKey = 'name',
-    flatData = false,
+  label,
+  placeholder = 'Search...',
+  apiUrl,
+  value,
+  onChange,
+  required,
+  selectedLabel: selectedLabelProp = '',
+  popupTitle,
+  enablePopupSearch = false,
+  nameKey = 'name',
+  flatData = false,
 }: AsyncSearchSelectProps) {
-    const containerRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-    const [open, setOpen] = useState(false);
-    const [popupOpen, setPopupOpen] = useState(false);
-    const [loading, setLoading] = useState(false);
-    const [search, setSearch] = useState('');
-    const [options, setOptions] = useState<Option[]>([]);
+  const [open, setOpen] = useState(false);
+  const [popupOpen, setPopupOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [search, setSearch] = useState('');
+  const [options, setOptions] = useState<Option[]>([]);
 
-    // ───────────────── Fetch Data ─────────────────
-    const fetchOptions = useCallback(async (keyword = '') => {
-        try {
-            setLoading(true);
-            const res = await fetch(
-                `${apiUrl}?search=${encodeURIComponent(keyword)}`,
-            );
-            if (!res.ok) throw new Error('Failed to fetch');
+  // ───────────────── Fetch Data ─────────────────
+  const fetchOptions = useCallback(
+    async (keyword = '') => {
+      try {
+        setLoading(true);
+        const res = await fetch(
+          `${apiUrl}?search=${encodeURIComponent(keyword)}`,
+        );
+        if (!res.ok) throw new Error('Failed to fetch');
 
-            const json = await res.json();
-            const rows: SearchApiItem[] = flatData
-                ? (json?.data ?? [])
-                : (json?.data?.data ?? []);
-            setOptions(
-                rows.map((item) => ({
-                    value: item.id,
-                    label: String((item as Record<string, unknown>)[nameKey] ?? ''),
-                })),
-            );
-        } catch {
-            setOptions([]);
-        } finally {
-            setLoading(false);
-        }
-    }, [apiUrl]);
+        const json = await res.json();
+        const rows: SearchApiItem[] = json.data;
 
-    // ───────────────── Open Dropdown ─────────────────
-    const handleOpen = () => {
-        setOpen(true);
-        if (options.length === 0) fetchOptions();
-    };
+        setOptions(
+          rows.map((item) => ({
+            value: item.id,
+            label: String((item as Record<string, unknown>)[nameKey] ?? ''),
+          })),
+        );
+      } catch {
+        setOptions([]);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [apiUrl],
+  );
 
-    // ───────────────── Debounced Search ─────────────────
-    useEffect(() => {
-        if (!open) return;
-        const timeout = setTimeout(() => fetchOptions(search), 300);
-        return () => clearTimeout(timeout);
-    }, [fetchOptions, search, open]);
+  const handleOpen = () => {
+    setOpen(true);
+    if (options.length === 0) fetchOptions();
+  };
 
-    // ───────────────── Close on Outside Click ─────────────────
-    useEffect(() => {
-        const handleClickOutside = (e: MouseEvent) => {
-            if (
-                containerRef.current &&
-                !containerRef.current.contains(e.target as Node)
-            ) {
-                setOpen(false);
-            }
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () =>
-            document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
+  useEffect(() => {
+    if (!open) return;
+    const timeout = setTimeout(() => fetchOptions(search), 300);
+    return () => clearTimeout(timeout);
+  }, [fetchOptions, search, open]);
 
-    const handleSelect = (option: Option) => {
-        onChange({ id: option.value, name: option.label });
+  // ───────────────── Close on Outside Click ─────────────────
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(e.target as Node)
+      ) {
         setOpen(false);
-        setSearch('');
+      }
     };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
-    return (
-        <div className="relative" ref={containerRef}>
-            <FieldLabel>{label}</FieldLabel>
+  const handleSelect = (option: Option) => {
+    onChange({ id: option.value, name: option.label });
+    setOpen(false);
+    setSearch('');
+  };
 
-            {/* Trigger button */}
+  return (
+    <div className="relative" ref={containerRef}>
+      <FieldLabel>{label}</FieldLabel>
+
+      {/* Trigger button */}
+      <button
+        type="button"
+        onClick={handleOpen}
+        className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+      >
+        <span
+          className={selectedLabelProp ? 'text-slate-700' : 'text-slate-400'}
+        >
+          {selectedLabelProp || placeholder}
+        </span>
+        <ChevronDown size={18} className="text-slate-400" />
+      </button>
+
+      {/* Dropdown */}
+      <div
+        className={`absolute z-50 mt-2 w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg transition-all duration-200 ${
+          open
+            ? 'visible translate-y-0 opacity-100'
+            : 'invisible -translate-y-1 opacity-0'
+        }`}
+      >
+        {/* Search input */}
+        <div className="border-b border-slate-100 p-2">
+          <div className="relative">
+            <input
+              autoFocus
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search..."
+              className="w-full rounded-lg border border-slate-200 py-2 pl-3 pr-12 text-sm focus:border-[#1a9e52] focus:outline-none focus:ring-2 focus:ring-[#1a9e52]/20"
+            />
             <button
-                type="button"
-                onClick={handleOpen}
-                className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              type="button"
+              onClick={() => {
+                if (!enablePopupSearch) return;
+                setOpen(false);
+                setPopupOpen(true);
+              }}
+              disabled={!enablePopupSearch}
+              className={`absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 transition ${
+                enablePopupSearch
+                  ? 'text-slate-400 hover:bg-slate-100 hover:text-[#1a9e52]'
+                  : 'cursor-default text-slate-300'
+              }`}
+              aria-label={`Open ${popupTitle ?? label} popup search`}
             >
-                <span
-                    className={
-                        selectedLabelProp
-                            ? 'text-slate-700'
-                            : 'text-slate-400'
-                    }
-                >
-                    {selectedLabelProp || placeholder}
-                </span>
-                <ChevronDown size={18} className="text-slate-400" />
+              <Search size={16} />
             </button>
-
-            {/* Dropdown */}
-            <div
-                className={`absolute z-50 mt-2 w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg transition-all duration-200 ${
-                    open
-                        ? 'visible translate-y-0 opacity-100'
-                        : 'invisible -translate-y-1 opacity-0'
-                }`}
-            >
-                {/* Search input */}
-                <div className="border-b border-slate-100 p-2">
-                    <div className="relative">
-                        <input
-                            autoFocus
-                            type="text"
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            placeholder="Search..."
-                            className="w-full rounded-lg border border-slate-200 py-2 pl-3 pr-12 text-sm focus:border-[#1a9e52] focus:outline-none focus:ring-2 focus:ring-[#1a9e52]/20"
-                        />
-                        <button
-                            type="button"
-                            onClick={() => {
-                                if (!enablePopupSearch) return;
-                                setOpen(false);
-                                setPopupOpen(true);
-                            }}
-                            disabled={!enablePopupSearch}
-                            className={`absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 transition ${
-                                enablePopupSearch
-                                    ? 'text-slate-400 hover:bg-slate-100 hover:text-[#1a9e52]'
-                                    : 'cursor-default text-slate-300'
-                            }`}
-                            aria-label={`Open ${popupTitle ?? label} popup search`}
-                        >
-                            <Search size={16} />
-                        </button>
-                    </div>
-                </div>
-
-                {/* Options list */}
-                <div className="max-h-60 overflow-y-auto">
-                    {loading ? (
-                        <div className="flex items-center justify-center py-6">
-                            <Loader2
-                                size={18}
-                                className="animate-spin text-slate-400"
-                            />
-                        </div>
-                    ) : options.length === 0 ? (
-                        <div className="py-4 text-center text-sm text-slate-400">
-                            No data found
-                        </div>
-                    ) : (
-                        options.map((option) => (
-                            <button
-                                key={option.value}
-                                type="button"
-                                onClick={() => handleSelect(option)}
-                                className={`flex w-full items-center px-4 py-3 text-left text-sm transition-colors hover:bg-slate-50 ${
-                                    String(option.value) === String(value ?? '')
-                                        ? 'bg-[#1a9e52]/5 font-medium text-[#1a9e52]'
-                                        : 'text-slate-700'
-                                }`}
-                            >
-                                {option.label}
-                            </button>
-                        ))
-                    )}
-                </div>
-            </div>
-
-            {/* Hidden input for native form required validation */}
-            {required && (
-                <input
-                    type="hidden"
-                    value={value ?? ''}
-                    required
-                    readOnly
-                    aria-hidden="true"
-                />
-            )}
-
-            <PopUpSearch
-                open={popupOpen}
-                title={popupTitle ?? label}
-                placeholder={placeholder}
-                onClose={() => setPopupOpen(false)}
-            >
-                <PopUpSearchTable<{ id: string | number; name: string } & Record<string, unknown>>
-                    apiUrl={apiUrl}
-                    selectedId={value}
-                    onRowSelect={(row) => {
-                        handleSelect({
-                            value: row.id,
-                            label: String(row.name ?? ''),
-                        });
-                        setPopupOpen(false);
-                    }}
-                    columns={[
-                        {
-                            key: 'id',
-                            header: '#',
-                            getValue: (r) => String(r.id),
-                            className: 'text-slate-400',
-                        },
-                        {
-                            key: 'name',
-                            header: label,
-                            filterable: true,
-                            getValue: (r) => String(r.name ?? ''),
-                        },
-                    ]}
-                />
-            </PopUpSearch>
+          </div>
         </div>
-    );
+
+        {/* Options list */}
+        <div className="max-h-60 overflow-y-auto">
+          {loading ? (
+            <div className="flex items-center justify-center py-6">
+              <Loader2 size={18} className="animate-spin text-slate-400" />
+            </div>
+          ) : options.length === 0 ? (
+            <div className="py-4 text-center text-sm text-slate-400">
+              No data found
+            </div>
+          ) : (
+            options.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => handleSelect(option)}
+                className={`flex w-full items-center px-4 py-3 text-left text-sm transition-colors hover:bg-slate-50 ${
+                  String(option.value) === String(value ?? '')
+                    ? 'bg-[#1a9e52]/5 font-medium text-[#1a9e52]'
+                    : 'text-slate-700'
+                }`}
+              >
+                {option.label}
+              </button>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Hidden input for native form required validation */}
+      {required && (
+        <input
+          type="hidden"
+          value={value ?? ''}
+          required
+          readOnly
+          aria-hidden="true"
+        />
+      )}
+
+      <PopUpSearch
+        open={popupOpen}
+        title={popupTitle ?? label}
+        placeholder={placeholder}
+        onClose={() => setPopupOpen(false)}
+      >
+        <PopUpSearchTable<
+          { id: string | number; name: string } & Record<string, unknown>
+        >
+          apiUrl={apiUrl}
+          selectedId={value}
+          onRowSelect={(row) => {
+            handleSelect({
+              value: row.id,
+              label: String(row.name ?? ''),
+            });
+            setPopupOpen(false);
+          }}
+          columns={[
+            {
+              key: 'id',
+              header: '#',
+              getValue: (r) => String(r.id),
+              className: 'text-slate-400',
+            },
+            {
+              key: 'name',
+              header: label,
+              filterable: true,
+              getValue: (r) => String(r.name ?? ''),
+            },
+          ]}
+        />
+      </PopUpSearch>
+    </div>
+  );
 }

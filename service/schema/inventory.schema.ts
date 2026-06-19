@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const itemClassEnum = z.enum(['stock', 'non_stock', 'service', 'consumable']);
+export const itemClassEnum = z.enum(['stock', 'non_stock', 'service']);
 
 const inventoryBaseSchema = {
     name: z
@@ -9,40 +9,27 @@ const inventoryBaseSchema = {
         .max(255, 'Item name must be less than 255 characters')
         .trim(),
 
-    reference_no: z
-        .string()
-        .max(100)
-        .trim()
-        .optional()
-        .nullable(),
+    reference_no: z.string().max(100).trim().optional().nullable(),
 
-    sku: z
-        .string()
-        .max(100)
-        .trim()
-        .optional()
-        .nullable(),
+    sku: z.string().max(100).trim().optional().nullable(),
 
     description: z.string().optional().nullable(),
 
     item_class: itemClassEnum.default('stock'),
 
-    /** Default selling price */
     price: z.coerce.number().min(0, 'Price cannot be negative'),
 
-    /** Minimum selling price */
     min_price: z.coerce.number().min(0).optional().nullable(),
 
-    /** Maximum selling price */
     max_price: z.coerce.number().min(0).optional().nullable(),
 
-    /** Purchase / landed cost */
     cost: z.coerce.number().min(0, 'Cost cannot be negative').optional().nullable(),
 
     is_variant: z.boolean().default(false),
     is_discount: z.boolean().default(false),
-
-    images_url: z.array(z.string()).optional().nullable(),
+    is_sellable: z.boolean().default(true),
+    is_returnable: z.boolean().default(false),
+    is_warranty: z.boolean().default(false),
 
     warranty_duration: z.string().max(100).optional().nullable(),
 
@@ -51,10 +38,7 @@ const inventoryBaseSchema = {
         .int()
         .positive('Invalid category'),
 
-    uom_id: z
-        .number({ error: 'UOM is required' })
-        .int()
-        .positive('Invalid UOM'),
+    uom_id: z.coerce.number().int().positive('Invalid UOM').optional().nullable(),
 };
 
 export const createInventorySchema = z.object({
@@ -73,10 +57,12 @@ export const updateInventorySchema = z.object({
     cost: inventoryBaseSchema.cost,
     is_variant: inventoryBaseSchema.is_variant.optional(),
     is_discount: inventoryBaseSchema.is_discount.optional(),
-    images_url: inventoryBaseSchema.images_url,
+    is_sellable: inventoryBaseSchema.is_sellable.optional(),
+    is_returnable: inventoryBaseSchema.is_returnable.optional(),
+    is_warranty: inventoryBaseSchema.is_warranty.optional(),
     warranty_duration: inventoryBaseSchema.warranty_duration,
     category_id: inventoryBaseSchema.category_id.optional(),
-    uom_id: inventoryBaseSchema.uom_id.optional(),
+    uom_id: inventoryBaseSchema.uom_id,
 });
 
 export const itemIdSchema = z.object({

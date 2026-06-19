@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { InventoryRepository } from '@/service/apps/inventory/repo/stock';
 
 export const Service = InventoryRepository.getInstance();
+
 export async function GET(req: NextRequest) {
     try {
         const ctx = getRequestContext(req);
@@ -19,12 +20,11 @@ export async function GET(req: NextRequest) {
             limit,
             search,
             searchColumn: 'name',
-        }, 'stock');
+        }, 'non_stock');
 
         return NextResponse.json(result, { status: 200 });
     } catch (error) {
-        const message =
-            error instanceof Error ? error.message : 'Unexpected error';
+        const message = error instanceof Error ? error.message : 'Unexpected error';
         return NextResponse.json({ error: message }, { status: 500 });
     }
 }
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
         const ctx = getRequestContext(req);
         const body = await req.json();
 
-        const parsed = createInventorySchema.safeParse({ ...body, item_class: 'stock' });
+        const parsed = createInventorySchema.safeParse({ ...body, item_class: 'non_stock' });
         if (!parsed.success) {
             return NextResponse.json(
                 { error: z.flattenError(parsed.error).fieldErrors },
@@ -45,8 +45,7 @@ export async function POST(req: NextRequest) {
         const item = await Service.insertOne(ctx, parsed.data);
         return NextResponse.json({ data: item }, { status: 201 });
     } catch (error) {
-        const message =
-            error instanceof Error ? error.message : 'Unexpected error';
+        const message = error instanceof Error ? error.message : 'Unexpected error';
         const status = message.includes('already exists') ? 409 : 500;
         return NextResponse.json({ error: message }, { status });
     }

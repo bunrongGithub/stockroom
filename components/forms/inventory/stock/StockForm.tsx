@@ -17,7 +17,7 @@ import Link from 'next/link';
 import { useMemo, useState } from 'react';
 
 interface Props {
-    items: Array<InventoryItemProps>;
+    items: Array<InventoryItemProps> | null | undefined;
 }
 
 // ─── Condition Badge ──────────────────────────────────────────────────────────
@@ -158,7 +158,7 @@ export default function StockForm({
     const filteredItems = useMemo(() => {
         const q = searchQuery.trim().toLowerCase();
 
-        return items.filter((item) => {
+        return (items ?? []).filter((item) => {
             const matchesSearch =
                 !q ||
                 item.name.toLowerCase().includes(q) ||

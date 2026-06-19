@@ -13,6 +13,7 @@ export abstract class BaseRepository extends PaginationMixin {
     protected applyFilter<T>(query: T, ctx: RequestContext): T {
         const { role, companyId, userId } = ctx;
 
+        console.log(role)
         return ['super_admin', 'super_user'].includes(role ?? '')
             ? query
             : ['admin'].includes(role ?? '')

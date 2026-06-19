@@ -47,7 +47,6 @@ export class PaginationMixin {
         }
 
         const { data, error, count } = await query.range(from, to);
-
         if (error) {
             throw error;
         }

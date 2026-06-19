@@ -1,29 +1,7 @@
 import { getServerClient } from '@/lib/supabase/server';
 import type { AppModule } from '@/types/app';
 
-type UserModuleRow = {
-    id: number;
-    key: string;
-    label: string;
-    path: string;
-    component: string;
-    parent_id: number | null;
-    icon: string | null;
-    sort_order: number;
-    is_active: boolean;
-    type: string | null;
-    is_initial_data: boolean;
-    can_view: boolean;
-    can_create: boolean;
-    can_update: boolean;
-    can_delete: boolean;
-    can_export: boolean;
-};
-
-export async function getMenu(
-    userId: string,
-    companyId: number,
-): Promise<AppModule[]> {
+export async function getMenu(userId: string, companyId: number) {
     const supabase = getServerClient();
 
     const { data, error } = await supabase.rpc('get_user_modules', {
@@ -36,26 +14,32 @@ export async function getMenu(
         return [];
     }
 
-    return ((data as UserModuleRow[]) ?? []).map((row) => ({
-        id: row.id,
-        key: row.key,
-        label: row.label,
-        path: row.path,
-        component: row.component,
-        parent_id: row.parent_id,
-        icon: row.icon,
-        sort_order: row.sort_order,
-        is_active: row.is_active,
-        type: (row.type ?? 'transaction') as AppModule['type'],
-        is_initial_data: row.is_initial_data ?? false,
-        permission: {
-            can_view: row.can_view,
-            can_create: row.can_create,
-            can_update: row.can_update,
-            can_delete: row.can_delete,
-            can_export: row.can_export,
-        },
-    }));
+    function toUserModule(data) {
+        if (data && data.length > 0) {
+            return data.map((item) => ({
+                id: item.id,
+                key: item.key,
+                label: item.label,
+                path: item.path,
+                component: item.component,
+                parent_id: item.parent_id,
+                icon: item.icon,
+                sort_order: item.sort_order,
+                is_active: item.is_active,
+                type: (item.type ?? 'transaction') as AppModule['type'],
+                is_initial_data: item.is_initial_data ?? false,
+                permission: {
+                    can_view: item.can_view,
+                    can_create: item.can_create,
+                    can_update: item.can_update,
+                    can_delete: item.can_delete,
+                    can_export: item.can_export,
+                },
+            }));
+        }
+    }
+
+    return toUserModule(data);
 }
 
 export interface MenuPath {

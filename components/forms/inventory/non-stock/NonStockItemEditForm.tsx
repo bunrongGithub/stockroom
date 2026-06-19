@@ -27,7 +27,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
-export type StockEditItem = {
+export type NonStockEditItem = {
     id: number;
     name: string;
     reference_no: string | null;
@@ -103,7 +103,7 @@ function ToggleCheckbox({
     );
 }
 
-export default function StockEditForm({ item }: { item: StockEditItem }) {
+export default function NonStockItemEditForm({ item }: { item: NonStockEditItem }) {
     const router = useRouter();
     const [activeTab, setActiveTab] = useState<TabId>('details');
     const [isSaving, setIsSaving] = useState(false);
@@ -161,7 +161,7 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
                 warranty_duration: formData.is_warranty ? (formData.warranty_duration || null) : null,
             };
 
-            const res = await fetch(`/api/inventory/configurations/stock-item/${item.id}`, {
+            const res = await fetch(`/api/inventory/configurations/non-stock-item/${item.id}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload),
@@ -172,7 +172,7 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
                 throw new Error(json.error?.message ?? json.error ?? 'Update failed');
             }
 
-            router.push(`/inventory/configurations/stock/${item.id}/view`);
+            router.push(`/inventory/configurations/non-stock/${item.id}/view`);
             router.refresh();
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to save changes');
@@ -188,13 +188,13 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
         <div className="mx-auto max-w-7xl space-y-6 p-4 md:p-8">
             <div>
                 <Link
-                    href={`/inventory/configurations/stock/${item.id}/view`}
+                    href={`/inventory/configurations/non-stock/${item.id}/view`}
                     className="inline-flex items-center gap-2 text-sm text-slate-500 transition-colors hover:text-slate-700"
                 >
                     <ArrowLeft size={16} /> Back to Item
                 </Link>
                 <h2 className="mt-3 flex items-center gap-2 text-2xl font-bold text-slate-800 md:text-3xl">
-                    <Package className="text-[#1a9e52]" /> Edit Stock Item
+                    <Package className="text-[#1a9e52]" /> Edit Non-Stock Item
                 </h2>
             </div>
 
@@ -218,7 +218,7 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
                         </div>
                         <div className="p-4">
                             <div className="flex items-center gap-3">
-                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-[#1a9e52] to-emerald-700 text-sm font-bold text-white shadow-sm">
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#1a9e52] to-emerald-700 text-sm font-bold text-white shadow-sm">
                                     {item.name?.[0]?.toUpperCase() ?? 'I'}
                                 </div>
                                 <div className="min-w-0">
@@ -251,7 +251,7 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
 
                     <div className="flex flex-col-reverse gap-2">
                         <Link
-                            href={`/inventory/configurations/stock/${item.id}/view`}
+                            href={`/inventory/configurations/non-stock/${item.id}/view`}
                             className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-center text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
                         >
                             Cancel
@@ -311,7 +311,7 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
                                             required
                                             value={formData.name}
                                             onChange={handleChange}
-                                            placeholder="e.g. iPhone 16 Pro Max"
+                                            placeholder="e.g. Delivery Service"
                                         />
                                     </div>
                                     <div>

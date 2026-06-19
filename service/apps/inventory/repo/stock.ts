@@ -26,7 +26,9 @@ export type InventoryItem = {
     cost: number | null;
     is_variant: boolean;
     is_discount: boolean;
-    images_url: string[] | null;
+    is_sellable: boolean;
+    is_returnable: boolean;
+    is_warranty: boolean;
     warranty_duration: string | null;
     category_id: number | null;
     uom_id: number | null;
@@ -40,6 +42,7 @@ export type InventoryItem = {
 };
 
 const TABLE = 'inventory_item' as const;
+const SELECT_COLS = '*, category:inventory_item_category(id, name, reference_no), company:company(id, name)';
 
 export class InventoryRepository extends BaseRepository {
     private static instance: InventoryRepository;
@@ -60,14 +63,23 @@ export class InventoryRepository extends BaseRepository {
         params: PaginationParams,
     ): Promise<PaginatedResult<InventoryItem>> {
         const query = this.applyFilter(
-            this.db
-                .from(TABLE)
-                .select(
-                    '*, category:inventory_item_category(id, name, reference_no), uom:inventory_item_uom(id, name), company:company(id, name)',
-                    { count: 'exact' },
-                ),
+            this.db.from(TABLE).select(SELECT_COLS, { count: 'exact' }),
             ctx,
         ).order('id', { ascending: false });
+        return this.paginate(query, params);
+    }
+
+    async findAllByClass(
+        ctx: RequestContext,
+        params: PaginationParams,
+        itemClass: 'stock' | 'non_stock' | 'service',
+    ): Promise<PaginatedResult<InventoryItem>> {
+        const query = this.applyFilter(
+            this.db.from(TABLE).select(SELECT_COLS, { count: 'exact' }),
+            ctx,
+        )
+            .eq('item_class', itemClass)
+            .order('id', { ascending: false });
         return this.paginate(query, params);
     }
 
@@ -75,9 +87,8 @@ export class InventoryRepository extends BaseRepository {
         ctx: RequestContext,
         id: number,
     ): Promise<InventoryItem | null> {
-        const query = `*, category:inventory_item_category(id, name, reference_no), uom:inventory_item_uom(id, name), company:company(id, name)`;
         const { data, error } = await this.applyFilter(
-            this.db.from(TABLE).select(query).eq('id', id),
+            this.db.from(TABLE).select(SELECT_COLS).eq('id', id),
             ctx,
         ).single();
 
@@ -92,7 +103,8 @@ export class InventoryRepository extends BaseRepository {
         ctx: RequestContext,
         input: CreateInventoryInput,
     ): Promise<InventoryItem> {
-        const referenceNo = generateSequenNumbering('STCK');
+        const prefix = input.item_class === 'non_stock' ? 'NSTK' : 'STCK';
+        const referenceNo = generateSequenNumbering(prefix);
         const sku = input.sku ? input.sku : generateSKU('SKU');
 
         const { data, error } = await this.scopedDb(Number(ctx.companyId))
@@ -115,11 +127,10 @@ export class InventoryRepository extends BaseRepository {
         id: number,
         input: UpdateInventoryInput,
     ): Promise<InventoryItem> {
-        const sku = input.sku ? input.sku : generateSKU('SKU');
         const { data, error } = await this.applyFilter(
             this.db
                 .from(TABLE)
-                .update({ ...input, sku, updated_at: new Date().toISOString() })
+                .update({ ...input })
                 .eq('id', id),
             ctx,
         )
