@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 export const itemClassEnum = z.enum(['stock', 'non_stock', 'service']);
 
+const msgRequiredField = 'This field may not be null';
 const inventoryBaseSchema = {
     name: z
         .string()
@@ -17,28 +18,25 @@ const inventoryBaseSchema = {
 
     item_class: itemClassEnum.default('stock'),
 
-    price: z.coerce.number().min(0, 'Price cannot be negative'),
+    price: z.coerce.number({ error: msgRequiredField }),
 
-    min_price: z.coerce.number().min(0).optional().nullable(),
+    min_price: z.coerce.number({ error: msgRequiredField }),
 
-    max_price: z.coerce.number().min(0).optional().nullable(),
+    max_price: z.coerce.number({ error: msgRequiredField }),
 
-    cost: z.coerce.number().min(0, 'Cost cannot be negative').optional().nullable(),
+    cost: z.coerce.number().min(0.1, { error: msgRequiredField }),
 
     is_variant: z.boolean().default(false),
     is_discount: z.boolean().default(false),
-    is_sellable: z.boolean().default(true),
+    is_sellable: z.boolean().default(false),
     is_returnable: z.boolean().default(false),
     is_warranty: z.boolean().default(false),
 
     warranty_duration: z.string().max(100).optional().nullable(),
 
-    category_id: z.coerce
-        .number({ error: 'Category is required' })
-        .int()
-        .positive('Invalid category'),
+    category_id: z.number({ error: msgRequiredField }).int(),
 
-    uom_id: z.coerce.number().int().positive('Invalid UOM').optional().nullable(),
+    uom_id: z.number({ error: msgRequiredField }).int(),
 };
 
 export const createInventorySchema = z.object({

@@ -53,9 +53,19 @@ const registry = new Map<string, LazyLoader>([
         'InventoryCategoryModule',
         () => import('@/components/modules/inventory/InventoryCategoryModule'),
     ],
+    // UOM
+    ['Uom', () => import('@/components/modules/inventory/uom/Uom')],
     [
-        'InventoryUomModule',
-        () => import('@/components/modules/inventory/InventoryUomModule'),
+        'InventoryUomCreate',
+        () => import('@/components/modules/inventory/uom/actions/Create'),
+    ],
+    [
+        'InventoryUomView',
+        () => import('@/components/modules/inventory/uom/actions/View'),
+    ],
+    [
+        'InventoryUomUpdate',
+        () => import('@/components/modules/inventory/uom/actions/Update'),
     ],
     [
         'InventoryBrandModule',
@@ -121,14 +131,35 @@ const registry = new Map<string, LazyLoader>([
     ],
     // Sales Order
     ['SaleOrder', () => import('@/components/modules/sale/order/page')],
-    ['SaleOrderCreate', () => import('@/components/modules/sale/order/action/View')],
-    ['SaleOrderDetail', () => import('@/components/modules/sale/order/action/Get')],
-    ['SaleOrderUpdate', () => import('@/components/modules/sale/order/action/Update')],
+    [
+        'SaleOrderCreate',
+        () => import('@/components/modules/sale/order/action/View'),
+    ],
+    [
+        'SaleOrderDetail',
+        () => import('@/components/modules/sale/order/action/Get'),
+    ],
+    [
+        'SaleOrderUpdate',
+        () => import('@/components/modules/sale/order/action/Update'),
+    ],
     // Delivery Note
-    ['SaleDeliveryNote', () => import('@/components/modules/sale/delivery-note/page')],
-    ['SaleDeliveryNoteCreate', () => import('@/components/modules/sale/delivery-note/action/View')],
-    ['SaleDeliveryNoteDetail', () => import('@/components/modules/sale/delivery-note/action/Get')],
-    ['SaleDeliveryNoteUpdate', () => import('@/components/modules/sale/delivery-note/action/Update')],
+    [
+        'SaleDeliveryNote',
+        () => import('@/components/modules/sale/delivery-note/page'),
+    ],
+    [
+        'SaleDeliveryNoteCreate',
+        () => import('@/components/modules/sale/delivery-note/action/View'),
+    ],
+    [
+        'SaleDeliveryNoteDetail',
+        () => import('@/components/modules/sale/delivery-note/action/Get'),
+    ],
+    [
+        'SaleDeliveryNoteUpdate',
+        () => import('@/components/modules/sale/delivery-note/action/Update'),
+    ],
 ]);
 
 export function getModuleLoader(componentKey: string): LazyLoader | undefined {

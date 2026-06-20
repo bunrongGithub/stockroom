@@ -30,7 +30,7 @@ export interface InventoryItemProps {
     brand?: string | null;
     condition?: string | null;
     min_stock?: number | null;
-    has_warranty?: boolean;
+    is_warranty: boolean | false;
     is_discount?: boolean;
     is_discountable?: boolean;
     is_returnable?: boolean;

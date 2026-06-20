@@ -8,6 +8,7 @@ import {
 } from '@/service/core/pagination';
 import { BaseRepository } from '@/service/core/base-repository';
 import type { RequestContext } from '@/types/request-context';
+import { generateSequenNumbering } from '@/lib/utils/sequenumbering';
 
 export type Category = {
     id: number;
@@ -61,9 +62,11 @@ export class CategoryRepository extends BaseRepository {
         ctx: RequestContext,
         input: CreateCategoryInput,
     ): Promise<Category> {
+        const sequenNumbering = generateSequenNumbering('C');
+        const insertData = { ...input, reference_no: sequenNumbering };
         const { data, error } = await this.scopedDb(Number(ctx.companyId))
             .from(TABLE)
-            .insert({ ...input, user_id: ctx.userId })
+            .insert({ ...insertData, user_id: ctx.userId })
             .select()
             .single();
 
@@ -76,6 +79,10 @@ export class CategoryRepository extends BaseRepository {
         id: number,
         input: UpdateCategoryInput,
     ): Promise<Category> {
+        // read only reference_no
+        const sequenNumberingKey = 'reference_no';
+        if (input.reference_no) delete input[sequenNumberingKey];
+
         const { data, error } = await this.applyFilter(
             this.db
                 .from(TABLE)
