@@ -24,6 +24,10 @@ import {
     User,
     UserCheck,
     ShoppingBagIcon,
+    Tags,
+    Zap,
+    RulerDimensionLine,
+    Edit2Icon
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import Image from 'next/image';
@@ -45,18 +49,22 @@ function ModuleActionBridge() {
 }
 
 const ICON_MAP: Record<string, LucideIcon> = {
-    Box,
-    BadgePercent,
-    Package,
-    Warehouse,
-    ArrowLeftRight,
-    Settings,
-    Tag,
-    Ruler,
-    Award,
-    User,
-    UserCheck,
-    ShoppingBagIcon,
+  Box,
+  BadgePercent,
+  Package,
+  Warehouse,
+  ArrowLeftRight,
+  Settings,
+  Tag,
+  Ruler,
+  Award,
+  User,
+  UserCheck,
+  ShoppingBagIcon,
+  Tags,
+  Zap,
+  RulerDimensionLine,
+  Edit2Icon,
 };
 
 function ModuleIcon({

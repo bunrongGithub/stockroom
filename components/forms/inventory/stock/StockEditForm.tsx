@@ -111,7 +111,7 @@ function ToggleCheckbox({
             {icon}
           </span>
           <span
-            className={`text-sm font-semibold ${checked ? 'text-blue-800' : 'text-slate-700'}`}
+            className={`text-xs ${checked ? 'text-blue-800' : 'text-slate-700'}`}
           >
             {label}
           </span>
@@ -216,7 +216,7 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
       : '0.0';
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6 p-4 md:p-8">
+    <div className="space-y-4 font-mono">
       <div>
         <Link
           href={`/inventory/configurations/stock/${item.id}/view`}
@@ -245,7 +245,7 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
 
       <form
         onSubmit={handleSave}
-        className="grid gap-6 xl:grid-cols-[300px_minmax(0,1fr)]"
+        className="grid gap-6 xl:grid-cols-[350px_minmax(0,1fr)] text-xs"
       >
         {/* LEFT SIDEBAR */}
         <aside className="space-y-4 self-start xl:sticky xl:top-6">
@@ -325,14 +325,14 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
         </aside>
 
         {/* RIGHT — Tabs */}
-        <div className="min-w-0">
+        <div className="min-w-0 text-xs">
           <div className="flex gap-0 border-b border-slate-200">
             {TABS.map((tab) => (
               <button
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-medium transition-all ${
+                className={`flex items-center gap-2 border-b-2 px-5 py-3 transition-all ${
                   activeTab === tab.id
                     ? 'border-[#1a9e52] text-[#1a9e52]'
                     : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -451,7 +451,7 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
                 <button
                   type="button"
                   onClick={() => setActiveTab('pricing')}
-                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-xs text-slate-600 transition-colors hover:bg-slate-50"
                 >
                   Pricing <ChevronRight size={16} />
                 </button>
@@ -493,7 +493,7 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
                   <div>
                     <FieldLabel>Profit</FieldLabel>
                     <div
-                      className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-sm font-semibold ${
+                      className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 font-semibold ${
                         profit > 0
                           ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
                           : profit < 0
@@ -550,14 +550,14 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
                 <button
                   type="button"
                   onClick={() => setActiveTab('details')}
-                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-slate-600 transition-colors hover:bg-slate-50"
                 >
                   <ArrowLeft size={16} /> Details
                 </button>
                 <button
                   type="button"
                   onClick={() => setActiveTab('options')}
-                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-slate-600 transition-colors hover:bg-slate-50"
                 >
                   More Options <ChevronRight size={16} />
                 </button>
@@ -629,7 +629,7 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
                 <button
                   type="button"
                   onClick={() => setActiveTab('pricing')}
-                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-xs text-slate-600 transition-colors hover:bg-slate-50"
                 >
                   <ArrowLeft size={16} /> Pricing
                 </button>

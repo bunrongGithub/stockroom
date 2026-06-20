@@ -108,7 +108,7 @@ function ToggleCheckbox({
             {icon}
           </span>
           <span
-            className={`text-sm font-semibold ${checked ? 'text-blue-800' : 'text-slate-700'}`}
+            className={`font-semibold ${checked ? 'text-blue-800' : 'text-slate-700'}`}
           >
             {label}
           </span>
@@ -228,7 +228,9 @@ export default function StockCreateForm() {
             });
           });
         } else {
-          setSubmitError(json.error ?? 'Something went wrong. Please try again.');
+          setSubmitError(
+            json.error ?? 'Something went wrong. Please try again.',
+          );
         }
         return;
       }
@@ -241,11 +243,11 @@ export default function StockCreateForm() {
   };
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6 p-4 md:p-8">
+    <div className="space-y-4 font-mono text-xs">
       <div>
         <Link
           href="/inventory/configurations/stock"
-          className="inline-flex items-center gap-2 text-sm text-slate-500 transition-colors hover:text-slate-700"
+          className="inline-flex items-center gap-2 text-slate-500 transition-colors hover:text-slate-700"
         >
           <ArrowLeft size={16} /> Back to Stock Items
         </Link>
@@ -257,7 +259,7 @@ export default function StockCreateForm() {
       {submitError && (
         <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
           <AlertCircle size={18} className="mt-0.5 shrink-0 text-red-500" />
-          <p className="text-sm text-red-700">{submitError}</p>
+          <p className="text-red-700">{submitError}</p>
           <button
             type="button"
             onClick={() => setSubmitError('')}
@@ -270,7 +272,7 @@ export default function StockCreateForm() {
 
       <form
         onSubmit={handleSubmit(onSubmit)}
-        className="grid gap-6 xl:grid-cols-[300px_minmax(0,1fr)]"
+        className="grid gap-6 xl:grid-cols-[350px_minmax(0,1fr)]"
       >
         {/* LEFT SIDEBAR */}
         <aside className="space-y-4 self-start xl:sticky xl:top-6">
@@ -283,11 +285,11 @@ export default function StockCreateForm() {
             </div>
             <div className="p-4">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-[#1a9e52] to-emerald-700 text-sm font-bold text-white shadow-sm">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-[#1a9e52] to-emerald-700 font-bold text-white shadow-sm">
                   {currentUser?.email?.[0]?.toUpperCase() ?? '?'}
                 </div>
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-slate-800">
+                  <p className="truncate font-semibold text-slate-800">
                     {currentUser?.email ?? 'Loading...'}
                   </p>
                   <span className="inline-flex items-center rounded-full bg-[#1a9e52]/10 px-2 py-0.5 text-[10px] font-semibold capitalize text-[#1a9e52]">
@@ -333,15 +335,15 @@ export default function StockCreateForm() {
 
           <div className="flex flex-col-reverse gap-2">
             <Link
-              href="/inventory/configurations/stock"
-              className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-center text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
+              href="/inventory/configurations/stock-item"
+              className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-center text-slate-600 transition-colors hover:bg-slate-50"
             >
               Cancel
             </Link>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1a9e52] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#158042] disabled:opacity-50"
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1a9e52] px-4 py-2.5 font-semibold text-white transition-colors hover:bg-[#158042] disabled:opacity-50"
             >
               {isSubmitting && <Loader2 className="animate-spin" size={16} />}
               {isSubmitting ? 'Saving...' : 'Save Item'}
@@ -357,7 +359,7 @@ export default function StockCreateForm() {
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-medium transition-all ${
+                className={`flex items-center gap-2 border-b-2 px-5 py-3 transition-all ${
                   activeTab === tab.id
                     ? 'border-[#1a9e52] text-[#1a9e52]'
                     : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -494,7 +496,7 @@ export default function StockCreateForm() {
                 <button
                   type="button"
                   onClick={() => setActiveTab('pricing')}
-                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-slate-600 transition-colors hover:bg-slate-50"
                 >
                   Pricing <ChevronRight size={16} />
                 </button>
@@ -541,7 +543,7 @@ export default function StockCreateForm() {
                   <div>
                     <FieldLabel>Profit</FieldLabel>
                     <div
-                      className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-sm font-semibold ${
+                      className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 font-semibold ${
                         profit > 0
                           ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
                           : profit < 0
@@ -586,14 +588,14 @@ export default function StockCreateForm() {
                 <button
                   type="button"
                   onClick={() => setActiveTab('details')}
-                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-slate-600 transition-colors hover:bg-slate-50"
                 >
                   <ArrowLeft size={16} /> Details
                 </button>
                 <button
                   type="button"
                   onClick={() => setActiveTab('options')}
-                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-slate-600 transition-colors hover:bg-slate-50"
                 >
                   More Options <ChevronRight size={16} />
                 </button>
@@ -679,7 +681,7 @@ export default function StockCreateForm() {
                 <button
                   type="button"
                   onClick={() => setActiveTab('pricing')}
-                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-slate-600 transition-colors hover:bg-slate-50"
                 >
                   <ArrowLeft size={16} /> Pricing
                 </button>

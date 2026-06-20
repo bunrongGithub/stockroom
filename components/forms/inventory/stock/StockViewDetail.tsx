@@ -202,7 +202,7 @@ export default function StockViewDetail({ item }: { item: StockViewItem }) {
   const createdAt = new Date(item.created_at);
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6 p-4 md:p-8">
+    <div className="mx-auto space-y-2 font-mono">
       {/* Header */}
       <div>
         <Link
@@ -211,9 +211,6 @@ export default function StockViewDetail({ item }: { item: StockViewItem }) {
         >
           <ArrowLeft size={16} /> ត្រឡប់ទៅឃ្លាំងទំនិញ
         </Link>
-        <h2 className="mt-3 flex items-center gap-2 text-2xl font-bold text-slate-800 md:text-3xl">
-          <Package className="text-[#1a9e52]" /> ព័ត៌មានលម្អិតទំនិញ
-        </h2>
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[350px_minmax(0,1fr)]">
@@ -299,29 +296,20 @@ export default function StockViewDetail({ item }: { item: StockViewItem }) {
         {/* ══════════════════════════════════
                     RIGHT — Tabs + Content
                    ══════════════════════════════════ */}
-        <div className="min-w-0">
+        <div>
           {/* Tab nav */}
-          <div className="flex gap-0 border-b border-slate-200">
+          <div className="flex gap-0 border-b border-slate-200 text-xs">
             {TABS.map((tab) => (
               <button
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-medium transition-all ${
+                className={`flex items-center gap-2 border-b-2 px-5 py-3 transition-all ${
                   activeTab === tab.id
                     ? 'border-[#1a9e52] text-[#1a9e52]'
                     : 'border-transparent text-slate-500 hover:text-slate-700'
                 }`}
               >
-                <span
-                  className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold transition-all ${
-                    activeTab === tab.id
-                      ? 'bg-[#1a9e52] text-white'
-                      : 'bg-slate-100 text-slate-500'
-                  }`}
-                >
-                  {tab.num}
-                </span>
                 {tab.label}
               </button>
             ))}
@@ -329,14 +317,14 @@ export default function StockViewDetail({ item }: { item: StockViewItem }) {
 
           {/* ── Tab 1: Details ── */}
           {activeTab === 'details' && (
-            <div className="space-y-5 pt-5">
+            <div className="space-y-5 pt-5 text-xs">
               <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
                 <h3 className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
                   <Package size={13} className="text-[#1a9e52]" /> ព័ត៌មានទំនិញ
                 </h3>
                 <div className="grid gap-4 lg:grid-cols-2">
                   <div>
-                    <FieldLabel>Reference No</FieldLabel>
+                    <FieldLabel className=''>Reference No</FieldLabel>
                     <ReadonlyInput
                       value={item.reference_no ?? ''}
                       placeholder="—"

@@ -5,17 +5,15 @@ import {
 } from '@/components/ui/button-action';
 import { usePageActions } from '@/hook/usePageAction';
 import { InventoryItemProps } from '@/types/inventory/item';
-import { resolveHref } from '@/utils/utils';
 import {
-  AlertTriangle,
   Package,
   Percent,
   RotateCcw,
   Search,
   ShieldCheck,
+  Tags,
 } from 'lucide-react';
 import Image from 'next/image';
-import Link from 'next/link';
 import { JSX, useMemo, useState } from 'react';
 
 // ─── Property Badges ──────────────────────────────────────────────────────────
@@ -52,6 +50,18 @@ function PropertyBadges({ item }: { item: InventoryItemProps }) {
         className="flex h-5 w-5 items-center justify-center rounded-md bg-amber-50 text-amber-500"
       >
         <RotateCcw size={11} />
+      </span>,
+    );
+  }
+
+  if (item.is_sellable) {
+    badges.push(
+      <span
+        key="s"
+        title="Sallable"
+        className="flex h-5 w-5 items-center justify-center rounded-md bg-blue-50 text-blue-500"
+      >
+        <Tags size={11} />
       </span>,
     );
   }

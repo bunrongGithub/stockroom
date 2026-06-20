@@ -38,10 +38,6 @@ const registry = new Map<string, LazyLoader>([
             import('@/components/forms/inventory/category/CategoryUpdateForm'),
     ],
     [
-        'InventoryBranchModule',
-        () => import('@/components/modules/inventory/InventoryBranchModule'),
-    ],
-    [
         'InventoryStockAdjModule',
         () => import('@/components/modules/inventory/InventoryStockAdjModule'),
     ],
@@ -67,9 +63,22 @@ const registry = new Map<string, LazyLoader>([
         'InventoryUomUpdate',
         () => import('@/components/modules/inventory/uom/actions/Update'),
     ],
+    // Warehouse
     [
-        'InventoryBrandModule',
-        () => import('@/components/modules/inventory/InventoryBrandModule'),
+        'Warehouse',
+        () => import('@/components/modules/inventory/warehouse/Warehouse'),
+    ],
+    [
+        'WarehouseCreate',
+        () => import('@/components/modules/inventory/warehouse/actions/Create'),
+    ],
+    [
+        'WarehouseView',
+        () => import('@/components/modules/inventory/warehouse/actions/View'),
+    ],
+    [
+        'WarehouseUpdate',
+        () => import('@/components/modules/inventory/warehouse/actions/Updat'),
     ],
     [
         'CategoryFormCreate',
