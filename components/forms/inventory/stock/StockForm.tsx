@@ -123,7 +123,7 @@ export default function StockForm({
   }).length;
 
   return (
-    <div className="max-w-full mx-auto space-y-8 animate-in fade-in duration-500 p-4 md:p-8">
+    <div className="max-w-full mx-auto space-y-5 font-mono">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <h2 className="text-2xl text-slate-800 flex items-center gap-2">
@@ -145,9 +145,9 @@ export default function StockForm({
       </div>
 
       {/* Main Content */}
-      <div className="mx-auto">
+      <div className="mx-auto space-y-4">
         {/* Search & Filters */}
-        <div className="mb-6 flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center">
           <div className="relative min-w-60 max-w-md flex-1">
             <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
               <Search size={18} className="text-gray-400" />
@@ -161,21 +161,10 @@ export default function StockForm({
             />
           </div>
         </div>
-
-        {/* Stats bar */}
-        <div className="mb-4 flex items-center gap-4 text-slate-500">
-          {lowStockCount > 0 && (
-            <span className="flex items-center gap-1 text-amber-600">
-              <AlertTriangle size={12} />
-              ស្តុកទាប: <span>{lowStockCount}</span>
-            </span>
-          )}
-        </div>
-
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden relative">
+        <div className="bg-white rounded-2xl shadow-sm overflow-hidden relative">
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-200">
-              <thead className="bg-slate-50">
+              <thead className="bg-slate-50 text-sm">
                 <tr>
                   <th className="px-6 py-4 text-left text-gray-700 uppercase tracking-wider">
                     Reference
@@ -196,7 +185,7 @@ export default function StockForm({
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-slate-100">
+              <tbody className="bg-white divide-y divide-slate-100 text-xs">
                 {filteredItems.map((item) => {
                   return (
                     <tr

@@ -42,7 +42,8 @@ export type InventoryItem = {
 };
 
 const TABLE = 'inventory_item' as const;
-const SELECT_COLS = '*, category:inventory_item_category(id, name, reference_no), company:company(id, name)';
+const SELECT_COLS =
+    '*, category:inventory_item_category(id, name, reference_no), company:company(id, name),uom:inventory_uom(id, name, display_name)';
 
 export class InventoryRepository extends BaseRepository {
     private static instance: InventoryRepository;
