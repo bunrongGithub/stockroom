@@ -3,6 +3,7 @@ import { ApiError, ValidationError } from '@/service/core/api-response';
 import {
     CreateRoleInput,
     createRoleSchema,
+    UpdateRolePermissionsInput,
 } from '@/service/schema/role.schema';
 import { RequestContext } from '@/types/request-context';
 import { z } from 'zod';
@@ -60,5 +61,78 @@ export class Role extends BaseRepository {
         ).single();
         if (error) throw new ApiError(error.details, 1, error.code);
         return data;
+    }
+
+    async updateOne(
+        context: RequestContext,
+        id: number,
+        payload: { name: string; description?: string | null },
+    ) {
+        const { data, error, status } = await this.applyFilter(
+            this.db
+                .from('roles')
+                .update(payload)
+                .eq('id', id)
+                .select('id, name, description')
+                .single(),
+            context,
+        );
+        if (error) throw new ApiError(error.message, status, error.code);
+        return data;
+    }
+
+    async updatePermissions(
+        _context: RequestContext,
+        roleId: number,
+        permissions: UpdateRolePermissionsInput['permissions'],
+    ) {
+        const { error: deleteError } = await this.db
+            .from('role_module_permission')
+            .delete()
+            .eq('role_id', roleId);
+
+        if (deleteError)
+            throw new ApiError(deleteError.message, 500, deleteError.code);
+
+        const toInsert = permissions
+            .filter(
+                (p) =>
+                    p.can_view ||
+                    p.can_create ||
+                    p.can_update ||
+                    p.can_delete,
+            )
+            .map((p) => ({
+                role_id: roleId,
+                module_id: p.module_id,
+                can_view: p.can_view,
+                can_create: p.can_create,
+                can_update: p.can_update,
+                can_delete: p.can_delete,
+            }));
+
+        if (toInsert.length > 0) {
+            const { error: insertError } = await this.db
+                .from('role_module_permission')
+                .insert(toInsert);
+
+            if (insertError)
+                throw new ApiError(
+                    insertError.message,
+                    500,
+                    insertError.code,
+                );
+        }
+
+        return { success: true };
+    }
+
+    async deleteOne(context: RequestContext, id: number) {
+        const { error, status } = await this.applyFilter(
+            this.db.from('roles').delete().eq('id', id),
+            context,
+        );
+        if (error) throw new ApiError(error.message, status, error.code);
+        return { success: true };
     }
 }
