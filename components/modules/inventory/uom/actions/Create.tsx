@@ -17,9 +17,10 @@ import {
     User,
     X,
 } from 'lucide-react';
+import { useUserProfile } from '@/context/UserProfileContext';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 
 type FormValues = {
@@ -48,13 +49,6 @@ export default function InventoryUomCreate({
         handleSubmit,
         formState: { errors, isSubmitting },
     } = useForm<FormValues>({ defaultValues: { name: '', display_name: '' } });
-
-    useEffect(() => {
-        fetch('/api/auth/me')
-            .then((r) => r.json())
-            .then((d) => setCurrentUser({ email: d.email, role: d.role, companyId: d.companyId }))
-            .catch(() => {});
-    }, []);
 
     const onSubmit = async (data: FormValues) => {
         setSubmitError('');

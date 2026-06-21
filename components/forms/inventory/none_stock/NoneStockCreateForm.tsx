@@ -24,6 +24,7 @@ import {
     Wrench,
     ChevronRight,
 } from 'lucide-react';
+import { useUserProfile } from '@/context/UserProfileContext';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';

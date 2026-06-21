@@ -27,6 +27,7 @@ export default class AppPermissionService
     }
 
     async findAll(context: RequestContext, params: PaginationParams) {
+        const isSuperUser = await this.isSupperUser(context);
         const query = this.applyFilter(
             this.db
                 .from(TABLE)
@@ -36,6 +37,7 @@ export default class AppPermissionService
                 )
                 .order('role_id', { ascending: true }),
             context,
+            isSuperUser,
         );
         return this.paginate(query, params);
     }
@@ -65,5 +67,3 @@ export default class AppPermissionService
         return this.hasPermission('can_export');
     }
 }
-
-

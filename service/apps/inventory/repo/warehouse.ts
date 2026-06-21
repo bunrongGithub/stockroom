@@ -23,7 +23,7 @@ export class WarehouseRepository extends BaseRepository {
         ctx: RequestContext,
         params: PaginationParams = { page: 1, limit: 10 },
     ): Promise<PaginatedResult<BranchProps>> {
-        const query = this.applyScope(
+        const query = this.applyFilter(
             this.db.from(TABLE).select('*', { count: 'exact' }),
             ctx,
         );
@@ -32,17 +32,21 @@ export class WarehouseRepository extends BaseRepository {
         return result;
     }
 
-    async findAll(ctx: RequestContext): Promise<BranchProps[]> {
-        const supabase = this.db;
-        const { data, error } = await supabase
-            .from(TABLE)
-            .select('*, stock_location(*)')
-            .eq('company_id', Number(ctx.companyId))
-            .order('is_default', { ascending: false })
-            .order('name');
+    async findAll(
+        ctx: RequestContext,
+        params: PaginationParams,
+    ): Promise<PaginatedResult<BranchProps>> {
+        const isSuperUser = await this.isSupperUser(ctx);
 
-        if (error) throw new Error(error.message);
-        return data ?? [];
+        const query = this.applyFilter(
+            this.db
+                .from(TABLE)
+                .select('*,company(id,name)', { count: 'exact' }),
+            ctx,
+            isSuperUser,
+        ).order('id', { ascending: false });
+
+        return this.paginate(query, params);
     }
 
     async findOne(

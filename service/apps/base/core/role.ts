@@ -13,12 +13,12 @@ export class Role extends BaseRepository {
         super();
     }
     async findAll(context: RequestContext, params: PaginationParams) {
-        const query = this.applyFilter(
+        const query = this.applyCompanyFilter(
             this.db
                 .from('roles')
                 .select('id, name, description, created_at, company(id, name)')
                 .order('id', { ascending: false }),
-            context,
+            Number(context.companyId),
         );
         return this.paginate(query, params);
     }
@@ -50,16 +50,18 @@ export class Role extends BaseRepository {
     }
 
     async findOne(context: RequestContext, id: number) {
-        const { data, error } = await this.applyFilter(
+        const { data, error } = await this.applyCompanyFilter(
             this.db
                 .from('roles')
                 .select(
                     '*, company(id, name), role_module_permission(id,can_view,can_create,can_update,can_delete,module:modules(id,key,label,path))',
                 )
                 .eq('id', id),
-            context,
+            Number(context.companyId),
         ).single();
-        if (error) throw new ApiError(error.details, 1, error.code);
+        if (error) {
+            throw new ApiError(error.message, 500, error.code).toResponse();
+        }
         return data;
     }
 
@@ -68,16 +70,19 @@ export class Role extends BaseRepository {
         id: number,
         payload: { name: string; description?: string | null },
     ) {
-        const { data, error, status } = await this.applyFilter(
+        const { data, error, status } = await this.applyCompanyFilter(
             this.db
                 .from('roles')
                 .update(payload)
                 .eq('id', id)
                 .select('id, name, description')
                 .single(),
-            context,
+            Number(context.companyId),
         );
-        if (error) throw new ApiError(error.message, status, error.code);
+        if (error) {
+            console.log(error);
+            throw new ApiError(error.message, status, error.code);
+        }
         return data;
     }
 
@@ -97,10 +102,7 @@ export class Role extends BaseRepository {
         const toInsert = permissions
             .filter(
                 (p) =>
-                    p.can_view ||
-                    p.can_create ||
-                    p.can_update ||
-                    p.can_delete,
+                    p.can_view || p.can_create || p.can_update || p.can_delete,
             )
             .map((p) => ({
                 role_id: roleId,
@@ -117,20 +119,18 @@ export class Role extends BaseRepository {
                 .insert(toInsert);
 
             if (insertError)
-                throw new ApiError(
-                    insertError.message,
-                    500,
-                    insertError.code,
-                );
+                throw new ApiError(insertError.message, 500, insertError.code);
         }
 
         return { success: true };
     }
 
     async deleteOne(context: RequestContext, id: number) {
+        const isSuperUser = await this.isSupperUser(context);
         const { error, status } = await this.applyFilter(
             this.db.from('roles').delete().eq('id', id),
             context,
+            isSuperUser,
         );
         if (error) throw new ApiError(error.message, status, error.code);
         return { success: true };

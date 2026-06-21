@@ -398,7 +398,7 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
                       selectedLabel={formData.category?.name ?? ''}
                       popupTitle="Category"
                       enablePopupSearch
-                      onChange={(selected) =>
+                      onChangeAction={(selected) =>
                         setFormData((prev) => ({
                           ...prev,
                           category_id: selected?.id
@@ -422,7 +422,7 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
                       selectedLabel={formData.uom?.name ?? ''}
                       popupTitle="Base UOM"
                       enablePopupSearch
-                      onChange={(selected) =>
+                      onChangeAction={(selected) =>
                         setFormData((prev) => ({
                           ...prev,
                           uom_id: selected?.id ? Number(selected.id) : null,

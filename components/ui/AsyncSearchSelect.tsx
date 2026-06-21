@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { FieldLabel } from './FieldLabel';
 import PopUpSearch from './PopUpSearch';
 import { PopUpSearchTable } from './PopUpSearchTable';
+import type { PopUpSearchTableColumn } from './PopUpSearchTable';
 
 type Option = {
   value: string | number;
@@ -14,9 +15,9 @@ type Option = {
 type SearchApiItem = {
   id: string | number;
   name: string;
-};
+} & Record<string, unknown>;
 
-type AsyncSearchSelectProps = {
+type AsyncSearchSelectProps<T extends Record<string, unknown> = SearchApiItem> = {
   label: string;
   placeholder?: string;
   apiUrl: string;
@@ -24,7 +25,7 @@ type AsyncSearchSelectProps = {
   /** Pass the selected item's ID here (not the name). */
   value: string | number | null;
   /** Returns the full selected option so callers can grab both id and name. */
-  onChange: (
+  onChangeAction: (
     selected: { id: string | number | null; name: string } | null,
   ) => void;
 
@@ -36,21 +37,31 @@ type AsyncSearchSelectProps = {
   nameKey?: string;
   /** Set true when the API returns { data: [...] } instead of { data: { data: [...] } }. */
   flatData?: boolean;
+
+  /** PopUp column, for the custom popup form and specific columns*/
+  popUpColumns?: PopUpSearchTableColumn<T>[];
+  popupPageSize?: number;
+  popupPageSizeOptions?: number[];
 };
 
-export default function AsyncSearchSelect({
+export default function AsyncSearchSelect<
+  T extends Record<string, unknown> = SearchApiItem,
+>({
   label,
   placeholder = 'Search...',
   apiUrl,
   value,
-  onChange,
+  onChangeAction,
   required,
   selectedLabel: selectedLabelProp = '',
   popupTitle,
   enablePopupSearch = false,
   nameKey = 'name',
   flatData = false,
-}: AsyncSearchSelectProps) {
+  popUpColumns,
+  popupPageSize,
+  popupPageSizeOptions,
+}: AsyncSearchSelectProps<T>) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   const [open, setOpen] = useState(false);
@@ -70,7 +81,9 @@ export default function AsyncSearchSelect({
         if (!res.ok) throw new Error('Failed to fetch');
 
         const json = await res.json();
-        const rows: SearchApiItem[] = json.data;
+        const rows: SearchApiItem[] = Array.isArray(json.data)
+          ? json.data
+          : (json.data?.data ?? []);
 
         setOptions(
           rows.map((item) => ({
@@ -84,7 +97,7 @@ export default function AsyncSearchSelect({
         setLoading(false);
       }
     },
-    [apiUrl],
+    [apiUrl, nameKey],
   );
 
   const handleOpen = () => {
@@ -113,7 +126,7 @@ export default function AsyncSearchSelect({
   }, []);
 
   const handleSelect = (option: Option) => {
-    onChange({ id: option.value, name: option.label });
+    onChangeAction({ id: option.value, name: option.label });
     setOpen(false);
     setSearch('');
   };
@@ -219,34 +232,38 @@ export default function AsyncSearchSelect({
         open={popupOpen}
         title={popupTitle ?? label}
         placeholder={placeholder}
-        onClose={() => setPopupOpen(false)}
+        onCloseAction={() => setPopupOpen(false)}
       >
-        <PopUpSearchTable<
-          { id: string | number; name: string } & Record<string, unknown>
-        >
+        <PopUpSearchTable<T>
           apiUrl={apiUrl}
           selectedId={value}
           onRowSelect={(row) => {
+            const rowId = row.id as string | number;
             handleSelect({
-              value: row.id,
-              label: String(row.name ?? ''),
+              value: rowId,
+              label: String(row[nameKey] ?? ''),
             });
             setPopupOpen(false);
           }}
-          columns={[
-            {
-              key: 'id',
-              header: '#',
-              getValue: (r) => String(r.id),
-              className: 'text-slate-400',
-            },
-            {
-              key: 'name',
-              header: label,
-              filterable: true,
-              getValue: (r) => String(r.name ?? ''),
-            },
-          ]}
+          columns={
+            popUpColumns ?? [
+              {
+                key: 'id',
+                header: '#',
+                getValue: (r) => String(r.id),
+                className: 'text-slate-400',
+              },
+              {
+                key: nameKey,
+                header: label,
+                filterable: true,
+                getValue: (r) => String(r[nameKey] ?? ''),
+              },
+            ]
+          }
+          flatData={flatData}
+          pageSize={popupPageSize}
+          pageSizeOptions={popupPageSizeOptions}
         />
       </PopUpSearch>
     </div>

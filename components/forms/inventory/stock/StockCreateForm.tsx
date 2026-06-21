@@ -24,9 +24,10 @@ import {
   User,
   X,
 } from 'lucide-react';
+import { useUserProfile } from '@/context/UserProfileContext';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 
 const TABS = [
@@ -36,6 +37,14 @@ const TABS = [
 ];
 type TabId = (typeof TABS)[number]['id'];
 
+type Warehose = {
+  id: number;
+  name: string;
+};
+type Location = {
+  id: number;
+  name: string;
+};
 type FormValues = {
   name: string;
   sku: string;
@@ -54,6 +63,10 @@ type FormValues = {
   is_returnable: boolean;
   is_warranty: boolean;
   warranty_duration: string;
+  default_warehouse_id: number | null;
+  default_warehouse: Warehose | null;
+  default_location_id: number | null;
+  default_location: Location | null;
 };
 
 function ToggleCheckbox({
@@ -121,14 +134,10 @@ function ToggleCheckbox({
 
 export default function StockCreateForm() {
   const router = useRouter();
+  const currentUser = useUserProfile();
 
   const [activeTab, setActiveTab] = useState<TabId>('details');
   const [submitError, setSubmitError] = useState('');
-  const [currentUser, setCurrentUser] = useState<{
-    email: string;
-    role: string;
-    companyId: string;
-  } | null>(null);
   const [createdAt] = useState(() => new Date());
 
   const {
@@ -158,21 +167,10 @@ export default function StockCreateForm() {
       is_returnable: false,
       is_warranty: false,
       warranty_duration: '',
+      default_warehouse_id: null,
+      default_warehouse: null,
     },
   });
-
-  useEffect(() => {
-    fetch('/api/auth/me')
-      .then((r) => r.json())
-      .then((d) =>
-        setCurrentUser({
-          email: d.email,
-          role: d.role,
-          companyId: d.companyId,
-        }),
-      )
-      .catch(() => {});
-  }, []);
 
   const price = watch('price');
   const cost = watch('cost');
@@ -205,6 +203,7 @@ export default function StockCreateForm() {
         warranty_duration: data.is_warranty
           ? data.warranty_duration || null
           : null,
+        default_warehouse_id: data.default_warehouse_id,
       };
 
       const res = await fetch(
@@ -429,7 +428,7 @@ export default function StockCreateForm() {
                           selectedLabel={watch('category')?.name ?? ''}
                           popupTitle="Category"
                           enablePopupSearch
-                          onChange={(selected) => {
+                          onChangeAction={(selected) => {
                             field.onChange(
                               selected?.id ? Number(selected.id) : null,
                             );
@@ -462,7 +461,7 @@ export default function StockCreateForm() {
                           selectedLabel={watch('uom')?.name ?? ''}
                           popupTitle="Base UOM"
                           enablePopupSearch
-                          onChange={(selected) => {
+                          onChangeAction={(selected) => {
                             field.onChange(
                               selected?.id ? Number(selected.id) : null,
                             );
@@ -480,6 +479,68 @@ export default function StockCreateForm() {
                         {errors.uom_id.message}
                       </p>
                     )}
+                  </div>
+                  <div>
+                    <Controller
+                      name="default_warehouse_id"
+                      control={control}
+                      render={({ field }) => (
+                        <AsyncSearchSelect
+                          label="Default Warehouse"
+                          placeholder="Item default warehouse"
+                          apiUrl="/api/inventory/configurations/warehouse"
+                          value={field.value}
+                          selectedLabel={watch('default_warehouse')?.name ?? ''}
+                          enablePopupSearch
+                          onChangeAction={(selected) => {
+                            field.onChange(
+                              selected?.id ? Number(selected.id) : null,
+                            );
+                            setValue(
+                              'default_warehouse',
+                              selected
+                                ? {
+                                    id: Number(selected.id),
+                                    name: selected?.name ?? '',
+                                  }
+                                : null,
+                            );
+                          }}
+                          required
+                        />
+                      )}
+                    />
+                  </div>
+                  <div>
+                    <Controller
+                      name="default_warehouse_id"
+                      control={control}
+                      render={({ field }) => (
+                        <AsyncSearchSelect
+                          label="Default Location"
+                          placeholder="Item default location"
+                          apiUrl="/api/inventory/configurations/location"
+                          value={field.value}
+                          selectedLabel={watch('default_location')?.name ?? ''}
+                          enablePopupSearch
+                          onChangeAction={(selected) => {
+                            field.onChange(
+                              selected?.id ? Number(selected.id) : null,
+                            );
+                            setValue(
+                              'default_location',
+                              selected
+                                ? {
+                                    id: Number(selected.id),
+                                    name: selected?.name ?? '',
+                                  }
+                                : null,
+                            );
+                          }}
+                          required
+                        />
+                      )}
+                    />
                   </div>
                 </div>
                 <div className="mt-4">

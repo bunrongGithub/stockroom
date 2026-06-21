@@ -2,6 +2,7 @@ import { PaginationMixin } from './pagination';
 import { getServerClient, createScopedClient } from '@/lib/supabase/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { RequestContext } from '@/types/request-context';
+import { ApiError, ForbiddenError } from './api-response';
 
 export abstract class BaseRepository extends PaginationMixin {
     /**
@@ -10,10 +11,13 @@ export abstract class BaseRepository extends PaginationMixin {
      *   admin       → company_id only
      *   member|user.... → company_id + user_id  (own records within company)
      */
-    protected applyFilter<T>(query: T, ctx: RequestContext): T {
+    protected applyFilter<T>(
+        query: T,
+        ctx: RequestContext,
+        bypassScope = false,
+    ): T {
+        if (bypassScope) return query;
         const { role, companyId, userId } = ctx;
-
-        console.log(role)
         return ['super_admin', 'super_user'].includes(role ?? '')
             ? query
             : ['admin'].includes(role ?? '')
@@ -41,5 +45,22 @@ export abstract class BaseRepository extends PaginationMixin {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     protected applyCompanyFilter(query: any, companyId: number) {
         return query.eq('company_id', companyId);
+    }
+
+    protected async isSupperUser(context: RequestContext) {
+        const currentUserId = context.userId;
+
+        if (!currentUserId) throw new ForbiddenError('ForbiddenError');
+
+        const { data, error } = await this.db
+            .from('profiles')
+            .select('is_super_user')
+            .eq('id', currentUserId)
+            .single();
+
+        if (error) throw new ApiError(error.message, 500, error.code);
+
+        if (data?.is_super_user && data?.is_super_user === true) return true;
+        return false;
     }
 }

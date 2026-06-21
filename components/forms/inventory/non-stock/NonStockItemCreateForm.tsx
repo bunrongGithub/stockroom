@@ -24,9 +24,10 @@ import {
     User,
     X,
 } from 'lucide-react';
+import { useUserProfile } from '@/context/UserProfileContext';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 
 const TABS = [

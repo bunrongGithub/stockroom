@@ -63,9 +63,11 @@ export class InventoryRepository extends BaseRepository {
         ctx: RequestContext,
         params: PaginationParams,
     ): Promise<PaginatedResult<InventoryItem>> {
+        const isSuperUser = await this.isSupperUser(ctx);
         const query = this.applyFilter(
             this.db.from(TABLE).select(SELECT_COLS, { count: 'exact' }),
             ctx,
+            isSuperUser,
         ).order('id', { ascending: false });
         return this.paginate(query, params);
     }
@@ -75,9 +77,11 @@ export class InventoryRepository extends BaseRepository {
         params: PaginationParams,
         itemClass: 'stock' | 'non_stock' | 'service',
     ): Promise<PaginatedResult<InventoryItem>> {
+        const isSuperUser = await this.isSupperUser(ctx);
         const query = this.applyFilter(
             this.db.from(TABLE).select(SELECT_COLS, { count: 'exact' }),
             ctx,
+            isSuperUser,
         )
             .eq('item_class', itemClass)
             .order('id', { ascending: false });
@@ -88,9 +92,11 @@ export class InventoryRepository extends BaseRepository {
         ctx: RequestContext,
         id: number,
     ): Promise<InventoryItem | null> {
+        const isSuperUser = await this.isSupperUser(ctx);
         const { data, error } = await this.applyFilter(
             this.db.from(TABLE).select(SELECT_COLS).eq('id', id),
             ctx,
+            isSuperUser,
         ).single();
 
         if (error) {
@@ -128,12 +134,14 @@ export class InventoryRepository extends BaseRepository {
         id: number,
         input: UpdateInventoryInput,
     ): Promise<InventoryItem> {
+        const isSuperUser = await this.isSupperUser(ctx);
         const { data, error } = await this.applyFilter(
             this.db
                 .from(TABLE)
                 .update({ ...input })
                 .eq('id', id),
             ctx,
+            isSuperUser,
         )
             .select()
             .single();
@@ -143,9 +151,11 @@ export class InventoryRepository extends BaseRepository {
     }
 
     async deleteOne(ctx: RequestContext, id: number): Promise<void> {
+        const isSuperUser = await this.isSupperUser(ctx);
         const { error } = await this.applyFilter(
             this.db.from(TABLE).delete().eq('id', id),
             ctx,
+            isSuperUser,
         );
 
         if (error) throw new Error(error.message);

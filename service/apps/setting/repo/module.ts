@@ -34,18 +34,25 @@ export class ModuleRepository extends BaseRepository {
     async findAll(
         _ctx: RequestContext,
         params: PaginationParams,
-    ): Promise<PaginatedResult<AppModule>> {
-        const query = this.applyFilter(
-            this.db
-                .from(TABLE)
-                .select(
-                    'id, key, label, path, component, parent_id, icon, sort_order, is_active, type, is_initial_data',
-                    { count: 'exact' },
-                )
-                .or('parent_id.is.null,type.eq.transaction'),
-            _ctx,
+    ): Promise<PaginatedResult<Omit<AppModule, 'permission'>>> {
+        const baseQuery = this.db
+            .from(TABLE)
+            .select(
+                'id, key, label, path, component, parent_id, icon, sort_order, is_active, type, is_initial_data, role_module_permission(id, module_id, role_id, roles(id, name, company_id))',
+                { count: 'exact' },
+            )
+            .or('parent_id.is.null,type.eq.transaction');
+
+        if (await this.isSupperUser(_ctx))
+            return await this.paginate(baseQuery, params);
+
+        const currentCompanyId = _ctx.companyId;
+        const queryByCompany = baseQuery.filter(
+            'role_module_permission.roles.company_id',
+            'eq',
+            currentCompanyId,
         );
-        return this.paginate(query, params);
+        return this.paginate(queryByCompany, params);
     }
 
     async findOne(
@@ -71,7 +78,10 @@ export class ModuleRepository extends BaseRepository {
                 .eq('id', module.parent_id)
                 .single();
             moduleParent = parentRow
-                ? { id: parentRow.id as number, label: parentRow.label as string }
+                ? {
+                      id: parentRow.id as number,
+                      label: parentRow.label as string,
+                  }
                 : { id: module.parent_id, label: '' };
         }
 
@@ -155,22 +165,23 @@ export class ModuleRepository extends BaseRepository {
     async findAllMenu(
         _ctx: RequestContext,
         params: PaginationParams,
-    ): Promise<PaginatedResult<AppModule>> {
-        const { limit = 10, page = 1, search } = params;
-        const query = this.applyFilter(
-            this.db
-                .from(TABLE)
-                .select(
-                    'id, key, label, path, component, parent_id, icon, sort_order, is_active, type, is_initial_data',
-                    { count: 'exact' },
-                ),
-            _ctx,
-        ).order('sort_order', { ascending: true });
-        return this.paginate(query, {
-            limit,
-            page,
-            search,
-            searchColumn: 'label',
-        });
+    ): Promise<PaginatedResult<Omit<AppModule, 'permission'>>> {
+        const baseQuery = this.db
+            .from(TABLE)
+            .select(
+                'id, key, label, path, component, parent_id, icon, sort_order, is_active, type, is_initial_data, role_module_permission(id, module_id, role_id, roles(id, name, company_id))',
+                { count: 'exact' },
+            );
+
+        if (await this.isSupperUser(_ctx))
+            return await this.paginate(baseQuery, params);
+
+        const currentCompanyId = _ctx.companyId;
+        const queryByCompany = baseQuery.filter(
+            'role_module_permission.roles.company_id',
+            'eq',
+            currentCompanyId,
+        );
+        return this.paginate(queryByCompany, params);
     }
 }

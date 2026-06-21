@@ -66,7 +66,7 @@ const registry = new Map<string, LazyLoader>([
     // Warehouse
     [
         'Warehouse',
-        () => import('@/components/modules/inventory/warehouse/Warehouse'),
+        () => import('@/components/modules/inventory/warehouse/page'),
     ],
     [
         'WarehouseCreate',

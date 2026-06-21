@@ -445,7 +445,7 @@ export default function ModuleCreate({
                 open={parentPopupOpen}
                 title="Parent Menu"
                 placeholder="Search module..."
-                onClose={() => setParentPopupOpen(false)}
+                onCloseAction={() => setParentPopupOpen(false)}
             >
                 <PopUpSearchTable<
                     { id: number; label: string } & Record<string, unknown>

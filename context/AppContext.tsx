@@ -59,6 +59,7 @@ function writeCache(data: AppInitData) {
 export function clearAppCache() {
     try {
         localStorage.removeItem(CACHE_KEY);
+        localStorage.removeItem('current_login_user_info');
     } catch { /* noop */ }
 }
 

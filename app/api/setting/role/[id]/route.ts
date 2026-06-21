@@ -23,6 +23,9 @@ export async function GET(
         const data = await Service.findOne(context, Number(id));
         return new ApiResponseSuccess(data, 'Success', 200).toResponse();
     } catch (err) {
+
+
+        console.log(err)
         if (err instanceof ApiError) return err.toResponse();
         return new ApiError('Unexpected error', 500).toResponse();
     }
