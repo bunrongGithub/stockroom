@@ -119,8 +119,8 @@ function ToggleCheckbox({
 export default function NonStockItemCreateForm() {
     const router = useRouter();
     const [activeTab, setActiveTab] = useState<TabId>('details');
+    const currentUser = useUserProfile();
     const [submitError, setSubmitError] = useState('');
-    const [currentUser, setCurrentUser] = useState<{ email: string; role: string; companyId: string } | null>(null);
     const [createdAt] = useState(() => new Date());
 
     const {
@@ -152,12 +152,6 @@ export default function NonStockItemCreateForm() {
         },
     });
 
-    useEffect(() => {
-        fetch('/api/auth/me')
-            .then((r) => r.json())
-            .then((d) => setCurrentUser({ email: d.email, role: d.role, companyId: d.companyId }))
-            .catch(() => {});
-    }, []);
 
     const price = watch('price');
     const cost = watch('cost');

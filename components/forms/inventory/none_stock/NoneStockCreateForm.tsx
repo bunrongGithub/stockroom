@@ -84,7 +84,7 @@ export default function NoneStockCreateForm() {
     const [activeTab, setActiveTab] = useState<TabId>('details');
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState('');
-    const [currentUser, setCurrentUser] = useState<{ email: string; role: string; companyId: string } | null>(null);
+    const currentUser = useUserProfile();
     const [createdAt] = useState(() => new Date());
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -123,13 +123,6 @@ export default function NoneStockCreateForm() {
         setCategories((prev) => [...prev, newCategory].sort((a, b) => a.name.localeCompare(b.name)));
         setForm((prev) => ({ ...prev, category_id: newCategory.id }));
     };
-
-    useEffect(() => {
-        fetch('/api/auth/me')
-            .then((r) => r.json())
-            .then((d) => setCurrentUser({ email: d.email, role: d.role, companyId: d.companyId }))
-            .catch(() => {});
-    }, []);
 
     useEffect(() => {
         let cancelled = false;
