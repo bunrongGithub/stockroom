@@ -4,8 +4,8 @@ import type {
 } from '@/service/schema/branch.schema';
 import { BaseRepository } from '@/service/core/base-repository';
 import type { RequestContext } from '@/types/request-context';
-import type { StockLocationProps } from '@/types/branch';
 import { PaginatedResult, PaginationParams } from '@/service/core/pagination';
+import { WarehouseLocation } from '@/types/branch';
 
 const TABLE = 'stock_location' as const;
 
@@ -22,16 +22,19 @@ export class StockLocationRepository extends BaseRepository {
         ctx: RequestContext,
         warehouseId?: number,
         params: PaginationParams = { page: 1, limit: 10 },
-    ): Promise<PaginatedResult<StockLocationProps>> {
-
-        console.log('Looking up locations with warehouseId:', warehouseId, 'and params:', params);
+    ): Promise<PaginatedResult<WarehouseLocation>> {
+        console.log(
+            'Looking up locations with warehouseId:',
+            warehouseId,
+            'and params:',
+            params,
+        );
         let query = this.db
             .from(TABLE)
             .select('*', { count: 'exact' })
             .order('id', { ascending: false });
 
         if (warehouseId !== undefined) {
-
             console.log('Filtering locations by warehouse_id:', warehouseId);
             query = query.eq('branch_id', warehouseId);
         }
@@ -41,7 +44,7 @@ export class StockLocationRepository extends BaseRepository {
     async findAll(
         ctx: RequestContext,
         warehoseId?: number,
-    ): Promise<StockLocationProps[]> {
+    ): Promise<WarehouseLocation[]> {
         const { data: warehouses } = await this.db
             .from('warehouse')
             .select('id')
@@ -68,7 +71,7 @@ export class StockLocationRepository extends BaseRepository {
     async insertOne(
         ctx: RequestContext,
         input: StockLocationCreateInput,
-    ): Promise<StockLocationProps> {
+    ): Promise<WarehouseLocation> {
         const { data: branch } = await this.db
             .from('warehouse')
             .select('id')
@@ -99,7 +102,7 @@ export class StockLocationRepository extends BaseRepository {
         ctx: RequestContext,
         id: number,
         input: StockLocationUpdateInput,
-    ): Promise<StockLocationProps> {
+    ): Promise<WarehouseLocation> {
         const { data: target } = await this.db
             .from(TABLE)
             .select('branch_id')

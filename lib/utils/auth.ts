@@ -4,7 +4,7 @@ export type CurrentUser = {
     role: string;
     email: string;
 };
-
+// The client api
 export async function fetchCurrentUser(): Promise<CurrentUser | null> {
     const res = await fetch('/api/auth/me');
     if (!res.ok) return null;

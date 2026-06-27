@@ -26,6 +26,7 @@ import {
   ShieldCheck,
   Tag,
   Truck,
+  Warehouse,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
@@ -53,6 +54,10 @@ export type StockViewItem = {
   company_id: number | null;
   created_at: string;
   updated_at: string;
+  default_warehouse_id: number | null;
+  default_location_id: number | null;
+  default_warehouse: { id: number; name: string } | null;
+  default_location: { id: number; name: string } | null;
   category: { id: number; name: string; reference_no: string } | null;
   uom: { id: number; name: string } | null;
   company: { id: number; name: string } | null;
@@ -204,12 +209,12 @@ export default function StockViewDetail({ item }: { item: StockViewItem }) {
   return (
     <div className="mx-auto space-y-2 font-mono">
       {/* Header */}
-      <div>
+      <div className='font-bold'>
         <Link
           href="/inventory/configurations/stock"
           className="inline-flex items-center gap-2 text-sm text-slate-500 transition-colors hover:text-slate-700"
         >
-          <ArrowLeft size={16} /> ត្រឡប់ទៅឃ្លាំងទំនិញ
+          <ArrowLeft size={16} /> Back
         </Link>
       </div>
 
@@ -282,13 +287,13 @@ export default function StockViewDetail({ item }: { item: StockViewItem }) {
               href="/inventory/configurations/stock-item"
               className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-center text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
             >
-              ត្រឡប់វិញ
+              Back
             </Link>
             <Link
               href={`/inventory/configurations/stock-item/${item.id}/update`}
               className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1a9e52] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#158042]"
             >
-              <Edit2 size={15} /> កែប្រែ
+              <Edit2 size={15} /> Update
             </Link>
           </div>
         </aside>
@@ -319,23 +324,20 @@ export default function StockViewDetail({ item }: { item: StockViewItem }) {
           {activeTab === 'details' && (
             <div className="space-y-5 pt-5 text-xs">
               <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-                <h3 className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
-                  <Package size={13} className="text-[#1a9e52]" /> ព័ត៌មានទំនិញ
-                </h3>
                 <div className="grid gap-4 lg:grid-cols-2">
                   <div>
-                    <FieldLabel className=''>Reference No</FieldLabel>
+                    <FieldLabel className="">Reference No</FieldLabel>
                     <ReadonlyInput
                       value={item.reference_no ?? ''}
                       placeholder="—"
                     />
                   </div>
                   <div>
-                    <FieldLabel>ឈ្មោះទំនិញ</FieldLabel>
+                    <FieldLabel>Item Name</FieldLabel>
                     <ReadonlyInput value={item.name} />
                   </div>
                   <div>
-                    <FieldLabel>ប្រភេទ (Category)</FieldLabel>
+                    <FieldLabel>Category</FieldLabel>
                     <ReadonlyInput
                       value={item.category?.name ?? ''}
                       placeholder="—"
@@ -367,71 +369,32 @@ export default function StockViewDetail({ item }: { item: StockViewItem }) {
 
               <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
                 <h3 className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
-                  <Truck size={13} className="text-[#1a9e52]" /> ស្តុក និងទីតាំង
+                  <Warehouse size={13} className="text-[#1a9e52]" /> Warehouse &amp; Location
                 </h3>
-                {item.stock_location ? (
-                  <div className="grid gap-4 sm:grid-cols-3">
-                    <div>
-                      <FieldLabel>ទីតាំងស្តុក</FieldLabel>
-                      <div className="flex min-h-11.5 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700">
-                        <MapPin size={14} className="shrink-0 text-[#1a9e52]" />
-                        {item.stock_location.location_name ?? '—'}
-                      </div>
-                    </div>
-                    <div>
-                      <FieldLabel>សាខា</FieldLabel>
-                      <ReadonlyInput
-                        value={item.stock_location.branch_name ?? ''}
-                        placeholder="—"
-                      />
-                    </div>
-                    <div>
-                      <FieldLabel>ចំនួនស្តុក</FieldLabel>
-                      <ReadonlyInput value={item.stock_location.quantity} />
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <FieldLabel>Default Warehouse</FieldLabel>
+                    <div className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-slate-700">
+                      <Warehouse size={13} className="shrink-0 text-[#1a9e52]" />
+                      {item.default_warehouse?.name ?? (
+                        <span className="text-slate-400">—</span>
+                      )}
                     </div>
                   </div>
-                ) : (
-                  <p className="text-sm text-slate-400">មិនមានទីតាំងស្តុក</p>
-                )}
-
-                {(item.stock_balances?.length ?? 0) > 1 && (
-                  <div className="mt-4 overflow-hidden rounded-xl border border-slate-100">
-                    <table className="w-full text-sm">
-                      <thead className="bg-slate-50">
-                        <tr>
-                          <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
-                            Location
-                          </th>
-                          <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
-                            Branch
-                          </th>
-                          <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-slate-400">
-                            Qty
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-50">
-                        {item.stock_balances!.map((b, i) => (
-                          <tr key={i} className="hover:bg-slate-50/50">
-                            <td className="px-4 py-2.5 text-slate-700">
-                              {b.location_name ?? '—'}
-                            </td>
-                            <td className="px-4 py-2.5 text-slate-700">
-                              {b.branch_name ?? '—'}
-                            </td>
-                            <td className="px-4 py-2.5 text-right font-semibold text-slate-800">
-                              {b.quantity}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                  <div>
+                    <FieldLabel>Default Location</FieldLabel>
+                    <div className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-slate-700">
+                      <MapPin size={13} className="shrink-0 text-[#1a9e52]" />
+                      {item.default_location?.name ?? (
+                        <span className="text-slate-400">—</span>
+                      )}
+                    </div>
                   </div>
-                )}
+                </div>
               </section>
 
               <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-                <FieldLabel>កំណត់ចំណាំ (Additional Notes)</FieldLabel>
+                <FieldLabel>Additional Notes</FieldLabel>
                 <div className="mt-1 min-h-24 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 whitespace-pre-wrap">
                   {item.description || (
                     <span className="text-slate-300">—</span>

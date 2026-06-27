@@ -45,6 +45,7 @@ type Location = {
   id: number;
   name: string;
 };
+
 type FormValues = {
   name: string;
   sku: string;
@@ -169,6 +170,8 @@ export default function StockCreateForm() {
       warranty_duration: '',
       default_warehouse_id: null,
       default_warehouse: null,
+      default_location_id: null,
+      default_location: null,
     },
   });
 
@@ -180,6 +183,7 @@ export default function StockCreateForm() {
     Number(price) > 0 ? ((profit / Number(price)) * 100).toFixed(1) : '0.0';
 
   const isWarranty = watch('is_warranty');
+  const selectedWarehouseId = watch('default_warehouse_id');
 
   const onSubmit = async (data: FormValues) => {
     setSubmitError('');
@@ -204,6 +208,7 @@ export default function StockCreateForm() {
           ? data.warranty_duration || null
           : null,
         default_warehouse_id: data.default_warehouse_id,
+        default_location_id: data.default_location_id,
       };
 
       const res = await fetch(
@@ -234,7 +239,7 @@ export default function StockCreateForm() {
         return;
       }
 
-      router.push(`/inventory/configurations/stock/${json.id}/view`);
+      router.push(`/inventory/configurations/stock-item/${json.id}/view`);
       router.refresh();
     } catch {
       setSubmitError('An unexpected error occurred. Please try again.');
@@ -505,6 +510,8 @@ export default function StockCreateForm() {
                                   }
                                 : null,
                             );
+                            setValue('default_location_id', null);
+                            setValue('default_location', null);
                           }}
                           required
                         />
@@ -512,35 +519,46 @@ export default function StockCreateForm() {
                     />
                   </div>
                   <div>
-                    <Controller
-                      name="default_warehouse_id"
-                      control={control}
-                      render={({ field }) => (
-                        <AsyncSearchSelect
-                          label="Default Location"
-                          placeholder="Item default location"
-                          apiUrl="/api/inventory/configurations/location"
-                          value={field.value}
-                          selectedLabel={watch('default_location')?.name ?? ''}
-                          enablePopupSearch
-                          onChangeAction={(selected) => {
-                            field.onChange(
-                              selected?.id ? Number(selected.id) : null,
-                            );
-                            setValue(
-                              'default_location',
-                              selected
-                                ? {
-                                    id: Number(selected.id),
-                                    name: selected?.name ?? '',
-                                  }
-                                : null,
-                            );
-                          }}
-                          required
-                        />
-                      )}
-                    />
+                    {selectedWarehouseId ? (
+                      <Controller
+                        key={selectedWarehouseId}
+                        name="default_location_id"
+                        control={control}
+                        render={({ field }) => (
+                          <AsyncSearchSelect
+                            label="Default Location"
+                            placeholder="Select location..."
+                            apiUrl={`/api/inventory/configurations/warehouse/${selectedWarehouseId}/locations`}
+                            value={field.value}
+                            selectedLabel={
+                              watch('default_location')?.name ?? ''
+                            }
+                            enablePopupSearch
+                            onChangeAction={(selected) => {
+                              field.onChange(
+                                selected?.id ? Number(selected.id) : null,
+                              );
+                              setValue(
+                                'default_location',
+                                selected
+                                  ? {
+                                      id: Number(selected.id),
+                                      name: selected?.name ?? '',
+                                    }
+                                  : null,
+                              );
+                            }}
+                          />
+                        )}
+                      />
+                    ) : (
+                      <div className="space-y-1.5">
+                        <FieldLabel>Default Location</FieldLabel>
+                        <div className="w-full cursor-not-allowed rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-slate-400">
+                          Select a warehouse first
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="mt-4">

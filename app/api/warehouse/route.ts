@@ -6,13 +6,24 @@ import { z } from 'zod';
 
 export const service = WarehouseRepository.getInstance();
 
-export async function GET(req: NextRequest) {
+export async function GET(request: NextRequest) {
+    const searchParams = request.nextUrl.searchParams;
+    const ctx = getRequestContext(request);
+
+    const page = Number(searchParams.get('page') || 1);
+    const limit = Number(searchParams.get('limit') || 10);
+    const search = searchParams.get('search') ?? undefined;
+
     try {
-        const ctx = getRequestContext(req);
-        const items = await service.findAll(ctx);
+        const items = await service.findAll(ctx, {
+            page: page,
+            limit: limit,
+            search: search,
+        });
         return NextResponse.json({ data: items }, { status: 200 });
     } catch (error) {
-        const message = error instanceof Error ? error.message : 'Unexpected error';
+        const message =
+            error instanceof Error ? error.message : 'Unexpected error';
         return NextResponse.json({ error: message }, { status: 500 });
     }
 }
@@ -33,7 +44,8 @@ export async function POST(req: NextRequest) {
         const item = await service.insertOne(ctx, parsed.data);
         return NextResponse.json({ data: item }, { status: 201 });
     } catch (error) {
-        const message = error instanceof Error ? error.message : 'Unexpected error';
+        const message =
+            error instanceof Error ? error.message : 'Unexpected error';
         return NextResponse.json({ error: message }, { status: 500 });
     }
 }

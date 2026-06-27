@@ -1,6 +1,7 @@
 'use client';
 
 import AsyncSearchSelect from '@/components/ui/AsyncSearchSelect';
+import { Check } from '@/components/ui/Check';
 import type { PopUpSearchTableColumn } from '@/components/ui/PopUpSearchTable';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -65,38 +66,6 @@ const PERM_LABELS: Record<PermField, string> = {
   can_update: 'Update',
   can_delete: 'Delete',
 };
-
-function PermToggle({
-  checked,
-  onChange,
-}: {
-  checked: boolean;
-  onChange: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onChange}
-      className={`h-5 w-5 rounded border-2 transition-colors flex items-center justify-center ${
-        checked
-          ? 'border-emerald-500 bg-emerald-500 text-white'
-          : 'border-slate-300 bg-white hover:border-slate-400'
-      }`}
-    >
-      {checked && (
-        <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
-          <path
-            d="M2.5 6L5 8.5L9.5 3.5"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      )}
-    </button>
-  );
-}
 
 export default function Update({
   currentPath,
@@ -410,7 +379,7 @@ export default function Update({
                   </td>
                   {PERM_FIELDS.map((f) => (
                     <td key={f} className="px-5 py-3 text-center">
-                      <PermToggle
+                      <Check
                         checked={perm[f]}
                         onChange={() => togglePerm(perm.module_id, f)}
                       />
@@ -470,7 +439,7 @@ export default function Update({
                   <span className="text-[10px] font-semibold uppercase text-slate-400">
                     {PERM_LABELS[f]}
                   </span>
-                  <PermToggle
+                  <Check
                     checked={newPerms[f]}
                     onChange={() =>
                       setNewPerms((prev) => ({ ...prev, [f]: !prev[f] }))

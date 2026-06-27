@@ -4,8 +4,9 @@ import type {
 } from '@/service/schema/branch.schema';
 import { BaseRepository } from '@/service/core/base-repository';
 import type { RequestContext } from '@/types/request-context';
-import type { BranchProps } from '@/types/branch';
+import type { Warehouse } from '@/types/branch';
 import { PaginatedResult, PaginationParams } from '@/service/core';
+import { ApiError } from '@/service/core/api-response';
 
 const TABLE = 'warehouse' as const;
 
@@ -22,7 +23,7 @@ export class WarehouseRepository extends BaseRepository {
     async lookupWarehouse(
         ctx: RequestContext,
         params: PaginationParams = { page: 1, limit: 10 },
-    ): Promise<PaginatedResult<BranchProps>> {
+    ): Promise<PaginatedResult<Warehouse>> {
         const query = this.applyFilter(
             this.db.from(TABLE).select('*', { count: 'exact' }),
             ctx,
@@ -35,7 +36,7 @@ export class WarehouseRepository extends BaseRepository {
     async findAll(
         ctx: RequestContext,
         params: PaginationParams,
-    ): Promise<PaginatedResult<BranchProps>> {
+    ): Promise<PaginatedResult<Warehouse>> {
         const isSuperUser = await this.isSupperUser(ctx);
 
         const query = this.applyFilter(
@@ -50,28 +51,25 @@ export class WarehouseRepository extends BaseRepository {
     }
 
     async findOne(
-        ctx: RequestContext,
+        context: RequestContext,
         id: number,
-    ): Promise<BranchProps | null> {
-        const supabase = this.db;
-        const { data, error } = await supabase
-            .from(TABLE)
-            .select('*, stock_location(*)')
-            .eq('id', id)
-            .eq('company_id', Number(ctx.companyId))
-            .single();
-
-        if (error) {
-            if (error.code === 'PGRST116') return null;
-            throw new Error(error.message);
-        }
+    ): Promise<Warehouse | null> {
+        const { data, error } = await this.applyCompanyFilter(
+            this.db
+                .from(TABLE)
+                .select('*,warehouse_location(*)')
+                .eq('id', id)
+                .maybeSingle(),
+            parseInt(context.companyId),
+        );
+        if (error) new ApiError(error.metadata);
         return data;
     }
 
     async insertOne(
         ctx: RequestContext,
         input: BranchCreateInput,
-    ): Promise<BranchProps> {
+    ): Promise<Warehouse> {
         const supabase = this.db;
 
         if (input.is_default) {
@@ -110,7 +108,7 @@ export class WarehouseRepository extends BaseRepository {
         ctx: RequestContext,
         id: number,
         input: BranchUpdateInput,
-    ): Promise<BranchProps> {
+    ): Promise<Warehouse> {
         const supabase = this.db;
 
         if (input.is_default === true) {
@@ -131,6 +129,53 @@ export class WarehouseRepository extends BaseRepository {
 
         if (error) throw new Error(error.message);
         return data;
+    }
+
+    async syncLocations(
+        warehouseId: number,
+        locations: Array<{
+            id?: number;
+            name: string;
+            code?: string | null;
+            description?: string | null;
+            is_active: boolean;
+            is_default: boolean;
+        }>,
+        removedIds: number[],
+    ): Promise<void> {
+        const supabase = this.db;
+
+        if (removedIds.length > 0) {
+            await supabase
+                .from('warehouse_location')
+                .delete()
+                .in('id', removedIds);
+        }
+
+        for (const loc of locations) {
+            if (loc.id) {
+                await supabase
+                    .from('warehouse_location')
+                    .update({
+                        name: loc.name,
+                        code: loc.code ?? null,
+                        description: loc.description ?? null,
+                        is_active: loc.is_active,
+                        is_default: loc.is_default,
+                    })
+                    .eq('id', loc.id)
+                    .eq('warehouse_id', warehouseId);
+            } else {
+                await supabase.from('warehouse_location').insert({
+                    warehouse_id: warehouseId,
+                    name: loc.name,
+                    code: loc.code ?? null,
+                    description: loc.description ?? null,
+                    is_active: loc.is_active,
+                    is_default: loc.is_default,
+                });
+            }
+        }
     }
 
     async deleteOne(ctx: RequestContext, id: number): Promise<void> {

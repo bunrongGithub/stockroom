@@ -12,6 +12,7 @@ import {
     generateSequenNumbering,
     generateSKU,
 } from '@/lib/utils/sequenumbering';
+import { ItemUomRepository } from './item-uom';
 
 export type InventoryItem = {
     id: number;
@@ -36,6 +37,10 @@ export type InventoryItem = {
     company_id: number | null;
     created_at: string;
     updated_at: string;
+    default_warehouse_id: number | null;
+    default_location_id: number | null;
+    default_warehouse: { id: number; name: string } | null;
+    default_location: { id: number; name: string } | null;
     category: { id: number; name: string; reference_no: string } | null;
     uom: { id: number; name: string } | null;
     company: { id: number; name: string } | null;
@@ -43,7 +48,7 @@ export type InventoryItem = {
 
 const TABLE = 'inventory_item' as const;
 const SELECT_COLS =
-    '*, category:inventory_item_category(id, name, reference_no), company:company(id, name),uom:inventory_uom(id, name, display_name)';
+    '*, category:inventory_item_category(id, name, reference_no), company:company(id, name), uom:inventory_uom(id, name, display_name), default_warehouse:warehouse(id, name), default_location:warehouse_location(id, name)';
 
 export class InventoryRepository extends BaseRepository {
     private static instance: InventoryRepository;
@@ -126,6 +131,25 @@ export class InventoryRepository extends BaseRepository {
             .single();
 
         if (error) throw new Error(error.message);
+
+        if (input.uom_id) {
+            const { data: uomData } = await this.db
+                .from('inventory_uom')
+                .select('name, display_name')
+                .eq('id', input.uom_id)
+                .maybeSingle();
+
+            await ItemUomRepository.getInstance().insertOne(ctx, {
+                name: uomData?.name ?? 'Base UOM',
+                display_name: uomData?.display_name ?? null,
+                item_id: data.id,
+                uom_id: input.uom_id,
+                is_default: true,
+                conversion: 1,
+                factor: 1,
+            });
+        }
+
         return data as InventoryItem;
     }
 

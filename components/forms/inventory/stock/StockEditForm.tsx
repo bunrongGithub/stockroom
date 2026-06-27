@@ -46,6 +46,10 @@ export type StockEditItem = {
   warranty_duration: string | null;
   category_id: number | null;
   uom_id: number | null;
+  default_warehouse_id: number | null;
+  default_location_id: number | null;
+  default_warehouse: { id: number; name: string } | null;
+  default_location: { id: number; name: string } | null;
   created_at: string;
   category: { id: number; name: string; reference_no?: string } | null;
   uom: { id: number; name: string } | null;
@@ -147,6 +151,10 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
     is_returnable: item.is_returnable,
     is_warranty: item.is_warranty || !!item.warranty_duration,
     warranty_duration: item.warranty_duration ?? '',
+    default_warehouse_id: item.default_warehouse_id ?? null,
+    default_warehouse: item.default_warehouse ?? null,
+    default_location_id: item.default_location_id ?? null,
+    default_location: item.default_location ?? null,
   });
 
   const handleChange = (
@@ -184,6 +192,8 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
         warranty_duration: formData.is_warranty
           ? formData.warranty_duration || null
           : null,
+        default_warehouse_id: formData.default_warehouse_id,
+        default_location_id: formData.default_location_id,
       };
 
       const res = await fetch(
@@ -433,6 +443,60 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
                         }))
                       }
                     />
+                  </div>
+                  <div>
+                    <AsyncSearchSelect
+                      label="Default Warehouse"
+                      placeholder="Item default warehouse"
+                      apiUrl="/api/inventory/configurations/warehouse"
+                      value={formData.default_warehouse_id}
+                      selectedLabel={formData.default_warehouse?.name ?? ''}
+                      enablePopupSearch
+                      onChangeAction={(selected) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          default_warehouse_id: selected?.id
+                            ? Number(selected.id)
+                            : null,
+                          default_warehouse: selected
+                            ? { id: Number(selected.id), name: selected.name ?? '' }
+                            : null,
+                          default_location_id: null,
+                          default_location: null,
+                        }))
+                      }
+                    />
+                  </div>
+                  <div>
+                    {formData.default_warehouse_id ? (
+                      <AsyncSearchSelect
+                        key={formData.default_warehouse_id}
+                        label="Default Location"
+                        placeholder="Select location..."
+                        apiUrl={`/api/inventory/configurations/warehouse/${formData.default_warehouse_id}/locations`}
+                        value={formData.default_location_id}
+                        selectedLabel={formData.default_location?.name ?? ''}
+                        enablePopupSearch
+                        onChangeAction={(selected) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            default_location_id: selected?.id
+                              ? Number(selected.id)
+                              : null,
+                            default_location: selected
+                              ? { id: Number(selected.id), name: selected.name ?? '' }
+                              : null,
+                          }))
+                        }
+                      />
+                    ) : (
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-medium text-slate-600">Default Location</label>
+                        <div className="w-full cursor-not-allowed rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-slate-400">
+                          Select a warehouse first
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="mt-4">

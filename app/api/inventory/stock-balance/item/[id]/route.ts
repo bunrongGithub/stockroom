@@ -2,7 +2,7 @@ import { getRequestContext } from '@/lib/request-context';
 import { StockBalanceRepository } from '@/service/apps/inventory/repo/stock-balance';
 import { itemIdSchema } from '@/service/schema/inventory.schema';
 import { NextRequest, NextResponse } from 'next/server';
-import { service } from '../../../index';
+import { service } from '@/app/api/inventory/index';
 
 type Params = { params: Promise<{ id: string }> };
 

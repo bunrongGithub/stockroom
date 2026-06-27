@@ -25,3 +25,15 @@ export const itemIdSchema = z.object({
 
 export type CreateUomInput = z.infer<typeof createUomSchema>;
 export type UpdateUomInput = z.infer<typeof updateUomSchema>;
+
+export const createItemUomSchema = z.object({
+    name: z.string().min(1).max(100).trim(),
+    display_name: z.string().max(20).optional().nullable(),
+    item_id: z.number().int().positive(),
+    uom_id: z.number().int().positive(),
+    is_default: z.boolean().default(true),
+    conversion: z.number().default(1),
+    factor: z.number().default(1),
+});
+
+export type CreateItemUomInput = z.infer<typeof createItemUomSchema>;

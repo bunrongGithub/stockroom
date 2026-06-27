@@ -37,6 +37,10 @@ const inventoryBaseSchema = {
     category_id: z.number({ error: msgRequiredField }).int(),
 
     uom_id: z.number({ error: msgRequiredField }).int(),
+
+    default_warehouse_id: z.number().int().optional().nullable(),
+
+    default_location_id: z.number().int().optional().nullable(),
 };
 
 export const createInventorySchema = z.object({
@@ -61,6 +65,8 @@ export const updateInventorySchema = z.object({
     warranty_duration: inventoryBaseSchema.warranty_duration,
     category_id: inventoryBaseSchema.category_id.optional(),
     uom_id: inventoryBaseSchema.uom_id,
+    default_warehouse_id: inventoryBaseSchema.default_warehouse_id,
+    default_location_id: inventoryBaseSchema.default_location_id,
 });
 
 export const itemIdSchema = z.object({

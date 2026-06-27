@@ -1,87 +1,91 @@
-import type { CreateUomInput, UpdateUomInput } from '@/service/schema/uom.schema';
+import type { CreateItemUomInput } from '@/service/schema/uom.schema';
 import { type PaginationParams, type PaginatedResult } from '@/service/core/pagination';
 import { BaseRepository } from '@/service/core/base-repository';
 import type { RequestContext } from '@/types/request-context';
 import { generateSequenNumbering } from '@/lib/utils/sequenumbering';
 
-export type Uom = {
+export type ItemUom = {
     id: number;
-    name: string;
     reference_no: string | null;
-    user_id: string | null;
+    name: string;
+    display_name: string | null;
     company_id: number | null;
+    item_id: number | null;
+    user_id: string | null;
+    is_default: boolean;
+    uom_id: number;
+    conversion: number | null;
+    factor: number | null;
+    created_at: string;
+    writed_at: string;
 };
 
 const TABLE = 'inventory_item_uom' as const;
 
-export class UomRepository extends BaseRepository {
-    private static instance: UomRepository;
+export class ItemUomRepository extends BaseRepository {
+    private static instance: ItemUomRepository;
 
     private constructor() {
         super();
     }
 
-    static getInstance(): UomRepository {
-        if (!UomRepository.instance) {
-            UomRepository.instance = new UomRepository();
+    static getInstance(): ItemUomRepository {
+        if (!ItemUomRepository.instance) {
+            ItemUomRepository.instance = new ItemUomRepository();
         }
-        return UomRepository.instance;
+        return ItemUomRepository.instance;
     }
 
-    async findAll(
+    async findAllByItem(
         ctx: RequestContext,
+        itemId: number,
         params: PaginationParams,
-    ): Promise<PaginatedResult<Uom>> {
-        const query = this.applyScope(
-            this.db.from(TABLE).select('*', { count: 'exact' }),
-            ctx,
-        );
+    ): Promise<PaginatedResult<ItemUom>> {
+        const query = this.db
+            .from(TABLE)
+            .select('*', { count: 'exact' })
+            .eq('item_id', itemId)
+            .eq('company_id', Number(ctx.companyId));
         return this.paginate(query, params);
     }
 
-    async findOne(ctx: RequestContext, id: number): Promise<Uom | null> {
-        const { data, error } = await this.applyScope(
-            this.db.from(TABLE).select('*').eq('id', id),
-            ctx,
-        ).single();
+    async findOne(ctx: RequestContext, id: number): Promise<ItemUom | null> {
+        const { data, error } = await this.db
+            .from(TABLE)
+            .select('*')
+            .eq('id', id)
+            .eq('company_id', Number(ctx.companyId))
+            .single();
 
         if (error) {
             if (error.code === 'PGRST116') return null;
             throw new Error(error.message);
         }
-        return data;
+        return data as ItemUom;
     }
 
-    async insertOne(ctx: RequestContext, input: CreateUomInput): Promise<Uom> {
-        const reference_no = generateSequenNumbering('UOM');
-        const { data, error } = await this.scopedDb(Number(ctx.companyId))
+    async insertOne(ctx: RequestContext, input: CreateItemUomInput): Promise<ItemUom> {
+        const reference_no = generateSequenNumbering('IUOM');
+        const { data, error } = await this.db
             .from(TABLE)
-            .insert({ ...input, reference_no })
+            .insert({
+                ...input,
+                reference_no,
+                company_id: Number(ctx.companyId),
+                user_id: ctx.userId,
+            })
             .select()
             .single();
 
         if (error) throw new Error(error.message);
-        return data as Uom;
+        return data as ItemUom;
     }
 
-    async updateOne(ctx: RequestContext, id: number, input: UpdateUomInput): Promise<Uom> {
-        const { data, error } = await this.applyScope(
-            this.db.from(TABLE).update({ ...input }).eq('id', id),
-            ctx,
-        )
-            .select()
-            .single();
-
-        if (error) throw new Error(error.message);
-        return data as Uom;
-    }
-
-    async deleteOne(ctx: RequestContext, id: number): Promise<void> {
-        const { error } = await this.applyScope(
-            this.db.from(TABLE).delete().eq('id', id),
-            ctx,
-        );
-
+    async deleteByItem(itemId: number): Promise<void> {
+        const { error } = await this.db
+            .from(TABLE)
+            .delete()
+            .eq('item_id', itemId);
         if (error) throw new Error(error.message);
     }
 }

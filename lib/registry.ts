@@ -78,7 +78,7 @@ const registry = new Map<string, LazyLoader>([
     ],
     [
         'WarehouseUpdate',
-        () => import('@/components/modules/inventory/warehouse/actions/Updat'),
+        () => import('@/components/modules/inventory/warehouse/actions/Update'),
     ],
     [
         'CategoryFormCreate',

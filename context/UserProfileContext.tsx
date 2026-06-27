@@ -1,6 +1,6 @@
 'use client';
 
-import { fetchCurrentUser } from '@/lib/api/auth';
+import { fetchCurrentUser } from '@/lib/utils/auth';
 import type { TAuthUserRole } from '@/service/apps/base/auth/constant';
 import {
     createContext,
