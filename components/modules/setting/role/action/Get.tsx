@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
+import { DataTable, type DataTableColumn } from '@/components/ui/DataTable';
 import { useRegisterModule } from '@/hook/useModule';
 import type { ModuleProps } from '@/lib/registry';
 import { ArrowLeft, Check, Edit2, Loader2, ShieldCheck, X } from 'lucide-react';
@@ -62,14 +63,7 @@ export default function Get({
   const [data, setData] = useState<RoleDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [search, setSearch] = useState('');
 
-  const editPageAction = currentPathActions?.find((action) =>
-    action.path.endsWith('/update'),
-  );
-
-
-  console.log(currentPath)
   useEffect(() => {
     if (!id) return;
     setLoading(true);
@@ -97,12 +91,46 @@ export default function Get({
     );
   }
 
-  const filteredPerms = data.role_module_permission.filter(
-    (p) =>
-      !search ||
-      p.module.label.toLowerCase().includes(search.toLowerCase()) ||
-      p.module.path.toLowerCase().includes(search.toLowerCase()),
-  );
+  const permColumns: DataTableColumn<RolePermission>[] = [
+    {
+      key: 'module',
+      header: 'Module',
+      cell: (row) => <span className="font-medium text-slate-800">{row.module.label}</span>,
+    },
+    {
+      key: 'path',
+      header: 'Path',
+      cell: (row) => <span className="font-mono text-xs text-slate-400">{row.module.path}</span>,
+    },
+    {
+      key: 'can_view',
+      header: 'View',
+      headerClassName: 'text-center',
+      cellClassName: 'text-center',
+      cell: (row) => <PermBadge granted={row.can_view} />,
+    },
+    {
+      key: 'can_create',
+      header: 'Create',
+      headerClassName: 'text-center',
+      cellClassName: 'text-center',
+      cell: (row) => <PermBadge granted={row.can_create} />,
+    },
+    {
+      key: 'can_update',
+      header: 'Update',
+      headerClassName: 'text-center',
+      cellClassName: 'text-center',
+      cell: (row) => <PermBadge granted={row.can_update} />,
+    },
+    {
+      key: 'can_delete',
+      header: 'Delete',
+      headerClassName: 'text-center',
+      cellClassName: 'text-center',
+      cell: (row) => <PermBadge granted={row.can_delete} />,
+    },
+  ];
 
   return (
     <div className="space-y-4">
@@ -164,82 +192,28 @@ export default function Get({
       </section>
 
       {/* Permissions Table */}
-      <section className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
-        <div className="flex items-center justify-between gap-4 border-b border-slate-100 bg-slate-50/80 px-5 py-3">
-          <div className="flex items-center gap-2">
-            <ShieldCheck size={13} className="text-emerald-500" />
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-              Module Permissions ({data.role_module_permission.length})
-            </h3>
-          </div>
-          <input
-            type="text"
-            placeholder="Filter modules..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="h-7 rounded-lg border border-slate-200 bg-white px-3 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-400"
-          />
+      <section className="rounded-2xl border border-slate-100 bg-white shadow-sm">
+        <div className="flex items-center gap-2 border-b border-slate-100 bg-slate-50/80 px-5 py-3">
+          <ShieldCheck size={13} className="text-emerald-500" />
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+            Module Permissions ({data.role_module_permission.length})
+          </h3>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50/50">
-              <tr>
-                <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
-                  Module
-                </th>
-                <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
-                  Path
-                </th>
-                <th className="px-5 py-3 text-center text-xs font-semibold uppercase tracking-wider text-slate-400">
-                  View
-                </th>
-                <th className="px-5 py-3 text-center text-xs font-semibold uppercase tracking-wider text-slate-400">
-                  Create
-                </th>
-                <th className="px-5 py-3 text-center text-xs font-semibold uppercase tracking-wider text-slate-400">
-                  Update
-                </th>
-                <th className="px-5 py-3 text-center text-xs font-semibold uppercase tracking-wider text-slate-400">
-                  Delete
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {filteredPerms.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={6}
-                    className="py-8 text-center text-sm text-slate-400"
-                  >
-                    No modules match your filter.
-                  </td>
-                </tr>
-              ) : (
-                filteredPerms.map((perm) => (
-                  <tr key={perm.id} className="hover:bg-slate-50/50">
-                    <td className="px-5 py-3 font-medium text-slate-800">
-                      {perm.module.label}
-                    </td>
-                    <td className="px-5 py-3 font-mono text-xs text-slate-400">
-                      {perm.module.path}
-                    </td>
-                    <td className="px-5 py-3 text-center">
-                      <PermBadge granted={perm.can_view} />
-                    </td>
-                    <td className="px-5 py-3 text-center">
-                      <PermBadge granted={perm.can_create} />
-                    </td>
-                    <td className="px-5 py-3 text-center">
-                      <PermBadge granted={perm.can_update} />
-                    </td>
-                    <td className="px-5 py-3 text-center">
-                      <PermBadge granted={perm.can_delete} />
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+        <div className="p-4">
+          <DataTable
+            columns={permColumns}
+            data={data.role_module_permission}
+            keyExtractor={(row) => row.id}
+            searchFn={(row, query) =>
+              row.module.label.toLowerCase().includes(query) ||
+              row.module.path.toLowerCase().includes(query)
+            }
+            searchPlaceholder="Filter modules..."
+            pageSize={10}
+            pageSizeOptions={[10, 20, 50]}
+            emptyTitle="No permissions"
+            emptyDescription="No module permissions match your filter."
+          />
         </div>
       </section>
     </div>

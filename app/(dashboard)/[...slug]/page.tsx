@@ -49,6 +49,8 @@ export default async function Page({ params, searchParams }: Props) {
 
   if (path.is_initial_data) {
     console.log(`[Fetching data from ${path.component} on initial page....]`);
+
+    console.log(`Current path url:: ${currentPathUrl}`);
     try {
       const response = await fetchPaginatedData(
         apiUrl(currentPathUrl),

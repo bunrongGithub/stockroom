@@ -50,6 +50,13 @@ export class ForbiddenError extends ApiError {
     }
 }
 
+export class BadRequesstExceptionError extends ApiError {
+    constructor(message: string | 'BadRequest') {
+        super(message, 404, 'BADREQUEST');
+        this.name = 'BadRequest';
+    }
+}
+
 export class ApiResponseSuccess<T> {
     constructor(
         public readonly data: T,

@@ -4,6 +4,7 @@ import AsyncSearchSelect from '@/components/ui/AsyncSearchSelect';
 import { Check } from '@/components/ui/Check';
 import type { PopUpSearchTableColumn } from '@/components/ui/PopUpSearchTable';
 import { Button } from '@/components/ui/button';
+import { DataTable, type DataTableColumn } from '@/components/ui/DataTable';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useRegisterModule } from '@/hook/useModule';
@@ -92,7 +93,6 @@ export default function Update({
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [permissions, setPermissions] = useState<PermRow[]>([]);
-  const [search, setSearch] = useState('');
 
   // New module picker state
   const [newModule, setNewModule] = useState<{
@@ -209,13 +209,6 @@ export default function Update({
     }
   };
 
-  const filteredPerms = permissions.filter(
-    (p) =>
-      !search ||
-      p.label.toLowerCase().includes(search.toLowerCase()) ||
-      p.path.toLowerCase().includes(search.toLowerCase()),
-  );
-
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20 text-slate-400">
@@ -250,6 +243,63 @@ export default function Update({
       header: 'Path',
       className: 'font-mono text-xs',
       getValue: (row: ModuleLookupRow) => row.path,
+    },
+  ];
+
+  const permColumns: DataTableColumn<PermRow>[] = [
+    {
+      key: 'label',
+      header: 'Module',
+      cell: (row) => <span className="text-slate-800">{row.label}</span>,
+    },
+    {
+      key: 'path',
+      header: 'Path',
+      cell: (row) => <span className="font-mono text-xs text-slate-400">{row.path || '—'}</span>,
+    },
+    {
+      key: 'can_view',
+      header: 'View',
+      headerClassName: 'text-center',
+      cellClassName: 'text-center',
+      cell: (row) => <Check checked={row.can_view} onChange={() => togglePerm(row.module_id, 'can_view')} />,
+    },
+    {
+      key: 'can_create',
+      header: 'Create',
+      headerClassName: 'text-center',
+      cellClassName: 'text-center',
+      cell: (row) => <Check checked={row.can_create} onChange={() => togglePerm(row.module_id, 'can_create')} />,
+    },
+    {
+      key: 'can_update',
+      header: 'Update',
+      headerClassName: 'text-center',
+      cellClassName: 'text-center',
+      cell: (row) => <Check checked={row.can_update} onChange={() => togglePerm(row.module_id, 'can_update')} />,
+    },
+    {
+      key: 'can_delete',
+      header: 'Delete',
+      headerClassName: 'text-center',
+      cellClassName: 'text-center',
+      cell: (row) => <Check checked={row.can_delete} onChange={() => togglePerm(row.module_id, 'can_delete')} />,
+    },
+    {
+      key: 'remove',
+      header: '',
+      headerClassName: 'w-10',
+      cellClassName: 'text-center',
+      cell: (row) => (
+        <button
+          type="button"
+          onClick={() => removeModule(row.module_id)}
+          className="text-slate-300 transition-colors hover:text-red-400"
+          title="Remove"
+        >
+          <Trash2 size={13} />
+        </button>
+      ),
     },
   ];
 
@@ -323,82 +373,28 @@ export default function Update({
       </section>
 
       {/* Permissions */}
-      <section className="">
-        <div className="flex items-center justify-between gap-4 border-b border-slate-100 bg-slate-50/80 px-5 py-3">
-          <div className="flex items-center gap-2">
-            <ShieldCheck size={13} className="text-emerald-500" />
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-              Module Permissions ({permissions.length})
-            </h3>
-          </div>
-          <input
-            type="text"
-            placeholder="Filter modules..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="h-7 rounded-lg border border-slate-200 bg-white px-3 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-400"
-          />
+      <section className="rounded-2xl border border-slate-100 bg-white shadow-sm">
+        <div className="flex items-center gap-2 border-b border-slate-100 bg-slate-50/80 px-5 py-3">
+          <ShieldCheck size={13} className="text-emerald-500" />
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+            Module Permissions ({permissions.length})
+          </h3>
         </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-slate-50/50">
-              <tr>
-                <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
-                  Module
-                </th>
-                <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
-                  Path
-                </th>
-                {PERM_FIELDS.map((f) => (
-                  <th
-                    key={f}
-                    className="px-5 py-3 text-center text-xs font-semibold uppercase tracking-wider text-slate-400"
-                  >
-                    {PERM_LABELS[f]}
-                  </th>
-                ))}
-                <th className="w-10 px-3 py-3" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {filteredPerms.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="py-8 text-center text-slate-400">
-                    {search
-                      ? 'No modules match your filter.'
-                      : 'No permissions yet.'}
-                  </td>
-                </tr>
-              )}
-              {filteredPerms.map((perm) => (
-                <tr key={perm.module_id} className="hover:bg-slate-50/50">
-                  <td className="px-5 py-3 text-slate-800">{perm.label}</td>
-                  <td className="px-5 py-3 font-mono text-xs text-slate-400">
-                    {perm.path || '—'}
-                  </td>
-                  {PERM_FIELDS.map((f) => (
-                    <td key={f} className="px-5 py-3 text-center">
-                      <Check
-                        checked={perm[f]}
-                        onChange={() => togglePerm(perm.module_id, f)}
-                      />
-                    </td>
-                  ))}
-                  <td className="px-3 py-3 text-center">
-                    <button
-                      type="button"
-                      onClick={() => removeModule(perm.module_id)}
-                      className="text-slate-300 transition-colors hover:text-red-400"
-                      title="Remove"
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="p-4">
+          <DataTable
+            columns={permColumns}
+            data={permissions}
+            keyExtractor={(row) => row.module_id}
+            searchFn={(row, query) =>
+              row.label.toLowerCase().includes(query) ||
+              row.path.toLowerCase().includes(query)
+            }
+            searchPlaceholder="Filter modules..."
+            pageSize={10}
+            pageSizeOptions={[10, 20, 50]}
+            emptyTitle="No permissions"
+            emptyDescription="No permissions yet. Add a module below."
+          />
         </div>
 
         {/* Add New Module Row */}

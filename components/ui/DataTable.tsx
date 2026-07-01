@@ -154,12 +154,12 @@ export function DataTable<T>({
     }, [totalPages, safePage]);
 
     return (
-        <div className={cn('space-y-3 font-mono text-xs', className)}>
+        <div className={cn('space-y-2 font-mono text-xs', className)}>
             {/* Toolbar row */}
             {(searchFn || toolbar) && (
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
                     {searchFn ? (
-                        <div className="relative max-w-xs flex-1">
+                        <div className="relative max-w-md flex-1">
                             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                             <Input
                                 placeholder={searchPlaceholder}

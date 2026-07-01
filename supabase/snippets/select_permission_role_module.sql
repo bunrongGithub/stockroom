@@ -24,3 +24,15 @@ WHERE mol.is_active = true
 GROUP BY mol.id, mol.key, mol.label, mol.path, mol.component,
          mol.parent_id, mol.icon, mol.sort_order, mol.is_active, mol.type
 ORDER BY mol.sort_order ASC;
+
+
+
+
+ALTER TABLE receipt_transaction
+    DROP CONSTRAINT IF EXISTS receipt_transaction_user_id_fkey;
+
+
+-- Re-add pointing to public.profiles — same UUID value, PostgREST can now join it
+ALTER TABLE receipt_transaction
+    ADD CONSTRAINT receipt_transaction_user_id_fkey
+    FOREIGN KEY (user_id) REFERENCES profiles(id);

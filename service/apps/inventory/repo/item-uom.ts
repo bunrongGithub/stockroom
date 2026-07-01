@@ -49,6 +49,22 @@ export class ItemUomRepository extends BaseRepository {
         return this.paginate(query, params);
     }
 
+    async findDefaultByItem(
+        ctx: RequestContext,
+        itemId: number,
+    ): Promise<ItemUom | null> {
+        const { data, error } = await this.db
+            .from(TABLE)
+            .select('*')
+            .eq('item_id', itemId)
+            .eq('company_id', Number(ctx.companyId))
+            .eq('is_default', true)
+            .maybeSingle();
+
+        if (error) throw new Error(error.message);
+        return data as ItemUom | null;
+    }
+
     async findOne(ctx: RequestContext, id: number): Promise<ItemUom | null> {
         const { data, error } = await this.db
             .from(TABLE)
@@ -74,6 +90,23 @@ export class ItemUomRepository extends BaseRepository {
                 company_id: Number(ctx.companyId),
                 user_id: ctx.userId,
             })
+            .select()
+            .single();
+
+        if (error) throw new Error(error.message);
+        return data as ItemUom;
+    }
+
+    async updateOne(
+        ctx: RequestContext,
+        id: number,
+        input: Partial<CreateItemUomInput>,
+    ): Promise<ItemUom> {
+        const { data, error } = await this.db
+            .from(TABLE)
+            .update({ ...input })
+            .eq('id', id)
+            .eq('company_id', Number(ctx.companyId))
             .select()
             .single();
 

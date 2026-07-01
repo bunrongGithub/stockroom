@@ -75,9 +75,11 @@ export default function AsyncSearchSelect<
     async (keyword = '') => {
       try {
         setLoading(true);
-        const res = await fetch(
-          `${apiUrl}?search=${encodeURIComponent(keyword)}`,
-        );
+        // Use the URL API so any query string already on `apiUrl`
+        // (e.g. ?item_id=5) is preserved instead of being clobbered.
+        const url = new URL(apiUrl, window.location.origin);
+        url.searchParams.set('search', keyword);
+        const res = await fetch(url.toString());
         if (!res.ok) throw new Error('Failed to fetch');
 
         const json = await res.json();

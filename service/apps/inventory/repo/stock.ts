@@ -1,18 +1,20 @@
-import type {
-    CreateInventoryInput,
-    UpdateInventoryInput,
-} from '@/service/schema/inventory.schema';
-import {
-    type PaginationParams,
-    type PaginatedResult,
-} from '@/service/core/pagination';
-import { BaseRepository } from '@/service/core/base-repository';
-import type { RequestContext } from '@/types/request-context';
 import {
     generateSequenNumbering,
     generateSKU,
 } from '@/lib/utils/sequenumbering';
+import { BaseRepository } from '@/service/core/base-repository';
+import {
+    type PaginatedResult,
+    type PaginationParams,
+} from '@/service/core/pagination';
+import type {
+    CreateInventoryInput,
+    UpdateInventoryInput,
+} from '@/service/schema/inventory.schema';
+import type { RequestContext } from '@/types/request-context';
 import { ItemUomRepository } from './item-uom';
+import { InventoryUomRepository } from './uom';
+import { NotFoundError } from '@/service/core/api-response';
 
 export type InventoryItem = {
     id: number;
@@ -132,21 +134,26 @@ export class InventoryRepository extends BaseRepository {
 
         if (error) throw new Error(error.message);
 
+        const uomService = InventoryUomRepository.getInstance();
         if (input.uom_id) {
-            const { data: uomData } = await this.db
-                .from('inventory_uom')
-                .select('name, display_name')
-                .eq('id', input.uom_id)
-                .maybeSingle();
+            const uom = await uomService.findOne(ctx, input.uom_id);
 
+            if (!uom)
+                throw new NotFoundError(
+                    `Uom found for the given id: ${input.uom_id}`,
+                ).toResponse();
+
+            // create new inventory item uom
+            const defaultFactor = 1;
+            const defaultConversion = 1;
             await ItemUomRepository.getInstance().insertOne(ctx, {
-                name: uomData?.name ?? 'Base UOM',
-                display_name: uomData?.display_name ?? null,
+                name: uom.name,
+                display_name: uom.display_name,
                 item_id: data.id,
-                uom_id: input.uom_id,
+                uom_id: uom.id,
                 is_default: true,
-                conversion: 1,
-                factor: 1,
+                conversion: defaultConversion,
+                factor: defaultFactor,
             });
         }
 
@@ -158,7 +165,18 @@ export class InventoryRepository extends BaseRepository {
         id: number,
         input: UpdateInventoryInput,
     ): Promise<InventoryItem> {
+        const itemUomService = ItemUomRepository.getInstance();
+        const uomService = InventoryUomRepository.getInstance();
         const isSuperUser = await this.isSupperUser(ctx);
+
+        const stockItem = await this.findOne(ctx, id);
+
+        if (!stockItem)
+            throw new NotFoundError(
+                `Stock item not found for the given id: ${id}`,
+            ).toResponse();
+
+        // update item
         const { data, error } = await this.applyFilter(
             this.db
                 .from(TABLE)
@@ -171,6 +189,44 @@ export class InventoryRepository extends BaseRepository {
             .single();
 
         if (error) throw new Error(error.message);
+
+        // sync the base (default) uom whenever a uom is provided
+        if (input.uom_id) {
+            const uom = await uomService.findOne(ctx, input.uom_id);
+
+            if (!uom)
+                throw new NotFoundError(
+                    `Uom not found for the given id: ${input.uom_id}`,
+                ).toResponse();
+
+            const baseUom = await itemUomService.findDefaultByItem(
+                ctx,
+                stockItem.id,
+            );
+
+            if (!baseUom) {
+                // no base uom yet -> create one
+                await itemUomService.insertOne(ctx, {
+                    name: uom.name,
+                    display_name: uom.display_name,
+                    item_id: stockItem.id,
+                    uom_id: uom.id,
+                    is_default: true,
+                    conversion: 1,
+                    factor: 1,
+                });
+            } else if (baseUom.uom_id !== uom.id) {
+                // base uom changed -> point the existing default at the new uom
+                await itemUomService.updateOne(ctx, baseUom.id, {
+                    name: uom.name,
+                    display_name: uom.display_name,
+                    uom_id: uom.id,
+                    conversion: 1,
+                    factor: 1,
+                });
+            }
+        }
+
         return data as InventoryItem;
     }
 

@@ -1,9 +1,7 @@
 'use client';
 
-import { DataTable, type DataTableColumn } from '@/components/ui/DataTable';
 import { FieldLabel } from '@/components/ui/FieldLabel';
 import { ReadonlyInput } from '@/components/ui/Readonly';
-import type { ItemStockBalance } from '@/service/apps/inventory/repo/stock-balance';
 import type {
   TStockBalanceRow,
   TStockLocationSummary,
@@ -16,20 +14,17 @@ import {
   ChevronRight,
   Clock,
   Edit2,
-  Layers,
-  Loader2,
   MapPin,
-  Package,
   Percent,
   RotateCcw,
   ScanBarcode,
   ShieldCheck,
   Tag,
-  Truck,
   Warehouse,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import ItemMovementPanel from './ItemMovementPanel';
 
 export type StockViewItem = {
   id: number;
@@ -72,60 +67,6 @@ const TABS = [
   { id: 'inventory' as const, label: 'Inventory', num: 4 },
 ];
 type TabId = (typeof TABS)[number]['id'];
-
-const INVENTORY_COLUMNS: DataTableColumn<ItemStockBalance>[] = [
-  {
-    key: 'warehouse',
-    header: 'Warehouse',
-    cell: (row) => (
-      <div className="flex items-center gap-2">
-        <span className="font-medium text-slate-800">
-          {row.warehouse_name ?? '—'}
-        </span>
-        {row.warehouse_is_default && (
-          <span className="rounded-full bg-[#1a9e52]/10 px-2 py-0.5 text-[10px] font-semibold text-[#1a9e52]">
-            Default
-          </span>
-        )}
-      </div>
-    ),
-  },
-  {
-    key: 'location',
-    header: 'Location',
-    cell: (row) => (
-      <div className="flex items-center gap-2">
-        <MapPin size={13} className="shrink-0 text-slate-400" />
-        <span>{row.location_name ?? '—'}</span>
-        {row.location_code && (
-          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-mono text-slate-500">
-            {row.location_code}
-          </span>
-        )}
-        {row.location_is_default && (
-          <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-600">
-            Default
-          </span>
-        )}
-      </div>
-    ),
-  },
-  {
-    key: 'quantity',
-    header: 'Qty on Hand',
-    headerClassName: 'text-right',
-    cellClassName: 'text-right',
-    cell: (row) => (
-      <span
-        className={`text-sm font-bold ${
-          row.quantity > 0 ? 'text-slate-800' : 'text-red-400'
-        }`}
-      >
-        {row.quantity}
-      </span>
-    ),
-  },
-];
 
 function ReadonlyToggle({
   checked,
@@ -184,20 +125,6 @@ function ReadonlyToggle({
 
 export default function StockViewDetail({ item }: { item: StockViewItem }) {
   const [activeTab, setActiveTab] = useState<TabId>('details');
-  const [inventory, setInventory] = useState<ItemStockBalance[] | null>(null);
-  const [inventoryLoading, setInventoryLoading] = useState(false);
-  const [inventoryError, setInventoryError] = useState('');
-
-  useEffect(() => {
-    if (activeTab !== 'inventory' || inventory !== null) return;
-    setInventoryLoading(true);
-    setInventoryError('');
-    fetch(`/api/inventory/stock-balance/item/${item.id}`)
-      .then((r) => r.json())
-      .then((json) => setInventory(json.data ?? []))
-      .catch(() => setInventoryError('Failed to load inventory balances.'))
-      .finally(() => setInventoryLoading(false));
-  }, [activeTab, item.id, inventory]);
 
   const profit = (item.price ?? 0) - (item.cost ?? 0);
   const profitMargin =
@@ -554,46 +481,13 @@ export default function StockViewDetail({ item }: { item: StockViewItem }) {
             </div>
           )}
 
-          {/* ── Tab 4: Inventory ── */}
+          {/* ── Tab 4: Inventory (movement-driven ledger) ── */}
           {activeTab === 'inventory' && (
             <div className="space-y-5 pt-5">
-              <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-                <h3 className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
-                  <Layers size={13} className="text-[#1a9e52]" /> Stock Balances
-                  by Location
-                </h3>
-
-                {inventoryLoading && (
-                  <div className="flex items-center justify-center gap-2 py-12 text-sm text-slate-400">
-                    <Loader2 size={16} className="animate-spin" />
-                    Loading inventory...
-                  </div>
-                )}
-
-                {inventoryError && !inventoryLoading && (
-                  <p className="py-6 text-center text-sm text-red-500">
-                    {inventoryError}
-                  </p>
-                )}
-
-                {!inventoryLoading && !inventoryError && inventory !== null && (
-                  <DataTable
-                    columns={INVENTORY_COLUMNS}
-                    data={inventory}
-                    keyExtractor={(row) => row.id}
-                    searchFn={(row, q) =>
-                      (row.warehouse_name ?? '').toLowerCase().includes(q) ||
-                      (row.location_name ?? '').toLowerCase().includes(q) ||
-                      (row.location_code ?? '').toLowerCase().includes(q)
-                    }
-                    searchPlaceholder="Search warehouse or location..."
-                    emptyIcon={<Layers size={32} />}
-                    emptyTitle="No stock balances found"
-                    emptyDescription="This item has no recorded stock in any location."
-                    pageSize={0}
-                  />
-                )}
-              </section>
+              <ItemMovementPanel
+                itemId={item.id}
+                baseUomName={item.uom?.name ?? undefined}
+              />
             </div>
           )}
         </div>

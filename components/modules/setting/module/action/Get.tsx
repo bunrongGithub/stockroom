@@ -25,7 +25,6 @@ import Link from 'next/link';
 type FlatChild = AppModule & { level: 1 | 2 };
 
 export default function ModuleDetail({
-  currentPath,
   permission,
   currentPathActions,
 }: ModuleProps) {
@@ -152,11 +151,11 @@ export default function ModuleDetail({
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-2">
       {/* Header */}
       <div className="flex items-start justify-between">
-        <div className="space-y-1">
-          <h1 className="text-3xl font-bold tracking-tight">
+        <div>
+          <h1 className="text-3xl font-bold">
             {data?.label ?? 'Module'}
           </h1>
           <p className="text-sm text-muted-foreground">
@@ -175,8 +174,8 @@ export default function ModuleDetail({
         </Button>
       </div>
 
-      <Tabs defaultValue="basic-information" className="w-full flex-col h-full">
-        <TabsList className="grid w-full max-w-2xl p-3 grid-cols-4">
+      <Tabs defaultValue="basic-information" className="flex-col">
+        <TabsList className="grid grid-cols-4">
           <TabsTrigger value="basic-information">Basic Information</TabsTrigger>
           <TabsTrigger value="navigation">Navigation</TabsTrigger>
           <TabsTrigger value="configuration">Configuration</TabsTrigger>
@@ -184,7 +183,7 @@ export default function ModuleDetail({
         </TabsList>
 
         {/* Basic Information */}
-        <TabsContent value="basic-information" className="space-y-6 w-full">
+        <TabsContent value="basic-information" className="space-y-4 w-full">
           <Card className="border-none w-full">
             <CardContent className="grid grid-cols-2 gap-3 pt-4">
               <div className="space-y-2">
@@ -303,7 +302,14 @@ export default function ModuleDetail({
                 columns={childColumns}
                 data={flatChildren}
                 keyExtractor={(row) => row.id}
-                pageSize={20}
+                searchFn={(row, query) =>
+                  row.label.toLowerCase().includes(query) ||
+                  row.path.toLowerCase().includes(query) ||
+                  (row.component ?? '').toLowerCase().includes(query)
+                }
+                searchPlaceholder="Search by label, path, or component..."
+                pageSize={10}
+                pageSizeOptions={[10, 20, 50]}
                 emptyTitle="No children"
                 emptyDescription="This module has no sub-modules."
               />
