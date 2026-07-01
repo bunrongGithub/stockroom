@@ -1,90 +1,143 @@
-export type SalesOrderStatus = 'open' | 'partial_shipment' | 'closed' | 'cancelled';
-export type DeliveryNoteStatus = 'draft' | 'confirmed' | 'cancelled';
+// ── Statuses ──────────────────────────────────────────────────────────────────
+
+export type SalesOrderStatus =
+    | 'open'
+    | 'partial_shipment'
+    | 'closed'
+    | 'cancelled';
+
+export type SalesShipmentStatus = 'DRAFT' | 'POSTED' | 'VOID';
+
+// ── Computed capability flags (injected per row by the repositories) ──────────
+
+export interface SalesOrderActions {
+    can_update: boolean;
+    can_cancel: boolean;
+    can_close: boolean;
+    can_ship: boolean;
+}
+
+export interface SalesShipmentActions {
+    can_update: boolean;
+    can_post: boolean;
+    can_void: boolean;
+}
+
+// ── Sales Order ───────────────────────────────────────────────────────────────
 
 export interface SalesOrderItem {
-    id: string;
-    product_id: string;
+    id: number;
+    item_id: number;
+    item_uom_id: number | null;
     product_name: string;
     description: string;
+    uom: string;
     ordered_qty: number;
     shipped_qty: number;
     unit_price: number;
-    discount: number;
-    tax: number;
+    discount: number; // percent
+    tax: number; // percent
     line_total: number;
-    uom: string;
 }
 
 export interface SalesOrder {
-    id: string;
+    id: number;
     order_no: string;
-    customer_id: string;
     customer_name: string;
+    customer_phone: string | null;
     order_date: string;
-    expected_delivery_date: string;
-    warehouse: string;
-    status: SalesOrderStatus;
+    expected_delivery_date: string | null;
+    warehouse_id: number;
+    warehouse_name: string;
     currency: string;
+    status: SalesOrderStatus;
     subtotal: number;
     discount_total: number;
     tax_total: number;
     grand_total: number;
-    notes: string;
-    created_by: string;
-    updated_by: string;
+    notes: string | null;
     created_at: string;
     updated_at: string;
     items: SalesOrderItem[];
+    actions?: SalesOrderActions;
 }
 
-export interface DeliveryNoteItem {
-    id: string;
-    sales_order_item_id: string;
-    product_id: string;
+// ── Sales Shipment (Delivery Note) ────────────────────────────────────────────
+
+export interface SalesShipmentItem {
+    id: number;
+    sales_order_item_id: number;
+    item_id: number;
     product_name: string;
+    location_id: number;
+    location_name: string;
+    item_uom_id: number | null;
     uom: string;
     ordered_qty: number;
     previously_shipped_qty: number;
-    remaining_qty: number;
     shipment_qty: number;
 }
 
-export interface DeliveryNote {
-    id: string;
-    delivery_no: string;
-    sales_order_id: string;
+export interface SalesShipment {
+    id: number;
+    shipment_no: string;
+    sales_order_id: number;
     sales_order_no: string;
-    customer_id: string;
-    customer_name: string;
+    customer_name: string | null;
     delivery_date: string;
-    warehouse: string;
-    status: DeliveryNoteStatus;
-    receiver_name: string;
-    delivery_address: string;
-    notes: string;
-    created_by: string;
-    updated_by: string;
+    warehouse_id: number;
+    warehouse_name: string;
+    status: SalesShipmentStatus;
+    receiver_name: string | null;
+    delivery_address: string | null;
+    notes: string | null;
     created_at: string;
     updated_at: string;
-    items: DeliveryNoteItem[];
+    items: SalesShipmentItem[];
+    actions?: SalesShipmentActions;
+}
+
+// ── Create payloads (frontend → API) ──────────────────────────────────────────
+
+export interface CreateSalesOrderLinePayload {
+    item_id: number;
+    item_uom_id?: number | null;
+    description?: string;
+    uom?: string;
+    ordered_qty: number;
+    unit_price: number;
+    discount: number;
+    tax: number;
 }
 
 export interface CreateSalesOrderPayload {
-    customer_id: string;
     customer_name: string;
+    customer_phone?: string;
     order_date: string;
-    expected_delivery_date: string;
-    warehouse: string;
+    expected_delivery_date?: string;
+    warehouse_id: number;
     currency: string;
-    notes: string;
-    items: Omit<SalesOrderItem, 'id' | 'shipped_qty' | 'line_total'>[];
+    notes?: string;
+    items: CreateSalesOrderLinePayload[];
 }
 
-export interface CreateDeliveryNotePayload {
-    sales_order_id: string;
+export interface CreateSalesShipmentLinePayload {
+    sales_order_item_id: number;
+    item_id: number;
+    location_id: number;
+    item_uom_id?: number | null;
+    ordered_qty: number;
+    previously_shipped_qty: number;
+    shipment_qty: number;
+}
+
+export interface CreateSalesShipmentPayload {
+    sales_order_id: number;
+    customer_name?: string;
     delivery_date: string;
-    receiver_name: string;
-    delivery_address: string;
-    notes: string;
-    items: { sales_order_item_id: string; shipment_qty: number }[];
+    warehouse_id: number;
+    receiver_name?: string;
+    delivery_address?: string;
+    notes?: string;
+    items: CreateSalesShipmentLinePayload[];
 }

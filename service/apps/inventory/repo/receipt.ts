@@ -24,7 +24,9 @@ export type InventoryTxnMovementType =
     | 'receipt'
     | 'issue'
     | 'transfer'
-    | 'adjustment';
+    | 'adjustment'
+    | 'SALE_SHIPMENT'
+    | 'SALE_RETURN';
 
 export type InventoryMovemtTypeReasonMeta =
     | 'Goods received from a supplier after a purchase order'

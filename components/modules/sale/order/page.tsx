@@ -3,11 +3,19 @@
 import { DataTable, type DataTableColumn } from '@/components/ui/DataTable';
 import { useRegisterModule } from '@/hook/useModule';
 import type { ModuleProps } from '@/lib/registry';
-import { getOrders, cancelOrder, closeOrder } from '@/lib/mock-sales-store';
+import { saleOrderApi } from '@/lib/api/sale';
 import type { SalesOrder, SalesOrderStatus } from '@/types/sales/order-management';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { PlusIcon, EyeIcon, PencilIcon, TruckIcon, XCircleIcon, CheckCircleIcon } from 'lucide-react';
+import {
+    PlusIcon,
+    EyeIcon,
+    PencilIcon,
+    TruckIcon,
+    XCircleIcon,
+    CheckCircleIcon,
+    Loader2Icon,
+} from 'lucide-react';
 
 function StatusBadge({ status }: { status: SalesOrderStatus }) {
     const map: Record<SalesOrderStatus, string> = {
@@ -38,42 +46,44 @@ export default function SaleOrderPage({ currentPath, permission, currentPathActi
 
     const router = useRouter();
     const [orders, setOrders] = useState<SalesOrder[]>([]);
+    const [loading, setLoading] = useState(true);
     const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
-    const [confirmAction, setConfirmAction] = useState<{ type: 'cancel' | 'close'; id: string; no: string } | null>(null);
-
-    useEffect(() => {
-        setOrders(getOrders());
-    }, []);
-
-    function refresh() {
-        setOrders(getOrders());
-    }
+    const [confirmAction, setConfirmAction] = useState<{ type: 'cancel' | 'close'; id: number; no: string } | null>(null);
+    const [busy, setBusy] = useState(false);
 
     function showToast(msg: string, type: 'success' | 'error') {
         setToast({ msg, type });
         setTimeout(() => setToast(null), 3000);
     }
 
-    function handleCancel(id: string) {
-        const ok = cancelOrder(id);
-        if (ok) {
-            showToast('Sales order cancelled.', 'success');
-        } else {
-            showToast('Cannot cancel: order has confirmed shipments.', 'error');
+    async function refresh() {
+        setLoading(true);
+        try {
+            setOrders(await saleOrderApi.list());
+        } catch (e) {
+            showToast(e instanceof Error ? e.message : 'Failed to load orders', 'error');
+        } finally {
+            setLoading(false);
         }
-        refresh();
-        setConfirmAction(null);
     }
 
-    function handleClose(id: string) {
-        const ok = closeOrder(id);
-        if (ok) {
-            showToast('Sales order closed.', 'success');
-        } else {
-            showToast('Cannot close this order.', 'error');
-        }
+    useEffect(() => {
         refresh();
-        setConfirmAction(null);
+    }, []);
+
+    async function runAction(type: 'cancel' | 'close', id: number) {
+        setBusy(true);
+        try {
+            if (type === 'cancel') await saleOrderApi.cancel(id);
+            else await saleOrderApi.close(id);
+            showToast(`Sales order ${type === 'cancel' ? 'cancelled' : 'closed'}.`, 'success');
+            await refresh();
+        } catch (e) {
+            showToast(e instanceof Error ? e.message : `Cannot ${type} order`, 'error');
+        } finally {
+            setBusy(false);
+            setConfirmAction(null);
+        }
     }
 
     const columns: DataTableColumn<SalesOrder>[] = [
@@ -89,92 +99,73 @@ export default function SaleOrderPage({ currentPath, permission, currentPathActi
                 </button>
             ),
         },
-        {
-            key: 'customer',
-            header: 'Customer',
-            cell: (row) => <span className="font-mono text-xs">{row.customer_name}</span>,
-        },
-        {
-            key: 'order_date',
-            header: 'Order Date',
-            cell: (row) => <span className="font-mono text-xs">{row.order_date}</span>,
-        },
-        {
-            key: 'expected_delivery',
-            header: 'Expected Delivery',
-            cell: (row) => <span className="font-mono text-xs">{row.expected_delivery_date}</span>,
-        },
+        { key: 'customer', header: 'Customer', cell: (row) => <span className="font-mono text-xs">{row.customer_name}</span> },
+        { key: 'order_date', header: 'Order Date', cell: (row) => <span className="font-mono text-xs">{row.order_date}</span> },
+        { key: 'expected_delivery', header: 'Expected Delivery', cell: (row) => <span className="font-mono text-xs">{row.expected_delivery_date ?? '—'}</span> },
         {
             key: 'grand_total',
             header: 'Grand Total',
-            cell: (row) => (
-                <span className="font-mono text-xs font-semibold">
-                    {row.currency} {fmt(row.grand_total)}
-                </span>
-            ),
+            cell: (row) => <span className="font-mono text-xs font-semibold">{row.currency} {fmt(row.grand_total)}</span>,
         },
-        {
-            key: 'status',
-            header: 'Status',
-            cell: (row) => <StatusBadge status={row.status} />,
-        },
+        { key: 'status', header: 'Status', cell: (row) => <StatusBadge status={row.status} /> },
         {
             key: 'actions',
             header: 'Actions',
-            cell: (row) => (
-                <div className="flex items-center gap-1.5">
-                    <button
-                        onClick={() => router.push(`/sale/order/${row.id}/view`)}
-                        className="inline-flex items-center gap-1 rounded-lg border border-sky-200 px-2 py-1 text-xs text-sky-600 hover:bg-sky-50 font-mono"
-                    >
-                        <EyeIcon size={11} /> View
-                    </button>
-                    {(row.status === 'open' || row.status === 'partial_shipment') && (
-                        <>
+            cell: (row) => {
+                const a = row.actions;
+                return (
+                    <div className="flex items-center gap-1.5">
+                        <button
+                            onClick={() => router.push(`/sale/order/${row.id}/view`)}
+                            className="inline-flex items-center gap-1 rounded-lg border border-sky-200 px-2 py-1 text-xs text-sky-600 hover:bg-sky-50 font-mono"
+                        >
+                            <EyeIcon size={11} /> View
+                        </button>
+                        {a?.can_update && (
                             <button
                                 onClick={() => router.push(`/sale/order/${row.id}/update`)}
                                 className="inline-flex items-center gap-1 rounded-lg border border-violet-200 px-2 py-1 text-xs text-violet-600 hover:bg-violet-50 font-mono"
                             >
                                 <PencilIcon size={11} /> Edit
                             </button>
+                        )}
+                        {a?.can_ship && (
                             <button
                                 onClick={() => {
-                                    if (typeof window !== 'undefined') {
-                                        sessionStorage.setItem('pending_dn_order_id', row.id);
-                                    }
+                                    if (typeof window !== 'undefined') sessionStorage.setItem('pending_dn_order_id', String(row.id));
                                     router.push('/sale/delivery-note/create');
                                 }}
                                 className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 px-2 py-1 text-xs text-emerald-600 hover:bg-emerald-50 font-mono"
                             >
                                 <TruckIcon size={11} /> Ship
                             </button>
+                        )}
+                        {a?.can_close && (
                             <button
                                 onClick={() => setConfirmAction({ type: 'close', id: row.id, no: row.order_no })}
                                 className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50 font-mono"
                             >
                                 <CheckCircleIcon size={11} /> Close
                             </button>
+                        )}
+                        {a?.can_cancel && (
                             <button
                                 onClick={() => setConfirmAction({ type: 'cancel', id: row.id, no: row.order_no })}
                                 className="inline-flex items-center gap-1 rounded-lg border border-rose-200 px-2 py-1 text-xs text-rose-600 hover:bg-rose-50 font-mono"
                             >
                                 <XCircleIcon size={11} /> Cancel
                             </button>
-                        </>
-                    )}
-                </div>
-            ),
+                        )}
+                    </div>
+                );
+            },
         },
     ];
 
     return (
         <main className="space-y-4">
             {toast && (
-                <div
-                    className={`fixed right-4 top-4 z-50 rounded-xl px-4 py-3 text-sm font-medium shadow-lg ${
-                        toast.type === 'success' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'
-                    }`}
-                >
+                <div className={`fixed right-4 top-4 z-50 rounded-xl px-4 py-3 text-sm font-medium shadow-lg ${toast.type === 'success' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'}`}>
                     {toast.msg}
                 </div>
             )}
@@ -182,32 +173,20 @@ export default function SaleOrderPage({ currentPath, permission, currentPathActi
             {confirmAction && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
                     <div className="rounded-2xl bg-white p-6 shadow-xl w-80 space-y-4">
-                        <h3 className="font-semibold text-sm">
-                            {confirmAction.type === 'cancel' ? 'Cancel Order' : 'Close Order'}
-                        </h3>
+                        <h3 className="font-semibold text-sm">{confirmAction.type === 'cancel' ? 'Cancel Order' : 'Close Order'}</h3>
                         <p className="text-xs text-muted-foreground">
                             {confirmAction.type === 'cancel'
-                                ? `Are you sure you want to cancel ${confirmAction.no}? This cannot be undone if there are no confirmed shipments.`
+                                ? `Cancel ${confirmAction.no}? Orders with posted shipments cannot be cancelled.`
                                 : `Mark ${confirmAction.no} as closed? No further shipments will be allowed.`}
                         </p>
                         <div className="flex justify-end gap-2">
+                            <button onClick={() => setConfirmAction(null)} className="rounded-lg border px-3 py-1.5 text-xs hover:bg-muted font-mono">Cancel</button>
                             <button
-                                onClick={() => setConfirmAction(null)}
-                                className="rounded-lg border px-3 py-1.5 text-xs hover:bg-muted font-mono"
+                                disabled={busy}
+                                onClick={() => runAction(confirmAction.type, confirmAction.id)}
+                                className={`rounded-lg px-3 py-1.5 text-xs text-white font-mono disabled:opacity-60 ${confirmAction.type === 'cancel' ? 'bg-rose-500 hover:bg-rose-600' : 'bg-slate-600 hover:bg-slate-700'}`}
                             >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={() =>
-                                    confirmAction.type === 'cancel'
-                                        ? handleCancel(confirmAction.id)
-                                        : handleClose(confirmAction.id)
-                                }
-                                className={`rounded-lg px-3 py-1.5 text-xs text-white font-mono ${
-                                    confirmAction.type === 'cancel' ? 'bg-rose-500 hover:bg-rose-600' : 'bg-slate-600 hover:bg-slate-700'
-                                }`}
-                            >
-                                Confirm
+                                {busy ? 'Working…' : 'Confirm'}
                             </button>
                         </div>
                     </div>
@@ -227,20 +206,26 @@ export default function SaleOrderPage({ currentPath, permission, currentPathActi
                 </button>
             </div>
 
-            <DataTable<SalesOrder>
-                columns={columns}
-                data={orders}
-                keyExtractor={(row) => row.id}
-                searchFn={(row, q) =>
-                    row.order_no.toLowerCase().includes(q) ||
-                    row.customer_name.toLowerCase().includes(q) ||
-                    row.status.toLowerCase().includes(q)
-                }
-                searchPlaceholder="Search by order no, customer, or status..."
-                pageSize={10}
-                emptyTitle="No sales orders"
-                emptyDescription="Create your first sales order to get started"
-            />
+            {loading ? (
+                <div className="flex items-center justify-center h-64">
+                    <Loader2Icon className="animate-spin text-emerald-500" size={26} />
+                </div>
+            ) : (
+                <DataTable<SalesOrder>
+                    columns={columns}
+                    data={orders}
+                    keyExtractor={(row) => row.id}
+                    searchFn={(row, q) =>
+                        row.order_no.toLowerCase().includes(q) ||
+                        row.customer_name.toLowerCase().includes(q) ||
+                        row.status.toLowerCase().includes(q)
+                    }
+                    searchPlaceholder="Search by order no, customer, or status..."
+                    pageSize={10}
+                    emptyTitle="No sales orders"
+                    emptyDescription="Create your first sales order to get started"
+                />
+            )}
         </main>
     );
 }

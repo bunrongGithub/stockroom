@@ -103,6 +103,19 @@ export const API = {
         refund: (id: Id) => `/api/sales/${id}/refund`,
     },
 
+    sale: {
+        order: {
+            ...resource('/api/sale/order'),
+            cancel: (id: Id) => `/api/sale/order/${id}/cancel`,
+            close: (id: Id) => `/api/sale/order/${id}/close`,
+        },
+        shipment: {
+            ...resource('/api/sale/shipment'),
+            post: (id: Id) => `/api/sale/shipment/${id}/post`,
+            void: (id: Id) => `/api/sale/shipment/${id}/void`,
+        },
+    },
+
     stockTransfer: {
         root: '/api/stock-transfer',
     },
