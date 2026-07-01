@@ -147,6 +147,32 @@ function CreatedByCell({ user }: { user: ReceiptCreatedBy | null }) {
   );
 }
 
+// ─── Status-based action gating ────────────────────────────────────────────────
+// Receipt rows carry a computed `actions` map ({ can_update, can_post, can_void })
+// derived from their status. Keep only the row buttons the status permits; buttons
+// with no matching capability (e.g. View) always pass through.
+
+const CAPABILITY_BY_LABEL: Record<
+  string,
+  keyof NonNullable<ReceiptTxnType['actions']>
+> = {
+  update: 'can_update',
+  post: 'can_post',
+  void: 'can_void',
+};
+
+function filterActionsByStatus(
+  dynamicActions: { label: string }[],
+  row: ReceiptTxnType,
+): { label: string }[] {
+  const rowActions = row.actions;
+  if (!rowActions) return dynamicActions;
+  return dynamicActions.filter((action) => {
+    const capability = CAPABILITY_BY_LABEL[action.label?.toLowerCase()];
+    return capability ? rowActions[capability] !== false : true;
+  });
+}
+
 // ─── Columns ──────────────────────────────────────────────────────────────────
 
 export function getReceiptTxnColumns({
@@ -194,8 +220,10 @@ export function getReceiptTxnColumns({
             key: 'actions',
             header: 'Actions',
             cell: (row: ReceiptTxnType) =>
-              ButtonActionDynamicRender(dynamicActions, row, () =>
-                onDelete(row.id),
+              ButtonActionDynamicRender(
+                filterActionsByStatus(dynamicActions, row),
+                row,
+                () => onDelete(row.id),
               ),
           } satisfies DataTableColumn<ReceiptTxnType>,
         ]

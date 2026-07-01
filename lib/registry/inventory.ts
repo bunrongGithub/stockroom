@@ -119,4 +119,11 @@ export const inventoryRegistry: RegistryEntry[] = [
                 '@/components/modules/inventory/transaction-receipt/[id]/view/page'
             ),
     ],
+    [
+        'ReceiptUpdate',
+        () =>
+            import(
+                '@/components/modules/inventory/transaction-receipt/[id]/update/page'
+            ),
+    ],
 ];

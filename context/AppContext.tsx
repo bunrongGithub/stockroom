@@ -82,10 +82,18 @@ const AppContext = createContext<AppContextValue>({
 // Provider
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function AppProvider({ children }: { children: ReactNode }) {
-    // Attempt instant hydration from localStorage before first paint
-    const [data, setData] = useState<AppInitData | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
+export function AppProvider({
+    children,
+    initialData,
+}: {
+    children: ReactNode;
+    /** Menu/profile rendered on the server — avoids a client `/api/app/init` round-trip. */
+    initialData?: AppInitData | null;
+}) {
+    // Seed from server-rendered data when available, else attempt instant
+    // hydration from localStorage before first paint.
+    const [data, setData] = useState<AppInitData | null>(initialData ?? null);
+    const [isLoading, setIsLoading] = useState(!initialData);
     const fetchedRef = useRef(false);
 
     const fetchInit = useCallback(async () => {
@@ -107,6 +115,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (fetchedRef.current) return;
         fetchedRef.current = true;
 
+        // Server already provided the payload — cache it and skip the fetch.
+        if (initialData) {
+            writeCache(initialData);
+            return;
+        }
+
         const cached = readCache();
         if (cached) {
             setData(cached);
@@ -114,7 +128,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         } else {
             fetchInit();
         }
-    }, [fetchInit]);
+    }, [fetchInit, initialData]);
 
     const refetch = useCallback(async () => {
         clearAppCache();

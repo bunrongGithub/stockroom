@@ -59,6 +59,24 @@ export type ReceiptCreatedBy = {
     full_name: string | null;
 };
 
+/** Status-derived capability flags, injected per row so the UI can gate actions. */
+export type ReceiptActions = {
+    can_update: boolean;
+    can_post: boolean;
+    can_void: boolean;
+};
+
+/**
+ * Only DRAFT receipts can be edited, posted, or voided — POSTED and VOID
+ * receipts are immutable. Mirrors the guards in updateOne/postReceipt/voidReceipt.
+ */
+export function computeReceiptActions(
+    status: ReceiptTxnType['status'],
+): ReceiptActions {
+    const isDraft = status === 'DRAFT';
+    return { can_update: isDraft, can_post: isDraft, can_void: isDraft };
+}
+
 export type ReceiptTxnType = {
     id: number;
     company_id: number;
@@ -76,6 +94,8 @@ export type ReceiptTxnType = {
     reason: InventoryMovemtTypeReasonMeta;
     // Enriched after fetch — not a DB column
     created_by: ReceiptCreatedBy | null;
+    // Computed capability flags — not a DB column
+    actions?: ReceiptActions;
 };
 
 type PostReceiptResult = { ok: boolean; receipt_id?: number; error?: string };
@@ -167,7 +187,14 @@ export class ReceiptRepository extends BaseRepository {
             ctx,
             isSuperUser,
         ).order('id', { ascending: false });
-        return this.paginate(query, params);
+        const result = await this.paginate<ReceiptTxnType>(query, params);
+        return {
+            ...result,
+            data: result.data.map((row) => ({
+                ...row,
+                actions: computeReceiptActions(row.status),
+            })),
+        };
     }
 
     async findOne(
@@ -182,7 +209,9 @@ export class ReceiptRepository extends BaseRepository {
         ).maybeSingle();
 
         if (error) throw new ApiError(error.message, 500);
-        return data as ReceiptTxnType | null;
+        if (!data) return null;
+        const receipt = data as ReceiptTxnType;
+        return { ...receipt, actions: computeReceiptActions(receipt.status) };
     }
 
     async insertOne(

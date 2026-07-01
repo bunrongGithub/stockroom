@@ -1,7 +1,13 @@
+import { cache } from 'react';
 import { getServerClient } from '@/lib/supabase/server';
 import type { AppModule } from '@/types/app';
 
-export async function getMenu(userId: string, companyId: number) {
+// Wrapped in React `cache()` so the layout and the catch-all page share a single
+// `get_user_modules` RPC per request instead of hitting Supabase twice.
+export const getMenu = cache(async function getMenu(
+    userId: string,
+    companyId: number,
+): Promise<AppModule[]> {
     const supabase = getServerClient();
 
     const { data, error } = await supabase.rpc('get_user_modules', {
@@ -39,8 +45,8 @@ export async function getMenu(userId: string, companyId: number) {
         }
     }
 
-    return toUserModule(data);
-}
+    return toUserModule(data) ?? [];
+});
 
 export interface MenuPath {
     path: AppModule;

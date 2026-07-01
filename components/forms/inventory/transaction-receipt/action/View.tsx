@@ -153,7 +153,8 @@ export default function View({ receiptData }: { receiptData: ReceiptTxnType }) {
       sum + (Number(item.receipt_qty) || 0) * (Number(item.unit_cost) || 0),
     0,
   );
-  const isDraft = receipt.status === 'DRAFT';
+  const canPost = receipt.actions?.can_post ?? receipt.status === 'DRAFT';
+  const canVoid = receipt.actions?.can_void ?? receipt.status === 'DRAFT';
 
   return (
     <div className="space-y-6 font-mono text-xs">
@@ -167,35 +168,35 @@ export default function View({ receiptData }: { receiptData: ReceiptTxnType }) {
           <StatusBadge status={receipt.status} />
         </div>
         <div className="flex gap-x-1">
-          {isDraft && (
-            <>
-              <button
-                type="button"
-                onClick={handleVoid}
-                disabled={voiding || posting}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-xs font-mono text-rose-700 hover:bg-rose-100 disabled:opacity-60"
-              >
-                {voiding ? (
-                  <Loader2 size={13} className="animate-spin" />
-                ) : (
-                  <Ban size={13} />
-                )}
-                Void
-              </button>
-              <button
-                type="button"
-                onClick={handlePost}
-                disabled={posting || voiding}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-mono text-white hover:bg-emerald-500 disabled:opacity-60"
-              >
-                {posting ? (
-                  <Loader2 size={13} className="animate-spin" />
-                ) : (
-                  <Send size={13} />
-                )}
-                Post
-              </button>
-            </>
+          {canVoid && (
+            <button
+              type="button"
+              onClick={handleVoid}
+              disabled={voiding || posting}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-xs font-mono text-rose-700 hover:bg-rose-100 disabled:opacity-60"
+            >
+              {voiding ? (
+                <Loader2 size={13} className="animate-spin" />
+              ) : (
+                <Ban size={13} />
+              )}
+              Void
+            </button>
+          )}
+          {canPost && (
+            <button
+              type="button"
+              onClick={handlePost}
+              disabled={posting || voiding}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-mono text-white hover:bg-emerald-500 disabled:opacity-60"
+            >
+              {posting ? (
+                <Loader2 size={13} className="animate-spin" />
+              ) : (
+                <Send size={13} />
+              )}
+              Post
+            </button>
           )}
           <button
             type="button"

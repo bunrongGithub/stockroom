@@ -1,8 +1,23 @@
+import { cache } from 'react';
 import { PaginationMixin } from './pagination';
 import { getServerClient, createScopedClient } from '@/lib/supabase/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { RequestContext } from '@/types/request-context';
 import { ApiError, ForbiddenError } from './api-response';
+
+// Deduped per request: multiple repositories touched in one render/handler share
+// a single `profiles.is_super_user` lookup instead of querying once each.
+const fetchSuperUserFlag = cache(async (userId: string): Promise<boolean> => {
+    const { data, error } = await getServerClient()
+        .from('profiles')
+        .select('is_super_user')
+        .eq('id', userId)
+        .single();
+
+    if (error) throw new ApiError(error.message, 500, error.code);
+
+    return data?.is_super_user === true;
+});
 
 export abstract class BaseRepository extends PaginationMixin {
     /**
@@ -52,15 +67,6 @@ export abstract class BaseRepository extends PaginationMixin {
 
         if (!currentUserId) throw new ForbiddenError('ForbiddenError');
 
-        const { data, error } = await this.db
-            .from('profiles')
-            .select('is_super_user')
-            .eq('id', currentUserId)
-            .single();
-
-        if (error) throw new ApiError(error.message, 500, error.code);
-
-        if (data?.is_super_user && data?.is_super_user === true) return true;
-        return false;
+        return fetchSuperUserFlag(currentUserId);
     }
 }

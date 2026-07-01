@@ -1,5 +1,6 @@
-import { getSession } from '@/lib/auth';
+import { getSession, toRequestContext } from '@/lib/auth';
 import { apiUrl } from '@/lib/constant';
+import { getDataLoader, extractPathParams } from '@/lib/data-registry';
 import { fetchPaginatedData } from '@/lib/fetch';
 import { getCurrentPath } from '@/lib/modules-rpc';
 import { getModuleLoader } from '@/lib/registry';
@@ -48,19 +49,33 @@ export default async function Page({ params, searchParams }: Props) {
   let _responsePageMeta: any = null;
 
   if (path.is_initial_data) {
-    console.log(`[Fetching data from ${path.component} on initial page....]`);
-
-    console.log(`Current path url:: ${currentPathUrl}`);
+    const dataLoader = getDataLoader(path.path);
     try {
-      const response = await fetchPaginatedData(
-        apiUrl(currentPathUrl),
-        _searchParams,
-      );
-      _responseInitailPageData = response.data;
-      _responsePageMeta = response.meta;
+      if (dataLoader) {
+        // Fast path: load initial data in-process via the repository.
+        const response = await dataLoader(toRequestContext(session), {
+          page: Number(_searchParams.page) || 1,
+          limit: Number(_searchParams.limit) || 10,
+          search:
+            typeof _searchParams.search === 'string'
+              ? _searchParams.search
+              : undefined,
+          pathParams: extractPathParams(path.path, currentPathUrl),
+        });
+        _responseInitailPageData = response.data;
+        _responsePageMeta = response.meta ?? null;
+      } else {
+        // Fallback: no loader registered yet — fetch via the matching API route.
+        const response = await fetchPaginatedData(
+          apiUrl(currentPathUrl),
+          _searchParams,
+        );
+        _responseInitailPageData = response.data;
+        _responsePageMeta = response.meta;
+      }
     } catch (error) {
       console.error(
-        '[CatchAllModulePage] Failed to fetch initial data:',
+        '[CatchAllModulePage] Failed to load initial data:',
         error,
       );
     }
