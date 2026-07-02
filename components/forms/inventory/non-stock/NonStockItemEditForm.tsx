@@ -333,7 +333,7 @@ export default function NonStockItemEditForm({ item }: { item: NonStockEditItem 
                                             selectedLabel={formData.category?.name ?? ''}
                                             popupTitle="Category"
                                             enablePopupSearch
-                                            onChange={(selected) =>
+                                            onChangeAction={(selected) =>
                                                 setFormData((prev) => ({
                                                     ...prev,
                                                     category_id: selected?.id ? Number(selected.id) : null,
@@ -347,12 +347,12 @@ export default function NonStockItemEditForm({ item }: { item: NonStockEditItem 
                                         <AsyncSearchSelect
                                             label="Base UOM"
                                             placeholder="Select unit of measure..."
-                                            apiUrl="/api/uom"
+                                            apiUrl="/api/inventory/configurations/uom"
                                             value={formData.uom_id}
                                             selectedLabel={formData.uom?.name ?? ''}
                                             popupTitle="Base UOM"
                                             enablePopupSearch
-                                            onChange={(selected) =>
+                                            onChangeAction={(selected) =>
                                                 setFormData((prev) => ({
                                                     ...prev,
                                                     uom_id: selected?.id ? Number(selected.id) : null,

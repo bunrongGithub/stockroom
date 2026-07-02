@@ -142,6 +142,13 @@ export class MovementRepository extends BaseRepository {
         }
 
         const companyId = Number(ctx.companyId);
+
+        // Guard: this is the single writer of stock balances, so it is also the
+        // single place that enforces "non-stock items never touch inventory".
+        // Any Goods Receipt / Sales Shipment / Adjustment / Transfer / Issue
+        // referencing a non-stock (or service) item is rejected here.
+        await this.ensureStockItems(input.items.map((i) => i.item_id));
+
         const reference_no = generateSequenNumbering('MOV');
 
         // 1. header
@@ -284,6 +291,33 @@ export class MovementRepository extends BaseRepository {
             });
         }
         return out;
+    }
+
+    /**
+     * Reject any movement that references a non-stock (or service) item. Only
+     * `item_class = 'stock'` items are ever tracked in the stock ledger.
+     */
+    private async ensureStockItems(itemIds: number[]): Promise<void> {
+        const uniqueIds = [...new Set(itemIds)];
+        if (uniqueIds.length === 0) return;
+
+        const { data, error } = await this.db
+            .from('inventory_item')
+            .select('id, item_class')
+            .in('id', uniqueIds);
+
+        if (error) throw new ApiError(error.message, 500);
+
+        const offending = (data ?? []).find(
+            (row) => (row as { item_class: string }).item_class !== 'stock',
+        );
+        if (offending) {
+            throw new ApiError(
+                'Non-stock items cannot be used in inventory transactions',
+                422,
+                'NON_STOCK_NOT_ALLOWED',
+            );
+        }
     }
 
     /**

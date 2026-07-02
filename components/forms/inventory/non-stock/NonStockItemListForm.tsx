@@ -122,7 +122,7 @@ export default function NonStockItemListForm({ items = [] }: { items: InventoryI
                     </p>
                 </div>
                 <Button size="sm" asChild>
-                    <Link href="/inventory/configurations/non-stock/create">
+                    <Link href="/inventory/configurations/non-stock-item/create">
                         <Package className="size-3.5" />
                         New Non-Stock Item
                     </Link>

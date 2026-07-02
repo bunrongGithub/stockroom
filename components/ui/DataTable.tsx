@@ -78,7 +78,7 @@ const DEFAULT_PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
 
 export function DataTable<T>({
     columns,
-    data,
+    data: dataProp,
     keyExtractor,
     searchFn,
     searchPlaceholder = 'Search...',
@@ -99,6 +99,10 @@ export function DataTable<T>({
     );
 
     const paginated = pageSizeProp > 0;
+
+    // Guard against a null/undefined `data` prop (e.g. a page whose server-side
+    // initial data failed to load) so the table renders empty instead of crashing.
+    const data = dataProp ?? [];
 
     const filtered = useMemo(() => {
         if (!query.trim() || !searchFn) return data;

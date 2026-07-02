@@ -41,7 +41,7 @@ export const inventoryRegistry: RegistryEntry[] = [
 
     // ── Non-Stock Items ───────────────────────────────────────────────────────
     [
-        'InventoryNonStockModule',
+        'NoneStockForm',
         () => import('@/components/modules/inventory/non-stock/page'),
     ],
     [
@@ -115,15 +115,11 @@ export const inventoryRegistry: RegistryEntry[] = [
     [
         'ReceiptView',
         () =>
-            import(
-                '@/components/modules/inventory/transaction-receipt/[id]/view/page'
-            ),
+            import('@/components/modules/inventory/transaction-receipt/[id]/view/page'),
     ],
     [
         'ReceiptUpdate',
         () =>
-            import(
-                '@/components/modules/inventory/transaction-receipt/[id]/update/page'
-            ),
+            import('@/components/modules/inventory/transaction-receipt/[id]/update/page'),
     ],
 ];

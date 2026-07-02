@@ -348,7 +348,7 @@ export default function NonStockItemCreateForm() {
                                                     selectedLabel={watch('category')?.name ?? ''}
                                                     popupTitle="Category"
                                                     enablePopupSearch
-                                                    onChange={(selected) => {
+                                                    onChangeAction={(selected) => {
                                                         field.onChange(selected?.id ? Number(selected.id) : null);
                                                         setValue('category', { id: selected?.id ? Number(selected.id) : null, name: selected?.name ?? '' });
                                                     }}
@@ -366,12 +366,12 @@ export default function NonStockItemCreateForm() {
                                                 <AsyncSearchSelect
                                                     label="Base UOM"
                                                     placeholder="Select unit of measure..."
-                                                    apiUrl="/api/uom"
+                                                    apiUrl="/api/inventory/configurations/uom"
                                                     value={field.value}
                                                     selectedLabel={watch('uom')?.name ?? ''}
                                                     popupTitle="Base UOM"
                                                     enablePopupSearch
-                                                    onChange={(selected) => {
+                                                    onChangeAction={(selected) => {
                                                         field.onChange(selected?.id ? Number(selected.id) : null);
                                                         setValue('uom', { id: selected?.id ? Number(selected.id) : null, name: selected?.name ?? '' });
                                                     }}

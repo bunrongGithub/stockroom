@@ -24,7 +24,9 @@ const inventoryBaseSchema = {
 
     max_price: z.coerce.number({ error: msgRequiredField }),
 
-    cost: z.coerce.number().min(0.1, { error: msgRequiredField }),
+    // Cost is optional (never used in inventory valuation). Non-stock items in
+    // particular may have no cost; stock items may still provide one.
+    cost: z.coerce.number().min(0).optional().nullable(),
 
     is_variant: z.boolean().default(false),
     is_discount: z.boolean().default(false),

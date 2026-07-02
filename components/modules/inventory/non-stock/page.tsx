@@ -16,5 +16,9 @@ export default function InventoryNonStockModule({
         permission,
         modulePath: currentPath.path,
     });
-    return <NonStockItemListForm items={initialData as InventoryItem[]} />;
+    return (
+        <NonStockItemListForm
+            items={(initialData as InventoryItem[] | null) ?? []}
+        />
+    );
 }
