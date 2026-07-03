@@ -3,6 +3,7 @@
 import { useRegisterModule } from '@/hook/useModule';
 import type { ModuleProps } from '@/lib/registry';
 import { saleInvoiceApi } from '@/lib/api/sale';
+import { RelatedDocumentsPanel } from '@/components/ui/RelatedDocuments';
 import type {
     SalesInvoice,
     SalesInvoiceStatus,
@@ -23,6 +24,7 @@ import {
 const TABS = [
     { id: 'info' as const, label: 'Invoice Information', num: 1 },
     { id: 'items' as const, label: 'Items', num: 2 },
+    { id: 'related' as const, label: 'Related Documents', num: 3 },
 ];
 type TabId = (typeof TABS)[number]['id'];
 
@@ -423,6 +425,34 @@ export default function SaleInvoiceDetail({
                                     </div>
                                 </div>
                             </section>
+                        </div>
+                    )}
+
+                    {/* Tab 3: Related Documents (document flow) */}
+                    {activeTab === 'related' && (
+                        <div className="space-y-5 pt-5">
+                            <RelatedDocumentsPanel
+                                source={[
+                                    ...(invoice.sales_order_id
+                                        ? [
+                                              {
+                                                  key: `so-${invoice.sales_order_id}`,
+                                                  docType: 'Sales Order',
+                                                  number: invoice.sales_order_no,
+                                                  href: `/sale/order/${invoice.sales_order_id}/view`,
+                                              },
+                                          ]
+                                        : []),
+                                    {
+                                        key: `sh-${invoice.shipment_id}`,
+                                        docType: 'Shipment',
+                                        number: invoice.shipment_no,
+                                        href: `/sale/delivery-note/${invoice.shipment_id}/view`,
+                                    },
+                                ]}
+                                generated={[]}
+                                generatedEmptyText="No customer payments yet (future module)."
+                            />
                         </div>
                     )}
                 </div>

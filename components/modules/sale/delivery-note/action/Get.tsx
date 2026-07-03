@@ -3,9 +3,12 @@
 import { useRegisterModule } from '@/hook/useModule';
 import type { ModuleProps } from '@/lib/registry';
 import { saleInvoiceApi, saleOrderApi, saleShipmentApi } from '@/lib/api/sale';
+import { RelatedDocumentsPanel } from '@/components/ui/RelatedDocuments';
 import type {
     SalesInvoice,
+    SalesInvoiceStatus,
     SalesOrder,
+    SalesOrderStatus,
     SalesShipment,
     SalesShipmentStatus,
 } from '@/types/sales/order-management';
@@ -25,8 +28,7 @@ import {
 const TABS = [
     { id: 'details' as const, label: 'Details', num: 1 },
     { id: 'items' as const, label: 'Shipment Items', num: 2 },
-    { id: 'order' as const, label: 'Sales Order', num: 3 },
-    { id: 'invoices' as const, label: 'Invoices', num: 4 },
+    { id: 'related' as const, label: 'Related Documents', num: 3 },
 ];
 
 function money(n: number) {
@@ -35,6 +37,19 @@ function money(n: number) {
         maximumFractionDigits: 2,
     });
 }
+
+// Badge classes handed to the presentational RelatedDocumentsPanel.
+const ORDER_STATUS_BADGE: Record<SalesOrderStatus, string> = {
+    open: 'bg-emerald-100 text-emerald-700',
+    partial_shipment: 'bg-amber-100 text-amber-700',
+    closed: 'bg-sky-100 text-sky-700',
+    cancelled: 'bg-rose-100 text-rose-700',
+};
+const INVOICE_STATUS_BADGE: Record<SalesInvoiceStatus, string> = {
+    DRAFT: 'bg-gray-100 text-gray-600',
+    POSTED: 'bg-emerald-100 text-emerald-700',
+    CANCELLED: 'bg-rose-100 text-rose-700',
+};
 type TabId = (typeof TABS)[number]['id'];
 
 function StatusBadge({ status }: { status: SalesShipmentStatus }) {
@@ -429,44 +444,8 @@ export default function SaleShipmentDetail({
                         </div>
                     )}
 
-                    {/* Tab 3: Sales Order (source document) */}
-                    {activeTab === 'order' && (
-                        <div className="space-y-5 pt-5">
-                            <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-                                <h3 className="mb-4 text-xs font-bold uppercase tracking-wider text-slate-500">
-                                    Source Sales Order
-                                </h3>
-                                {!order ? (
-                                    <p className="py-6 text-center text-sm text-slate-400">
-                                        No linked sales order.
-                                    </p>
-                                ) : (
-                                    <div className="grid grid-cols-2 gap-y-3">
-                                        <span className="text-slate-400">Order No</span>
-                                        <button
-                                            onClick={() => router.push(`/sale/order/${order.id}/view`)}
-                                            className="text-left font-semibold text-sky-600 hover:underline"
-                                        >
-                                            {order.order_no}
-                                        </button>
-                                        <span className="text-slate-400">Order Date</span>
-                                        <span>{order.order_date}</span>
-                                        <span className="text-slate-400">Customer</span>
-                                        <span className="font-medium">{order.customer_name}</span>
-                                        <span className="text-slate-400">Status</span>
-                                        <span className="capitalize">{order.status.replace('_', ' ')}</span>
-                                        <span className="text-slate-400">Total Quantity</span>
-                                        <span>{order.items.reduce((s, i) => s + i.ordered_qty, 0)}</span>
-                                        <span className="text-slate-400">Grand Total</span>
-                                        <span>{order.currency} {money(order.grand_total)}</span>
-                                    </div>
-                                )}
-                            </section>
-                        </div>
-                    )}
-
-                    {/* Tab 4: Invoices (partial-invoicing progress) */}
-                    {activeTab === 'invoices' && (
+                    {/* Tab 3: Related Documents (document flow) */}
+                    {activeTab === 'related' && (
                         <div className="space-y-5 pt-5">
                             {(() => {
                                 const shippedTotal = shipment.items.reduce(
@@ -478,62 +457,88 @@ export default function SaleShipmentDetail({
                                     .reduce((s, iv) => s + iv.total_quantity, 0);
                                 const remaining = shippedTotal - invoicedTotal;
                                 return (
-                                    <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-                                        <div className="mb-4 flex items-center justify-between">
-                                            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                                                Invoices ({invoices.length})
-                                            </h3>
-                                            <div className="flex gap-4 text-xs font-mono">
+                                    <RelatedDocumentsPanel
+                                        source={
+                                            order
+                                                ? [
+                                                      {
+                                                          key: `so-${order.id}`,
+                                                          docType: 'Sales Order',
+                                                          number: order.order_no,
+                                                          href: `/sale/order/${order.id}/view`,
+                                                          date: order.order_date,
+                                                          status: order.status.replace('_', ' '),
+                                                          statusClass:
+                                                              ORDER_STATUS_BADGE[order.status],
+                                                          meta: [
+                                                              {
+                                                                  label: 'Customer',
+                                                                  value: order.customer_name,
+                                                              },
+                                                              {
+                                                                  label: 'Qty',
+                                                                  value: String(
+                                                                      order.items.reduce(
+                                                                          (s, i) => s + i.ordered_qty,
+                                                                          0,
+                                                                      ),
+                                                                  ),
+                                                              },
+                                                              {
+                                                                  label: 'Total',
+                                                                  value: `${order.currency} ${money(order.grand_total)}`,
+                                                              },
+                                                          ],
+                                                      },
+                                                  ]
+                                                : []
+                                        }
+                                        generated={invoices.map((iv) => ({
+                                            key: `inv-${iv.id}`,
+                                            docType: 'Invoice',
+                                            number: iv.invoice_no,
+                                            href: `/sale/invoice/${iv.id}/view`,
+                                            date: iv.invoice_date,
+                                            status: iv.status,
+                                            statusClass: INVOICE_STATUS_BADGE[iv.status],
+                                            meta: [
+                                                { label: 'Qty', value: String(iv.total_quantity) },
+                                                {
+                                                    label: 'Total',
+                                                    value: `${iv.currency} ${money(iv.grand_total)}`,
+                                                },
+                                            ],
+                                        }))}
+                                        generatedEmptyText="No invoices created for this shipment yet."
+                                        summary={
+                                            <div className="flex gap-4 font-mono text-xs">
                                                 <span className="text-slate-400">
-                                                    Shipped <span className="text-slate-700 font-semibold">{shippedTotal}</span>
+                                                    Shipped{' '}
+                                                    <span className="font-semibold text-slate-700">
+                                                        {shippedTotal}
+                                                    </span>
                                                 </span>
                                                 <span className="text-emerald-600">
-                                                    Invoiced <span className="font-semibold">{invoicedTotal}</span>
+                                                    Invoiced{' '}
+                                                    <span className="font-semibold">
+                                                        {invoicedTotal}
+                                                    </span>
                                                 </span>
-                                                <span className={remaining > 0 ? 'text-amber-600' : 'text-slate-400'}>
-                                                    Remaining <span className="font-semibold">{remaining}</span>
+                                                <span
+                                                    className={
+                                                        remaining > 0
+                                                            ? 'text-amber-600'
+                                                            : 'text-slate-400'
+                                                    }
+                                                >
+                                                    Remaining{' '}
+                                                    <span className="font-semibold">
+                                                        {remaining}
+                                                    </span>
                                                 </span>
                                             </div>
-                                        </div>
-                                        {invoices.length === 0 ? (
-                                            <p className="py-6 text-center text-sm text-slate-400">
-                                                No invoices created for this shipment yet.
-                                            </p>
-                                        ) : (
-                                            <div className="overflow-x-auto">
-                                                <table className="w-full text-xs font-mono">
-                                                    <thead>
-                                                        <tr className="border-b text-muted-foreground">
-                                                            <th className="text-left py-2 pr-3 font-medium">Invoice No</th>
-                                                            <th className="text-left py-2 pr-3 font-medium">Date</th>
-                                                            <th className="text-left py-2 pr-3 font-medium">Status</th>
-                                                            <th className="text-right py-2 pr-3 font-medium">Qty</th>
-                                                            <th className="text-right py-2 pr-3 font-medium">Total</th>
-                                                            <th className="py-2 font-medium">Action</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        {invoices.map((iv) => (
-                                                            <tr key={iv.id} className="border-b hover:bg-muted/20">
-                                                                <td className="py-2 pr-3 font-semibold text-sky-600">
-                                                                    <button onClick={() => router.push(`/sale/invoice/${iv.id}/view`)} className="hover:underline">
-                                                                        {iv.invoice_no}
-                                                                    </button>
-                                                                </td>
-                                                                <td className="py-2 pr-3">{iv.invoice_date}</td>
-                                                                <td className="py-2 pr-3">{iv.status}</td>
-                                                                <td className="py-2 pr-3 text-right">{iv.total_quantity}</td>
-                                                                <td className="py-2 pr-3 text-right font-semibold">{iv.currency} {money(iv.grand_total)}</td>
-                                                                <td className="py-2">
-                                                                    <button onClick={() => router.push(`/sale/invoice/${iv.id}/view`)} className="text-xs text-sky-500 hover:underline">View</button>
-                                                                </td>
-                                                            </tr>
-                                                        ))}
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        )}
-                                    </section>
+                                        }
+                                    />
                                 );
                             })()}
                         </div>

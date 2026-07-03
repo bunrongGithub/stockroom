@@ -3,6 +3,7 @@
 import { useRegisterModule } from '@/hook/useModule';
 import type { ModuleProps } from '@/lib/registry';
 import { saleOrderApi, saleShipmentApi } from '@/lib/api/sale';
+import { RelatedDocumentsPanel } from '@/components/ui/RelatedDocuments';
 import type {
     SalesOrder,
     SalesOrderStatus,
@@ -25,7 +26,7 @@ import {
 const TABS = [
     { id: 'info' as const, label: 'Order Information', num: 1 },
     { id: 'items' as const, label: 'Order Items', num: 2 },
-    { id: 'shipments' as const, label: 'Shipment History', num: 3 },
+    { id: 'related' as const, label: 'Related Documents', num: 3 },
 ];
 type TabId = (typeof TABS)[number]['id'];
 
@@ -51,22 +52,14 @@ function StatusBadge({ status }: { status: SalesOrderStatus }) {
     );
 }
 
-function ShipmentStatusBadge({ status }: { status: SalesShipmentStatus }) {
-    const map: Record<SalesShipmentStatus, string> = {
-        DRAFT: 'bg-gray-100 text-gray-600',
-        POSTED: 'bg-emerald-100 text-emerald-700',
-        VOID: 'bg-rose-100 text-rose-700',
-        INVOICED: 'bg-sky-100 text-sky-700',
-        PARTIALLY_INVOICED: 'bg-amber-100 text-amber-700',
-    };
-    return (
-        <span
-            className={`inline-block rounded-full px-2 py-0.5 text-xs font-mono ${map[status]}`}
-        >
-            {status}
-        </span>
-    );
-}
+// Badge classes handed to the presentational RelatedDocumentsPanel.
+const SHIPMENT_STATUS_BADGE: Record<SalesShipmentStatus, string> = {
+    DRAFT: 'bg-gray-100 text-gray-600',
+    POSTED: 'bg-emerald-100 text-emerald-700',
+    VOID: 'bg-rose-100 text-rose-700',
+    INVOICED: 'bg-sky-100 text-sky-700',
+    PARTIALLY_INVOICED: 'bg-amber-100 text-amber-700',
+};
 
 function fmt(n: number) {
     return n.toLocaleString('en-US', {
@@ -494,85 +487,29 @@ export default function SaleOrderDetail({
                         </div>
                     )}
 
-                    {/* Tab 3: Shipment History */}
-                    {activeTab === 'shipments' && (
+                    {/* Tab 3: Related Documents (document flow) */}
+                    {activeTab === 'related' && (
                         <div className="space-y-5 pt-5">
-                            <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-                                <h3 className="mb-4 text-xs font-bold uppercase tracking-wider text-slate-500">
-                                    Shipment History
-                                </h3>
-                                {shipments.length === 0 ? (
-                                    <p className="py-8 text-center text-sm text-slate-400">
-                                        No shipments have been created for this order yet.
-                                    </p>
-                                ) : (
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full text-xs font-mono">
-                                            <thead>
-                                                <tr className="border-b text-muted-foreground">
-                                                    <th className="text-left py-2 pr-3 font-medium">
-                                                        Shipment No
-                                                    </th>
-                                                    <th className="text-left py-2 pr-3 font-medium">
-                                                        Delivery Date
-                                                    </th>
-                                                    <th className="text-left py-2 pr-3 font-medium">
-                                                        Receiver
-                                                    </th>
-                                                    <th className="text-left py-2 pr-3 font-medium">
-                                                        Status
-                                                    </th>
-                                                    <th className="py-2 font-medium">Action</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {shipments.map((s) => (
-                                                    <tr
-                                                        key={s.id}
-                                                        className="border-b hover:bg-muted/20"
-                                                    >
-                                                        <td className="py-2 pr-3 font-semibold text-sky-600">
-                                                            <button
-                                                                onClick={() =>
-                                                                    router.push(
-                                                                        `/sale/delivery-note/${s.id}/view`,
-                                                                    )
-                                                                }
-                                                                className="hover:underline"
-                                                            >
-                                                                {s.shipment_no}
-                                                            </button>
-                                                        </td>
-                                                        <td className="py-2 pr-3">
-                                                            {s.delivery_date}
-                                                        </td>
-                                                        <td className="py-2 pr-3">
-                                                            {s.receiver_name || '—'}
-                                                        </td>
-                                                        <td className="py-2 pr-3">
-                                                            <ShipmentStatusBadge
-                                                                status={s.status}
-                                                            />
-                                                        </td>
-                                                        <td className="py-2">
-                                                            <button
-                                                                onClick={() =>
-                                                                    router.push(
-                                                                        `/sale/delivery-note/${s.id}/view`,
-                                                                    )
-                                                                }
-                                                                className="text-xs text-sky-500 hover:underline"
-                                                            >
-                                                                View
-                                                            </button>
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                )}
-                            </section>
+                            <RelatedDocumentsPanel
+                                source={[]}
+                                sourceEmptyText="This sales order is the start of the document flow."
+                                generated={shipments.map((s) => ({
+                                    key: `sh-${s.id}`,
+                                    docType: 'Shipment',
+                                    number: s.shipment_no,
+                                    href: `/sale/delivery-note/${s.id}/view`,
+                                    date: s.delivery_date,
+                                    status: s.status.replace('_', ' '),
+                                    statusClass: SHIPMENT_STATUS_BADGE[s.status],
+                                    meta: [
+                                        {
+                                            label: 'Receiver',
+                                            value: s.receiver_name || '—',
+                                        },
+                                    ],
+                                }))}
+                                generatedEmptyText="No shipments have been created for this order yet."
+                            />
                         </div>
                     )}
                 </div>
