@@ -7,6 +7,7 @@ import {
   FieldLabel,
 } from '@/components/ui/FieldLabel';
 import { ReadonlyInput } from '@/components/ui/Readonly';
+import { useUserProfile } from '@/context/UserProfileContext';
 import {
   AlertCircle,
   ArrowLeft,
@@ -24,7 +25,6 @@ import {
   User,
   X,
 } from 'lucide-react';
-import { useUserProfile } from '@/context/UserProfileContext';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -63,6 +63,7 @@ type FormValues = {
   is_sellable: boolean;
   is_returnable: boolean;
   is_warranty: boolean;
+  track_serial: boolean;
   warranty_duration: string;
   default_warehouse_id: number | null;
   default_warehouse: Warehose | null;
@@ -167,6 +168,7 @@ export default function StockCreateForm() {
       is_sellable: true,
       is_returnable: false,
       is_warranty: false,
+      track_serial: false,
       warranty_duration: '',
       default_warehouse_id: null,
       default_warehouse: null,
@@ -204,6 +206,7 @@ export default function StockCreateForm() {
         is_sellable: data.is_sellable,
         is_returnable: data.is_returnable,
         is_warranty: data.is_warranty,
+        track_serial: data.track_serial,
         warranty_duration: data.is_warranty
           ? data.warranty_duration || null
           : null,
@@ -701,6 +704,19 @@ export default function StockCreateForm() {
                         icon={<ShieldCheck size={16} />}
                         label="Has Warranty"
                         description="This item comes with a warranty"
+                      />
+                    )}
+                  />
+                  <Controller
+                    name="track_serial"
+                    control={control}
+                    render={({ field }) => (
+                      <ToggleCheckbox
+                        checked={field.value ?? false}
+                        onChange={field.onChange}
+                        icon={<Package size={16} />}
+                        label="Track Serial Numbers"
+                        description="Require serial number entry for receipts and shipments"
                       />
                     )}
                   />

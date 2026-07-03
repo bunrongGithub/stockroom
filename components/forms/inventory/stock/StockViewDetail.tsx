@@ -15,6 +15,7 @@ import {
   Clock,
   Edit2,
   MapPin,
+  Package,
   Percent,
   RotateCcw,
   ScanBarcode,
@@ -23,7 +24,8 @@ import {
   Warehouse,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
+import { API } from '@/lib/constant';
 import ItemMovementPanel from './ItemMovementPanel';
 
 export type StockViewItem = {
@@ -42,6 +44,7 @@ export type StockViewItem = {
   is_sellable: boolean;
   is_returnable: boolean;
   is_warranty: boolean;
+  track_serial?: boolean;
   warranty_duration: string | null;
   category_id: number | null;
   uom_id: number | null;
@@ -65,6 +68,7 @@ const TABS = [
   { id: 'pricing' as const, label: 'Pricing Details', num: 2 },
   { id: 'options' as const, label: 'More Options', num: 3 },
   { id: 'inventory' as const, label: 'Inventory', num: 4 },
+  { id: 'serials' as const, label: 'Serial Numbers', num: 5 },
 ];
 type TabId = (typeof TABS)[number]['id'];
 
@@ -123,8 +127,190 @@ function ReadonlyToggle({
   );
 }
 
+type SerialRow = {
+  id: number;
+  serial_number: string;
+  status: string;
+  warehouse_name: string;
+  location_name: string;
+  receipt_reference: string | null;
+  sale_reference: string | null;
+};
+
+type SerialHistoryRow = {
+  id: number;
+  transaction_type: string;
+  status: string;
+  warehouse_name: string | null;
+  location_name: string | null;
+  created_at: string;
+};
+
+const SERIAL_STATUS_BADGE: Record<string, string> = {
+  available: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  sold: 'bg-slate-100 text-slate-600 border-slate-200',
+  reserved: 'bg-amber-50 text-amber-700 border-amber-200',
+  returned: 'bg-blue-50 text-blue-700 border-blue-200',
+  damaged: 'bg-rose-50 text-rose-700 border-rose-200',
+  scrapped: 'bg-rose-50 text-rose-700 border-rose-200',
+};
+
+function SerialNumbersTab({ itemId }: { itemId: number }) {
+  const [rows, setRows] = useState<SerialRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [expanded, setExpanded] = useState<number | null>(null);
+  const [history, setHistory] = useState<Record<number, SerialHistoryRow[]>>(
+    {},
+  );
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    fetch(API.inventory.item.serials(itemId))
+      .then((r) => r.json())
+      .then((j) => {
+        if (!active) return;
+        const data = Array.isArray(j.data) ? j.data : (j.data?.data ?? []);
+        setRows(data);
+      })
+      .catch(() => active && setError('Failed to load serial numbers.'))
+      .finally(() => active && setLoading(false));
+    return () => {
+      active = false;
+    };
+  }, [itemId]);
+
+  async function toggle(serialId: number) {
+    if (expanded === serialId) {
+      setExpanded(null);
+      return;
+    }
+    setExpanded(serialId);
+    if (!history[serialId]) {
+      try {
+        const res = await fetch(API.inventory.serial.history(serialId));
+        const j = await res.json();
+        const data = Array.isArray(j.data) ? j.data : (j.data?.data ?? []);
+        setHistory((prev) => ({ ...prev, [serialId]: data }));
+      } catch {
+        setHistory((prev) => ({ ...prev, [serialId]: [] }));
+      }
+    }
+  }
+
+  if (loading)
+    return <p className="py-8 text-center text-sm text-slate-400">Loading…</p>;
+  if (error)
+    return <p className="py-8 text-center text-sm text-rose-500">{error}</p>;
+  if (rows.length === 0)
+    return (
+      <p className="py-8 text-center text-sm text-slate-400">
+        No serial numbers recorded for this item yet.
+      </p>
+    );
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="border-b text-slate-500">
+            <th className="py-2 pr-3 text-left font-medium">Serial</th>
+            <th className="py-2 pr-3 text-left font-medium">Warehouse</th>
+            <th className="py-2 pr-3 text-left font-medium">Location</th>
+            <th className="py-2 pr-3 text-left font-medium">Status</th>
+            <th className="py-2 pr-3 text-left font-medium">Receipt</th>
+            <th className="py-2 pr-3 text-left font-medium">Sale</th>
+            <th className="py-2 font-medium" />
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((s) => (
+            <Fragment key={s.id}>
+              <tr className="border-b hover:bg-slate-50/60">
+                <td className="py-2 pr-3 font-mono font-semibold">
+                  {s.serial_number}
+                </td>
+                <td className="py-2 pr-3">{s.warehouse_name}</td>
+                <td className="py-2 pr-3">{s.location_name}</td>
+                <td className="py-2 pr-3">
+                  <span
+                    className={`inline-block rounded-full border px-2 py-0.5 text-[11px] font-medium capitalize ${
+                      SERIAL_STATUS_BADGE[s.status] ??
+                      'bg-slate-100 text-slate-600 border-slate-200'
+                    }`}
+                  >
+                    {s.status}
+                  </span>
+                </td>
+                <td className="py-2 pr-3 font-mono text-slate-500">
+                  {s.receipt_reference ?? '—'}
+                </td>
+                <td className="py-2 pr-3 font-mono text-slate-500">
+                  {s.sale_reference ?? '—'}
+                </td>
+                <td className="py-2 text-right">
+                  <button
+                    type="button"
+                    onClick={() => toggle(s.id)}
+                    className="text-[11px] text-sky-600 hover:underline"
+                  >
+                    {expanded === s.id ? 'Hide' : 'History'}
+                  </button>
+                </td>
+              </tr>
+              {expanded === s.id && (
+                <tr>
+                  <td colSpan={7} className="bg-slate-50 px-4 py-3">
+                    {!history[s.id] ? (
+                      <p className="text-[11px] text-slate-400">Loading…</p>
+                    ) : history[s.id].length === 0 ? (
+                      <p className="text-[11px] text-slate-400">
+                        No history recorded.
+                      </p>
+                    ) : (
+                      <ol className="space-y-1">
+                        {history[s.id].map((h) => (
+                          <li
+                            key={h.id}
+                            className="flex items-center gap-2 text-[11px] font-mono text-slate-600"
+                          >
+                            <span className="text-slate-400">
+                              {new Date(h.created_at).toLocaleString()}
+                            </span>
+                            <span className="font-semibold capitalize">
+                              {h.transaction_type}
+                            </span>
+                            <span>→ {h.status}</span>
+                            {h.warehouse_name && (
+                              <span className="text-slate-400">
+                                @ {h.warehouse_name}
+                                {h.location_name
+                                  ? ` / ${h.location_name}`
+                                  : ''}
+                              </span>
+                            )}
+                          </li>
+                        ))}
+                      </ol>
+                    )}
+                  </td>
+                </tr>
+              )}
+            </Fragment>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export default function StockViewDetail({ item }: { item: StockViewItem }) {
   const [activeTab, setActiveTab] = useState<TabId>('details');
+  // The Serial Numbers tab only applies to serial-tracked items.
+  const visibleTabs = TABS.filter(
+    (t) => t.id !== 'serials' || Boolean(item.track_serial),
+  );
 
   const profit = (item.price ?? 0) - (item.cost ?? 0);
   const profitMargin =
@@ -136,7 +322,7 @@ export default function StockViewDetail({ item }: { item: StockViewItem }) {
   return (
     <div className="mx-auto space-y-2 font-mono">
       {/* Header */}
-      <div className='font-bold'>
+      <div className="font-bold">
         <Link
           href="/inventory/configurations/stock"
           className="inline-flex items-center gap-2 text-sm text-slate-500 transition-colors hover:text-slate-700"
@@ -231,7 +417,7 @@ export default function StockViewDetail({ item }: { item: StockViewItem }) {
         <div>
           {/* Tab nav */}
           <div className="flex gap-0 border-b border-slate-200 text-xs">
-            {TABS.map((tab) => (
+            {visibleTabs.map((tab) => (
               <button
                 key={tab.id}
                 type="button"
@@ -296,13 +482,17 @@ export default function StockViewDetail({ item }: { item: StockViewItem }) {
 
               <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
                 <h3 className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
-                  <Warehouse size={13} className="text-[#1a9e52]" /> Warehouse &amp; Location
+                  <Warehouse size={13} className="text-[#1a9e52]" /> Warehouse
+                  &amp; Location
                 </h3>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <FieldLabel>Default Warehouse</FieldLabel>
                     <div className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-slate-700">
-                      <Warehouse size={13} className="shrink-0 text-[#1a9e52]" />
+                      <Warehouse
+                        size={13}
+                        className="shrink-0 text-[#1a9e52]"
+                      />
                       {item.default_warehouse?.name ?? (
                         <span className="text-slate-400">—</span>
                       )}
@@ -443,6 +633,12 @@ export default function StockViewDetail({ item }: { item: StockViewItem }) {
                     description="Item comes with a warranty"
                   />
                   <ReadonlyToggle
+                    checked={Boolean(item.track_serial)}
+                    icon={<Package size={16} />}
+                    label="Track Serial Numbers"
+                    description="Serial numbers are required for receipts and shipments"
+                  />
+                  <ReadonlyToggle
                     checked={item.is_discount}
                     icon={<Percent size={16} />}
                     label="Discountable"
@@ -488,6 +684,12 @@ export default function StockViewDetail({ item }: { item: StockViewItem }) {
                 itemId={item.id}
                 baseUomName={item.uom?.name ?? undefined}
               />
+            </div>
+          )}
+
+          {activeTab === 'serials' && (
+            <div className="pt-5">
+              <SerialNumbersTab itemId={item.id} />
             </div>
           )}
         </div>

@@ -2,6 +2,7 @@ import {
     generateSequenNumbering,
     generateSKU,
 } from '@/lib/utils/sequenumbering';
+import { NotFoundError } from '@/service/core/api-response';
 import { BaseRepository } from '@/service/core/base-repository';
 import {
     type PaginatedResult,
@@ -14,7 +15,6 @@ import type {
 import type { RequestContext } from '@/types/request-context';
 import { ItemUomRepository } from './item-uom';
 import { InventoryUomRepository } from './uom';
-import { NotFoundError } from '@/service/core/api-response';
 
 export type InventoryItem = {
     id: number;
@@ -32,6 +32,7 @@ export type InventoryItem = {
     is_sellable: boolean;
     is_returnable: boolean;
     is_warranty: boolean;
+    track_serial: boolean;
     warranty_duration: string | null;
     category_id: number | null;
     uom_id: number | null;
@@ -117,6 +118,12 @@ export class InventoryRepository extends BaseRepository {
         ctx: RequestContext,
         input: CreateInventoryInput,
     ): Promise<InventoryItem> {
+        if (input.item_class !== 'stock' && input.track_serial) {
+            throw new Error(
+                'Serial tracking is only supported for stock items',
+            );
+        }
+
         const prefix = input.item_class === 'non_stock' ? 'NSTK' : 'STCK';
         const referenceNo = generateSequenNumbering(prefix);
         const sku = input.sku ? input.sku : generateSKU('SKU');
@@ -175,6 +182,15 @@ export class InventoryRepository extends BaseRepository {
             throw new NotFoundError(
                 `Stock item not found for the given id: ${id}`,
             ).toResponse();
+
+        // Guard on the EFFECTIVE class: a partial update may omit item_class,
+        // so fall back to the item's current class before allowing track_serial.
+        const effectiveClass = input.item_class ?? stockItem.item_class;
+        if (input.track_serial && effectiveClass !== 'stock') {
+            throw new Error(
+                'Serial tracking is only supported for stock items',
+            );
+        }
 
         // update item
         const { data, error } = await this.applyFilter(

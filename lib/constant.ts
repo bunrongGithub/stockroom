@@ -73,6 +73,13 @@ export const API = {
             stock: (id: Id) => `/api/inventory/items/${id}/stock`,
             movements: (id: Id) => `/api/inventory/items/${id}/movements`,
             transactions: (id: Id) => `/api/inventory/items/${id}/transactions`,
+            serials: (id: Id) => `/api/inventory/items/${id}/serials`,
+        },
+
+        // Serial number tracking
+        serial: {
+            root: '/api/inventory/serial',
+            history: (id: Id) => `/api/inventory/serial/${id}/history`,
         },
 
         stockLocation: resource('/api/inventory/stock-location'),

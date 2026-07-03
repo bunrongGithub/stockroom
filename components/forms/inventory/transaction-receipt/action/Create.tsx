@@ -1,5 +1,6 @@
 'use client';
 
+import AsyncSearchSelect from '@/components/ui/AsyncSearchSelect';
 import {
   EditableInput,
   EditableTextarea,
@@ -7,6 +8,8 @@ import {
 } from '@/components/ui/FieldLabel';
 import { ReadonlyInput } from '@/components/ui/Readonly';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { API } from '@/lib/constant';
+import type { InventoryMovemtTypeReasonMeta } from '@/service/apps/inventory/repo/receipt';
 import {
   ArrowLeftIcon,
   ChevronDown,
@@ -20,15 +23,12 @@ import {
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { Controller, useFieldArray, useForm } from 'react-hook-form';
-import type { InventoryMovemtTypeReasonMeta } from '@/service/apps/inventory/repo/receipt';
 import { REASON_META } from '../columns';
 import FormDialog from './ItemFormModal';
 import ReceiptItemFields, {
   DEFAULT_LINE,
   type LineItem,
 } from './ReceiptItemFields';
-import AsyncSearchSelect from '@/components/ui/AsyncSearchSelect';
-import { API } from '@/lib/constant';
 
 const REASON_OPTIONS = Object.keys(
   REASON_META,
@@ -201,6 +201,7 @@ export default function Create() {
           unit_cost: Number(item.unit_cost),
           lot_number: item.lot_number || null,
           purchased_date: item.purchased_date || null,
+          serial_numbers: item.serial_numbers ?? [],
         })),
       };
 

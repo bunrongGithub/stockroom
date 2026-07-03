@@ -1,23 +1,23 @@
-import type {
-    CreateReceiptInput,
-    CreateReceiptLineInput,
-    UpdateReceiptInput,
-} from '@/service/schema/receipt.schema';
-import type {
-    PaginationParams,
-    PaginatedResult,
-} from '@/service/core/pagination';
-import { BaseRepository } from '@/service/core/base-repository';
-import type { RequestContext } from '@/types/request-context';
 import { generateSequenNumbering } from '@/lib/utils/sequenumbering';
 import {
     ApiError,
     BadRequesstExceptionError,
     NotFoundError,
-    ValidationError,
 } from '@/service/core/api-response';
+import { BaseRepository } from '@/service/core/base-repository';
+import type {
+    PaginatedResult,
+    PaginationParams,
+} from '@/service/core/pagination';
+import type {
+    CreateReceiptInput,
+    CreateReceiptLineInput,
+    UpdateReceiptInput,
+} from '@/service/schema/receipt.schema';
+import type { RequestContext } from '@/types/request-context';
 import { ItemUomRepository } from './item-uom';
 import { MovementRepository } from './movement';
+import { InventorySerialRepository } from './serial';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export type InventoryTxnMovementType =
@@ -42,6 +42,7 @@ export type ReceiptItemType = {
     uom_id: number;
     item_uom_id: number | null;
     receipt_qty: number;
+    serial_numbers?: string[];
     conversion_factor: number;
     base_qty_received: number;
     lot_number: string | null;
@@ -155,10 +156,14 @@ export class ReceiptItemRepository extends BaseRepository {
                     lot_number: item.lot_number ?? null,
                     purchased_date: item.purchased_date ?? null,
                     unit_cost: item.unit_cost ?? null,
+                    serial_numbers: item.serial_numbers ?? [],
                 };
             }),
         );
 
+        // Serial numbers are persisted on the line (JSONB input carrier) but the
+        // inventory_serial records are only created when the receipt is POSTED
+        // (see ReceiptRepository.postReceipt) — i.e. when stock actually exists.
         const { data, error } = await this.db
             .from(LINE_TABLE)
             .insert(rows)
@@ -277,7 +282,9 @@ export class ReceiptRepository extends BaseRepository {
         if (headerError) throw new ApiError(headerError.message, 500);
 
         if (items) {
-            // Full replace strategy: delete existing lines then re-insert
+            // Full replace strategy: delete existing lines then re-insert.
+            // Serials are (re)created only at POST, so nothing to do here beyond
+            // persisting the serial_numbers JSONB carried on each line.
             await this.db.from(LINE_TABLE).delete().eq('receipt_id', id);
             const lineRows = items.map((line) => ({ ...line, receipt_id: id }));
             const { error: lineError } = await this.db
@@ -316,6 +323,29 @@ export class ReceiptRepository extends BaseRepository {
 
         const movementItems = await Promise.all(
             receipt.items.map(async (item) => {
+                const itemMeta = await this.db
+                    .from('inventory_item')
+                    .select('id, track_serial')
+                    .eq('id', item.item_id)
+                    .single();
+                if (itemMeta.error)
+                    throw new ApiError(itemMeta.error.message, 500);
+
+                if (itemMeta.data?.track_serial) {
+                    const serials =
+                        (
+                            item as ReceiptItemType & {
+                                serial_numbers?: string[];
+                            }
+                        ).serial_numbers ?? [];
+                    if (serials.length !== Number(item.receipt_qty)) {
+                        throw new ApiError(
+                            'Serial numbers must match the receipt quantity.',
+                            400,
+                            'SERIAL_QUANTITY',
+                        );
+                    }
+                }
                 const enteredUom = item.item_uom_id
                     ? await itemUomService.findOne(ctx, item.item_uom_id)
                     : null;
@@ -350,7 +380,35 @@ export class ReceiptRepository extends BaseRepository {
             items: movementItems,
         });
 
-        // ── 3. Mark receipt as POSTED ─────────────────────────────────────
+        // ── 3. Create serial records for serial-tracked lines ─────────────
+        // Now that stock exists, materialise one inventory_serial (Available)
+        // per entered serial + its initial history row.
+        const serialRepo = InventorySerialRepository.getInstance();
+        const trackItemIds = [...new Set(receipt.items.map((i) => i.item_id))];
+        const { data: trackRows } = await this.db
+            .from('inventory_item')
+            .select('id, track_serial')
+            .in('id', trackItemIds);
+        const trackMap = new Map(
+            (trackRows ?? []).map((r) => [r.id, r.track_serial]),
+        );
+        for (const item of receipt.items) {
+            if (!trackMap.get(item.item_id)) continue;
+            const serials =
+                (item as ReceiptItemType & { serial_numbers?: string[] })
+                    .serial_numbers ?? [];
+            if (!serials.length) continue;
+            await serialRepo.createForReceipt(
+                ctx,
+                item.item_id,
+                item.warehouse_id,
+                item.location_id,
+                item.id,
+                serials,
+            );
+        }
+
+        // ── 4. Mark receipt as POSTED ─────────────────────────────────────
         const { error: postErr } = await this.db
             .from(HEADER_TABLE)
             .update({ status: 'POSTED' })

@@ -43,6 +43,7 @@ export type StockEditItem = {
   is_sellable: boolean;
   is_returnable: boolean;
   is_warranty: boolean;
+  track_serial?: boolean;
   warranty_duration: string | null;
   category_id: number | null;
   uom_id: number | null;
@@ -150,6 +151,9 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
     is_sellable: item.is_sellable,
     is_returnable: item.is_returnable,
     is_warranty: item.is_warranty || !!item.warranty_duration,
+    track_serial: Boolean(
+      (item as StockEditItem & { track_serial?: boolean }).track_serial,
+    ),
     warranty_duration: item.warranty_duration ?? '',
     default_warehouse_id: item.default_warehouse_id ?? null,
     default_warehouse: item.default_warehouse ?? null,
@@ -189,6 +193,7 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
         is_sellable: formData.is_sellable,
         is_returnable: formData.is_returnable,
         is_warranty: formData.is_warranty,
+        track_serial: formData.track_serial,
         warranty_duration: formData.is_warranty
           ? formData.warranty_duration || null
           : null,
@@ -459,7 +464,10 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
                             ? Number(selected.id)
                             : null,
                           default_warehouse: selected
-                            ? { id: Number(selected.id), name: selected.name ?? '' }
+                            ? {
+                                id: Number(selected.id),
+                                name: selected.name ?? '',
+                              }
                             : null,
                           default_location_id: null,
                           default_location: null,
@@ -484,14 +492,19 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
                               ? Number(selected.id)
                               : null,
                             default_location: selected
-                              ? { id: Number(selected.id), name: selected.name ?? '' }
+                              ? {
+                                  id: Number(selected.id),
+                                  name: selected.name ?? '',
+                                }
                               : null,
                           }))
                         }
                       />
                     ) : (
                       <div className="space-y-1.5">
-                        <label className="text-xs font-medium text-slate-600">Default Location</label>
+                        <label className="text-xs font-medium text-slate-600">
+                          Default Location
+                        </label>
                         <div className="w-full cursor-not-allowed rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-slate-400">
                           Select a warehouse first
                         </div>
@@ -646,6 +659,15 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
                     icon={<ShieldCheck size={16} />}
                     label="Has Warranty"
                     description="This item comes with a warranty"
+                  />
+                  <ToggleCheckbox
+                    checked={formData.track_serial}
+                    onChange={(val) =>
+                      setFormData((p) => ({ ...p, track_serial: val }))
+                    }
+                    icon={<Package size={16} />}
+                    label="Track Serial Numbers"
+                    description="Require serial number entry for receipts and shipments"
                   />
                   <ToggleCheckbox
                     checked={formData.is_discount}

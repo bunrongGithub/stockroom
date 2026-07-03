@@ -29,6 +29,7 @@ export interface SalesOrderItem {
     id: number;
     item_id: number;
     item_uom_id: number | null;
+    track_serial: boolean;
     product_name: string;
     description: string;
     uom: string;
@@ -68,6 +69,7 @@ export interface SalesShipmentItem {
     id: number;
     sales_order_item_id: number;
     item_id: number;
+    track_serial: boolean;
     product_name: string;
     location_id: number;
     location_name: string;
@@ -76,6 +78,7 @@ export interface SalesShipmentItem {
     ordered_qty: number;
     previously_shipped_qty: number;
     shipment_qty: number;
+    serial_numbers?: string[];
 }
 
 export interface SalesShipment {
@@ -84,6 +87,7 @@ export interface SalesShipment {
     sales_order_id: number;
     sales_order_no: string;
     customer_name: string | null;
+    customer_phone: string | null;
     delivery_date: string;
     warehouse_id: number;
     warehouse_name: string;
@@ -100,6 +104,9 @@ export interface SalesShipment {
 // ── Create payloads (frontend → API) ──────────────────────────────────────────
 
 export interface CreateSalesOrderLinePayload {
+    // Present on edit for existing lines so the backend can sync (update) them
+    // instead of inserting duplicates; omitted for newly added lines.
+    id?: number;
     item_id: number;
     item_uom_id?: number | null;
     description?: string;
@@ -129,11 +136,13 @@ export interface CreateSalesShipmentLinePayload {
     ordered_qty: number;
     previously_shipped_qty: number;
     shipment_qty: number;
+    serial_numbers?: string[];
 }
 
 export interface CreateSalesShipmentPayload {
     sales_order_id: number;
     customer_name?: string;
+    customer_phone?: string;
     delivery_date: string;
     warehouse_id: number;
     receiver_name?: string;

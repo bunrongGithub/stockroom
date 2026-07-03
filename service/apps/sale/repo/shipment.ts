@@ -1,25 +1,27 @@
+import { generateSequenNumbering } from '@/lib/utils/sequenumbering';
+import { ItemUomRepository } from '@/service/apps/inventory/repo/item-uom';
+import { MovementRepository } from '@/service/apps/inventory/repo/movement';
+import { InventorySerialRepository } from '@/service/apps/inventory/repo/serial';
+import { validateSerialSelection } from '@/service/apps/inventory/repo/serial-validation';
+import { ApiError, NotFoundError } from '@/service/core/api-response';
 import { BaseRepository } from '@/service/core/base-repository';
 import type {
-    PaginationParams,
     PaginatedResult,
+    PaginationParams,
 } from '@/service/core/pagination';
-import type { RequestContext } from '@/types/request-context';
-import { generateSequenNumbering } from '@/lib/utils/sequenumbering';
-import { ApiError, NotFoundError } from '@/service/core/api-response';
-import { MovementRepository } from '@/service/apps/inventory/repo/movement';
-import { ItemUomRepository } from '@/service/apps/inventory/repo/item-uom';
-import { SalesOrderRepository } from './order';
 import type {
     CreateSalesShipmentInput,
     UpdateSalesShipmentInput,
 } from '@/service/schema/sale-shipment.schema';
+import type { RequestContext } from '@/types/request-context';
 import type {
+    SalesOrder,
     SalesShipment,
+    SalesShipmentActions,
     SalesShipmentItem,
     SalesShipmentStatus,
-    SalesShipmentActions,
 } from '@/types/sales/order-management';
-import type { SalesOrder } from '@/types/sales/order-management';
+import { SalesOrderRepository } from './order';
 
 const HEADER_TABLE = 'sales_shipment' as const;
 const LINE_TABLE = 'sales_shipment_items' as const;
@@ -27,7 +29,7 @@ const LINE_TABLE = 'sales_shipment_items' as const;
 const SELECT_LIST =
     '*, sales_order:sales_order(id, order_no), warehouse:warehouse(id, name)';
 const SELECT_DETAIL =
-    '*, sales_order:sales_order(id, order_no), warehouse:warehouse(id, name), items:sales_shipment_items(*, item:inventory_item(id, name), location:warehouse_location(id, name), item_uom:inventory_item_uom(id, name, display_name))';
+    '*, sales_order:sales_order(id, order_no), warehouse:warehouse(id, name), items:sales_shipment_items(*, item:inventory_item(id, name, track_serial), location:warehouse_location(id, name), item_uom:inventory_item_uom(id, name, display_name))';
 
 /** Only DRAFT shipments can be edited, posted, or voided (POSTED is immutable). */
 export function computeShipmentActions(
@@ -44,6 +46,7 @@ function mapShipmentItem(r: any): SalesShipmentItem {
         sales_order_item_id: r.sales_order_item_id,
         item_id: r.item_id,
         product_name: r.item?.name ?? `#${r.item_id}`,
+        track_serial: r.item?.track_serial ?? false,
         location_id: r.location_id,
         location_name: r.location?.name ?? '',
         item_uom_id: r.item_uom_id ?? null,
@@ -51,6 +54,7 @@ function mapShipmentItem(r: any): SalesShipmentItem {
         ordered_qty: Number(r.ordered_qty),
         previously_shipped_qty: Number(r.previously_shipped_qty),
         shipment_qty: Number(r.shipment_qty),
+        serial_numbers: Array.isArray(r.serial_numbers) ? r.serial_numbers : [],
     };
 }
 
@@ -62,6 +66,7 @@ function mapShipment(r: any): SalesShipment {
         sales_order_id: r.sales_order_id,
         sales_order_no: r.sales_order?.order_no ?? '',
         customer_name: r.customer_name ?? null,
+        customer_phone: r.customer_phone ?? null,
         delivery_date: r.delivery_date,
         warehouse_id: r.warehouse_id,
         warehouse_name: r.warehouse?.name ?? '',
@@ -136,6 +141,7 @@ export class SalesShipmentRepository extends BaseRepository {
                 shipment_no,
                 sales_order_id: input.sales_order_id,
                 customer_name: input.customer_name ?? order.customer_name,
+                customer_phone: input.customer_phone ?? order.customer_phone,
                 delivery_date: input.delivery_date,
                 warehouse_id: input.warehouse_id ?? order.warehouse_id,
                 status: 'DRAFT',
@@ -178,6 +184,7 @@ export class SalesShipmentRepository extends BaseRepository {
             .from(HEADER_TABLE)
             .update({
                 customer_name: input.customer_name ?? null,
+                customer_phone: input.customer_phone ?? null,
                 delivery_date: input.delivery_date,
                 warehouse_id: input.warehouse_id,
                 receiver_name: input.receiver_name ?? null,
@@ -243,6 +250,7 @@ export class SalesShipmentRepository extends BaseRepository {
 
         const itemUomService = ItemUomRepository.getInstance();
         const orderService = SalesOrderRepository.getInstance();
+        const serialRepo = InventorySerialRepository.getInstance();
 
         // Build movement lines, converting entered qty → base UOM.
         const movementItems = await Promise.all(
@@ -269,6 +277,71 @@ export class SalesShipmentRepository extends BaseRepository {
             }),
         );
 
+        // Validate serial selections BEFORE moving stock. For each serial-tracked
+        // line: count must match qty, and every serial must exist as `available`
+        // in the shipment's warehouse + the line's location (§10/§11/§12). The
+        // resolved serial ids are captured so they can be marked sold post-move.
+        const serialItemIds = [...new Set(shipment.items.map((l) => l.item_id))];
+        const { data: trackRows, error: trackErr } = await this.db
+            .from('inventory_item')
+            .select('id, track_serial')
+            .in('id', serialItemIds);
+        if (trackErr) throw new ApiError(trackErr.message, 500);
+        const trackMap = new Map(
+            (trackRows ?? []).map((r) => [r.id, r.track_serial]),
+        );
+
+        const serialPlan: {
+            lineId: number;
+            serialIds: number[];
+            locationId: number;
+        }[] = [];
+        for (const line of shipment.items) {
+            if (!trackMap.get(line.item_id)) continue;
+            const serials = [
+                ...new Set(
+                    (
+                        (line as typeof line & { serial_numbers?: string[] })
+                            .serial_numbers ?? []
+                    )
+                        .map((s) => s.trim())
+                        .filter(Boolean),
+                ),
+            ];
+            try {
+                validateSerialSelection({
+                    quantity: Number(line.shipment_qty),
+                    serials,
+                });
+            } catch (e) {
+                throw new ApiError(
+                    e instanceof Error
+                        ? e.message
+                        : 'Invalid serial selection',
+                    400,
+                    'SERIAL_QUANTITY',
+                );
+            }
+            const rows = await serialRepo.findSelectableForSale(ctx, {
+                itemId: line.item_id,
+                warehouseId: shipment.warehouse_id,
+                locationId: line.location_id,
+                serialNumbers: serials,
+            });
+            if (rows.length !== serials.length) {
+                throw new ApiError(
+                    `One or more serials for "${line.product_name}" are not available in the selected warehouse/location.`,
+                    400,
+                    'SERIAL_UNAVAILABLE',
+                );
+            }
+            serialPlan.push({
+                lineId: line.id,
+                serialIds: rows.map((r) => r.id),
+                locationId: line.location_id,
+            });
+        }
+
         // 1. Stock movement — throws INSUFFICIENT_STOCK (422) if unavailable.
         await MovementRepository.getInstance().createMovement(ctx, {
             movement_type: 'SALE_SHIPMENT',
@@ -290,6 +363,17 @@ export class SalesShipmentRepository extends BaseRepository {
         );
         await orderService.recomputeStatus(ctx, shipment.sales_order_id);
 
+        // 3. Mark the resolved serials sold (guarded update + history).
+        for (const plan of serialPlan) {
+            await serialRepo.markSoldByIds(
+                ctx,
+                plan.serialIds,
+                plan.lineId,
+                shipment.warehouse_id,
+                plan.locationId,
+            );
+        }
+
         // 3. Mark posted.
         const { error } = await this.db
             .from(HEADER_TABLE)
@@ -306,7 +390,11 @@ export class SalesShipmentRepository extends BaseRepository {
         const existing = await this.findOne(ctx, id);
         if (!existing) throw new NotFoundError('Shipment not found');
         if (existing.status === 'VOID') {
-            throw new ApiError('Shipment is already voided', 400, 'INVALID_STATUS');
+            throw new ApiError(
+                'Shipment is already voided',
+                400,
+                'INVALID_STATUS',
+            );
         }
         if (existing.status === 'POSTED') {
             throw new ApiError(
@@ -389,6 +477,7 @@ export class SalesShipmentRepository extends BaseRepository {
             ordered_qty: l.ordered_qty ?? 0,
             previously_shipped_qty: l.previously_shipped_qty ?? 0,
             shipment_qty: l.shipment_qty,
+            serial_numbers: l.serial_numbers ?? [],
         }));
         const { error } = await this.db.from(LINE_TABLE).insert(rows);
         if (error) throw new ApiError(error.message, 500);

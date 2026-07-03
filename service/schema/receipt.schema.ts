@@ -17,6 +17,7 @@ const receiptItemBaseSchema = {
     lot_number: z.string().optional().nullable(),
     purchased_date: z.string().optional().nullable(),
     unit_cost: z.number().min(0).optional().nullable(),
+    serial_numbers: z.array(z.string().trim().min(1)).optional().default([]),
 };
 
 export const createReceiptLineSchema = z.object(receiptItemBaseSchema);

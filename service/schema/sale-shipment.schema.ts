@@ -9,7 +9,10 @@ const shipmentLineBase = {
     item_uom_id: z.number().int().positive().optional().nullable(),
     ordered_qty: z.number().min(0).default(0),
     previously_shipped_qty: z.number().min(0).default(0),
-    shipment_qty: z.number().positive('Shipment quantity must be greater than 0'),
+    shipment_qty: z
+        .number()
+        .positive('Shipment quantity must be greater than 0'),
+    serial_numbers: z.array(z.string().trim().min(1)).optional().default([]),
 };
 
 export const createSalesShipmentLineSchema = z.object(shipmentLineBase);
@@ -24,6 +27,7 @@ export type CreateSalesShipmentLineInput = z.infer<
 const shipmentHeaderBase = {
     sales_order_id: z.number().int().positive(),
     customer_name: z.string().optional().nullable(),
+    customer_phone: z.string().optional().nullable(),
     delivery_date: z.string(),
     warehouse_id: z.number().int().positive(),
     receiver_name: z.string().optional().nullable(),
@@ -47,5 +51,9 @@ export const salesShipmentIdSchema = z.object({
     id: z.coerce.number().int().positive(),
 });
 
-export type CreateSalesShipmentInput = z.infer<typeof createSalesShipmentSchema>;
-export type UpdateSalesShipmentInput = z.infer<typeof updateSalesShipmentSchema>;
+export type CreateSalesShipmentInput = z.infer<
+    typeof createSalesShipmentSchema
+>;
+export type UpdateSalesShipmentInput = z.infer<
+    typeof updateSalesShipmentSchema
+>;

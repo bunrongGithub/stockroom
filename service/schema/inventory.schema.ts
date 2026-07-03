@@ -33,6 +33,7 @@ const inventoryBaseSchema = {
     is_sellable: z.boolean().default(false),
     is_returnable: z.boolean().default(false),
     is_warranty: z.boolean().default(false),
+    track_serial: z.boolean().default(false),
 
     warranty_duration: z.string().max(100).optional().nullable(),
 
@@ -64,6 +65,7 @@ export const updateInventorySchema = z.object({
     is_sellable: inventoryBaseSchema.is_sellable.optional(),
     is_returnable: inventoryBaseSchema.is_returnable.optional(),
     is_warranty: inventoryBaseSchema.is_warranty.optional(),
+    track_serial: inventoryBaseSchema.track_serial.optional(),
     warranty_duration: inventoryBaseSchema.warranty_duration,
     category_id: inventoryBaseSchema.category_id.optional(),
     uom_id: inventoryBaseSchema.uom_id,

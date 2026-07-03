@@ -3,6 +3,7 @@
 import AsyncSearchSelect from '@/components/ui/AsyncSearchSelect';
 import { EditableInput, FieldLabel } from '@/components/ui/FieldLabel';
 import { API } from '@/lib/constant';
+import { useEffect, useState } from 'react';
 import { Controller, useFormContext } from 'react-hook-form';
 
 export type LineItem = {
@@ -18,6 +19,7 @@ export type LineItem = {
   unit_cost: number | '';
   lot_number: string;
   purchased_date: string;
+  serial_numbers: string[];
 };
 
 export const DEFAULT_LINE: LineItem = {
@@ -33,6 +35,7 @@ export const DEFAULT_LINE: LineItem = {
   unit_cost: '',
   lot_number: '',
   purchased_date: new Date().toISOString().slice(0, 10),
+  serial_numbers: [],
 };
 
 /**
@@ -61,6 +64,60 @@ export default function ReceiptItemFields({
 
   // UOM options are scoped to the selected product (item_uom rows).
   const itemId = watch('item_id');
+  const serialNumbers = watch('serial_numbers') ?? [];
+  const receiptQty = Number(watch('receipt_qty') || 0);
+  const [serialEnabled, setSerialEnabled] = useState(false);
+
+  useEffect(() => {
+    if (!itemId) {
+      setSerialEnabled(false);
+      setValue('serial_numbers', []);
+      return;
+    }
+
+    let active = true;
+    fetch(`${API.inventory.stockItem.detail(itemId)}`)
+      .then((res) => res.json())
+      .then((json) => {
+        if (!active) return;
+        const enabled = Boolean(json.data?.track_serial);
+        setSerialEnabled(enabled);
+        if (!enabled) {
+          setValue('serial_numbers', []);
+        }
+      })
+      .catch(() => {
+        if (active) setSerialEnabled(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [itemId, setValue]);
+
+  useEffect(() => {
+    if (!serialEnabled) return;
+
+    const qty = Number(watch('receipt_qty') || 0);
+    if (qty <= 0) {
+      if (serialNumbers.length) {
+        setValue('serial_numbers', []);
+      }
+      return;
+    }
+
+    const nextSerials = Array.from(
+      { length: qty },
+      (_, index) => serialNumbers[index] ?? '',
+    );
+    const hasChanged =
+      nextSerials.length !== serialNumbers.length ||
+      nextSerials.some((value, index) => value !== serialNumbers[index]);
+
+    if (hasChanged) {
+      setValue('serial_numbers', nextSerials);
+    }
+  }, [receiptQty, serialEnabled, serialNumbers, setValue, watch]);
 
   return (
     <div className="space-y-4">
@@ -209,6 +266,58 @@ export default function ReceiptItemFields({
           <EditableInput type="date" {...register('purchased_date')} />
         </div>
       </div>
+
+      {serialEnabled && (
+        <div className="space-y-2 rounded-xl border border-emerald-100 bg-emerald-50/50 p-3">
+          <div className="flex items-center justify-between">
+            <FieldLabel>Serial Numbers</FieldLabel>
+            <span className="text-[11px] text-slate-500">
+              {receiptQty || 0} row{receiptQty === 1 ? '' : 's'}
+            </span>
+          </div>
+
+          <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b bg-slate-50 text-left text-slate-500">
+                  <th className="px-2 py-2 font-medium">#</th>
+                  <th className="px-2 py-2 font-medium">Serial</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(serialNumbers as string[]).map((serial, index) => (
+                  <tr
+                    key={`${index}-${serial}`}
+                    className="border-b last:border-b-0"
+                  >
+                    <td className="w-12 px-2 py-2 text-slate-500">
+                      {index + 1}
+                    </td>
+                    <td className="px-2 py-2">
+                      <input
+                        type="text"
+                        value={serial}
+                        placeholder={`Serial ${index + 1}`}
+                        onChange={(e) => {
+                          const updated = [...(serialNumbers as string[])];
+                          updated[index] = e.target.value.trim();
+                          setValue('serial_numbers', updated);
+                        }}
+                        className="w-full rounded-md border border-slate-200 px-2 py-1.5 font-mono text-xs outline-none focus:border-emerald-500"
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <p className="text-[11px] text-slate-500">
+            Enter exactly {receiptQty} serial number
+            {receiptQty === 1 ? '' : 's'} for this receipt line.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

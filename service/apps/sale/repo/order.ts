@@ -23,7 +23,7 @@ const SHIPMENT_TABLE = 'sales_shipment' as const;
 
 const SELECT_LIST = '*, warehouse:warehouse(id, name)';
 const SELECT_DETAIL =
-    '*, warehouse:warehouse(id, name), items:sales_order_items(*, item:inventory_item(id, name), item_uom:inventory_item_uom(id, name, display_name))';
+    '*, warehouse:warehouse(id, name), items:sales_order_items(*, item:inventory_item(id, name, track_serial), item_uom:inventory_item_uom(id, name, display_name))';
 
 // ─── Pure helpers ───────────────────────────────────────────────────────────
 
@@ -95,6 +95,7 @@ function mapOrderItem(r: any): SalesOrderItem {
         id: r.id,
         item_id: r.item_id,
         item_uom_id: r.item_uom_id ?? null,
+        track_serial: r.item?.track_serial ?? false,
         product_name: r.item?.name ?? r.description ?? '',
         description: r.description ?? '',
         uom: r.uom ?? r.item_uom?.name ?? '',
@@ -255,12 +256,112 @@ export class SalesOrderRepository extends BaseRepository {
         if (error) throw new ApiError(error.message, 500);
 
         if (input.items) {
-            // Full replace — safe while `open` (no shipment rows reference these lines).
-            await this.db.from(LINE_TABLE).delete().eq('order_id', id);
-            await this.insertLines(companyId, id, input.items);
+            await this.syncLines(companyId, id, input.items);
         }
 
         return (await this.findOne(ctx, id))!;
+    }
+
+    /**
+     * Idempotently synchronise order lines with the submitted payload:
+     *   • lines carrying an `id` that still exist are UPDATED in place
+     *   • lines without an `id` are INSERTED
+     *   • existing lines absent from the payload are DELETED
+     * A removed line that a shipment already references is rejected (you cannot
+     * un-order something that has been shipped). Every DB error is surfaced, so
+     * a failed delete can never silently fall through to an append.
+     */
+    private async syncLines(
+        companyId: number,
+        orderId: number,
+        items: UpdateSalesOrderInput['items'],
+    ): Promise<void> {
+        const submitted = items ?? [];
+
+        const { data: existingRows, error: exErr } = await this.db
+            .from(LINE_TABLE)
+            .select('id, shipped_qty')
+            .eq('order_id', orderId)
+            .eq('company_id', companyId);
+        if (exErr) throw new ApiError(exErr.message, 500);
+
+        const existing = new Map(
+            (existingRows ?? []).map((r) => [
+                r.id as number,
+                Number(r.shipped_qty),
+            ]),
+        );
+        const submittedIds = new Set(
+            submitted
+                .map((l) => l.id)
+                .filter((v): v is number => typeof v === 'number'),
+        );
+
+        // ── 1. Delete lines that were removed from the order ──────────────────
+        const toDelete = [...existing.keys()].filter(
+            (eid) => !submittedIds.has(eid),
+        );
+        if (toDelete.length) {
+            const { data: refs, error: refErr } = await this.db
+                .from('sales_shipment_items')
+                .select('sales_order_item_id')
+                .in('sales_order_item_id', toDelete);
+            if (refErr) throw new ApiError(refErr.message, 500);
+            if (refs && refs.length) {
+                throw new ApiError(
+                    'Cannot remove an item that is already used in a shipment.',
+                    409,
+                    'ITEM_IN_SHIPMENT',
+                );
+            }
+            const { error: delErr } = await this.db
+                .from(LINE_TABLE)
+                .delete()
+                .in('id', toDelete)
+                .eq('company_id', companyId);
+            if (delErr) throw new ApiError(delErr.message, 500);
+        }
+
+        // ── 2. Update lines that are still present ────────────────────────────
+        for (const l of submitted) {
+            if (typeof l.id !== 'number' || !existing.has(l.id)) continue;
+            const shipped = existing.get(l.id) ?? 0;
+            if (l.ordered_qty < shipped) {
+                throw new ApiError(
+                    `Ordered quantity for an item cannot be less than the quantity already shipped (${shipped}).`,
+                    400,
+                    'QTY_BELOW_SHIPPED',
+                );
+            }
+            const { error } = await this.db
+                .from(LINE_TABLE)
+                .update({
+                    item_id: l.item_id,
+                    item_uom_id: l.item_uom_id ?? null,
+                    description: l.description ?? null,
+                    uom: l.uom ?? null,
+                    ordered_qty: l.ordered_qty,
+                    unit_price: l.unit_price,
+                    discount: l.discount ?? 0,
+                    tax: l.tax ?? 0,
+                    line_total: lineTotal({
+                        ordered_qty: l.ordered_qty,
+                        unit_price: l.unit_price,
+                        discount: l.discount ?? 0,
+                        tax: l.tax ?? 0,
+                    }),
+                })
+                .eq('id', l.id)
+                .eq('order_id', orderId)
+                .eq('company_id', companyId);
+            if (error) throw new ApiError(error.message, 500);
+        }
+
+        // ── 3. Insert newly added lines ───────────────────────────────────────
+        const newLines = submitted.filter((l) => typeof l.id !== 'number');
+        if (newLines.length) {
+            await this.insertLines(companyId, orderId, newLines);
+        }
     }
 
     async deleteOne(ctx: RequestContext, id: number): Promise<void> {
