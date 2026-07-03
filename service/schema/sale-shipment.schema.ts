@@ -27,7 +27,7 @@ export type CreateSalesShipmentLineInput = z.infer<
 const shipmentHeaderBase = {
     sales_order_id: z.number().int().positive(),
     customer_name: z.string().optional().nullable(),
-    customer_phone: z.string().optional().nullable(),
+    customer_phone: z.string().min(1, 'Customer phone is required'),
     delivery_date: z.string(),
     warehouse_id: z.number().int().positive(),
     receiver_name: z.string().optional().nullable(),

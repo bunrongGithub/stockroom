@@ -31,7 +31,7 @@ export type UpdateSalesOrderLineInput = z.infer<
 
 const orderHeaderBase = {
     customer_name: z.string().min(1, 'Customer is required').trim(),
-    customer_phone: z.string().optional().nullable(),
+    customer_phone: z.string().min(1, 'Customer phone is required').trim(),
     order_date: z.string(),
     expected_delivery_date: z.string().optional().nullable(),
     warehouse_id: z.number().int().positive('Warehouse is required'),

@@ -2,8 +2,10 @@
 
 import { useRegisterModule } from '@/hook/useModule';
 import type { ModuleProps } from '@/lib/registry';
-import { saleShipmentApi } from '@/lib/api/sale';
+import { saleInvoiceApi, saleOrderApi, saleShipmentApi } from '@/lib/api/sale';
 import type {
+    SalesInvoice,
+    SalesOrder,
     SalesShipment,
     SalesShipmentStatus,
 } from '@/types/sales/order-management';
@@ -12,6 +14,7 @@ import { useParams, useRouter } from 'next/navigation';
 import {
     ArrowLeftIcon,
     Ban,
+    FileText,
     Loader2Icon,
     Package,
     PackageIcon,
@@ -22,7 +25,16 @@ import {
 const TABS = [
     { id: 'details' as const, label: 'Details', num: 1 },
     { id: 'items' as const, label: 'Shipment Items', num: 2 },
+    { id: 'order' as const, label: 'Sales Order', num: 3 },
+    { id: 'invoices' as const, label: 'Invoices', num: 4 },
 ];
+
+function money(n: number) {
+    return n.toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    });
+}
 type TabId = (typeof TABS)[number]['id'];
 
 function StatusBadge({ status }: { status: SalesShipmentStatus }) {
@@ -30,6 +42,8 @@ function StatusBadge({ status }: { status: SalesShipmentStatus }) {
         DRAFT: 'bg-gray-100 text-gray-600',
         POSTED: 'bg-emerald-100 text-emerald-700',
         VOID: 'bg-rose-100 text-rose-700',
+        INVOICED: 'bg-sky-100 text-sky-700',
+        PARTIALLY_INVOICED: 'bg-amber-100 text-amber-700',
     };
     return (
         <span
@@ -57,6 +71,8 @@ export default function SaleShipmentDetail({
 
     const [activeTab, setActiveTab] = useState<TabId>('details');
     const [shipment, setShipment] = useState<SalesShipment | null>(null);
+    const [order, setOrder] = useState<SalesOrder | null>(null);
+    const [invoices, setInvoices] = useState<SalesInvoice[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [toast, setToast] = useState<{
@@ -73,7 +89,12 @@ export default function SaleShipmentDetail({
     async function load() {
         setLoading(true);
         try {
-            setShipment(await saleShipmentApi.get(id));
+            const s = await saleShipmentApi.get(id);
+            setShipment(s);
+            setInvoices(await saleInvoiceApi.byShipment(s.id));
+            if (s.sales_order_id) {
+                setOrder(await saleOrderApi.get(s.sales_order_id));
+            }
         } catch (e) {
             setError(e instanceof Error ? e.message : 'Failed to load shipment');
         } finally {
@@ -253,6 +274,21 @@ export default function SaleShipmentDetail({
                                 Post
                             </button>
                         )}
+                        {a?.can_invoice && (
+                            <button
+                                onClick={() => {
+                                    if (typeof window !== 'undefined')
+                                        sessionStorage.setItem(
+                                            'pending_invoice_shipment_id',
+                                            String(shipment.id),
+                                        );
+                                    router.push('/sale/invoice/create');
+                                }}
+                                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#1a9e52] px-4 py-2.5 font-semibold text-white transition-colors hover:bg-[#158042]"
+                            >
+                                <FileText size={14} /> Create Invoice
+                            </button>
+                        )}
                     </div>
                 </aside>
 
@@ -390,6 +426,116 @@ export default function SaleShipmentDetail({
                                     </table>
                                 </div>
                             </section>
+                        </div>
+                    )}
+
+                    {/* Tab 3: Sales Order (source document) */}
+                    {activeTab === 'order' && (
+                        <div className="space-y-5 pt-5">
+                            <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+                                <h3 className="mb-4 text-xs font-bold uppercase tracking-wider text-slate-500">
+                                    Source Sales Order
+                                </h3>
+                                {!order ? (
+                                    <p className="py-6 text-center text-sm text-slate-400">
+                                        No linked sales order.
+                                    </p>
+                                ) : (
+                                    <div className="grid grid-cols-2 gap-y-3">
+                                        <span className="text-slate-400">Order No</span>
+                                        <button
+                                            onClick={() => router.push(`/sale/order/${order.id}/view`)}
+                                            className="text-left font-semibold text-sky-600 hover:underline"
+                                        >
+                                            {order.order_no}
+                                        </button>
+                                        <span className="text-slate-400">Order Date</span>
+                                        <span>{order.order_date}</span>
+                                        <span className="text-slate-400">Customer</span>
+                                        <span className="font-medium">{order.customer_name}</span>
+                                        <span className="text-slate-400">Status</span>
+                                        <span className="capitalize">{order.status.replace('_', ' ')}</span>
+                                        <span className="text-slate-400">Total Quantity</span>
+                                        <span>{order.items.reduce((s, i) => s + i.ordered_qty, 0)}</span>
+                                        <span className="text-slate-400">Grand Total</span>
+                                        <span>{order.currency} {money(order.grand_total)}</span>
+                                    </div>
+                                )}
+                            </section>
+                        </div>
+                    )}
+
+                    {/* Tab 4: Invoices (partial-invoicing progress) */}
+                    {activeTab === 'invoices' && (
+                        <div className="space-y-5 pt-5">
+                            {(() => {
+                                const shippedTotal = shipment.items.reduce(
+                                    (s, i) => s + i.shipment_qty,
+                                    0,
+                                );
+                                const invoicedTotal = invoices
+                                    .filter((iv) => iv.status !== 'CANCELLED')
+                                    .reduce((s, iv) => s + iv.total_quantity, 0);
+                                const remaining = shippedTotal - invoicedTotal;
+                                return (
+                                    <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+                                        <div className="mb-4 flex items-center justify-between">
+                                            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                                                Invoices ({invoices.length})
+                                            </h3>
+                                            <div className="flex gap-4 text-xs font-mono">
+                                                <span className="text-slate-400">
+                                                    Shipped <span className="text-slate-700 font-semibold">{shippedTotal}</span>
+                                                </span>
+                                                <span className="text-emerald-600">
+                                                    Invoiced <span className="font-semibold">{invoicedTotal}</span>
+                                                </span>
+                                                <span className={remaining > 0 ? 'text-amber-600' : 'text-slate-400'}>
+                                                    Remaining <span className="font-semibold">{remaining}</span>
+                                                </span>
+                                            </div>
+                                        </div>
+                                        {invoices.length === 0 ? (
+                                            <p className="py-6 text-center text-sm text-slate-400">
+                                                No invoices created for this shipment yet.
+                                            </p>
+                                        ) : (
+                                            <div className="overflow-x-auto">
+                                                <table className="w-full text-xs font-mono">
+                                                    <thead>
+                                                        <tr className="border-b text-muted-foreground">
+                                                            <th className="text-left py-2 pr-3 font-medium">Invoice No</th>
+                                                            <th className="text-left py-2 pr-3 font-medium">Date</th>
+                                                            <th className="text-left py-2 pr-3 font-medium">Status</th>
+                                                            <th className="text-right py-2 pr-3 font-medium">Qty</th>
+                                                            <th className="text-right py-2 pr-3 font-medium">Total</th>
+                                                            <th className="py-2 font-medium">Action</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {invoices.map((iv) => (
+                                                            <tr key={iv.id} className="border-b hover:bg-muted/20">
+                                                                <td className="py-2 pr-3 font-semibold text-sky-600">
+                                                                    <button onClick={() => router.push(`/sale/invoice/${iv.id}/view`)} className="hover:underline">
+                                                                        {iv.invoice_no}
+                                                                    </button>
+                                                                </td>
+                                                                <td className="py-2 pr-3">{iv.invoice_date}</td>
+                                                                <td className="py-2 pr-3">{iv.status}</td>
+                                                                <td className="py-2 pr-3 text-right">{iv.total_quantity}</td>
+                                                                <td className="py-2 pr-3 text-right font-semibold">{iv.currency} {money(iv.grand_total)}</td>
+                                                                <td className="py-2">
+                                                                    <button onClick={() => router.push(`/sale/invoice/${iv.id}/view`)} className="text-xs text-sky-500 hover:underline">View</button>
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        )}
+                                    </section>
+                                );
+                            })()}
                         </div>
                     )}
                 </div>

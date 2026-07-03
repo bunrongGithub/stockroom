@@ -56,6 +56,8 @@ function ShipmentStatusBadge({ status }: { status: SalesShipmentStatus }) {
         DRAFT: 'bg-gray-100 text-gray-600',
         POSTED: 'bg-emerald-100 text-emerald-700',
         VOID: 'bg-rose-100 text-rose-700',
+        INVOICED: 'bg-sky-100 text-sky-700',
+        PARTIALLY_INVOICED: 'bg-amber-100 text-amber-700',
     };
     return (
         <span

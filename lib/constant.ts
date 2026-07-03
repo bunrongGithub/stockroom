@@ -121,6 +121,11 @@ export const API = {
             post: (id: Id) => `/api/sale/shipment/${id}/post`,
             void: (id: Id) => `/api/sale/shipment/${id}/void`,
         },
+        invoice: {
+            ...resource('/api/sale/invoice'),
+            post: (id: Id) => `/api/sale/invoice/${id}/post`,
+            cancel: (id: Id) => `/api/sale/invoice/${id}/cancel`,
+        },
     },
 
     stockTransfer: {

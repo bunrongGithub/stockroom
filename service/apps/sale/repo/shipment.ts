@@ -31,12 +31,21 @@ const SELECT_LIST =
 const SELECT_DETAIL =
     '*, sales_order:sales_order(id, order_no), warehouse:warehouse(id, name), items:sales_shipment_items(*, item:inventory_item(id, name, track_serial), location:warehouse_location(id, name), item_uom:inventory_item_uom(id, name, display_name))';
 
-/** Only DRAFT shipments can be edited, posted, or voided (POSTED is immutable). */
+/**
+ * DRAFT shipments can be edited/posted/voided (POSTED is immutable). A POSTED
+ * (i.e. shipped) shipment that is not yet invoiced can be invoiced.
+ */
 export function computeShipmentActions(
     status: SalesShipmentStatus,
 ): SalesShipmentActions {
     const isDraft = status === 'DRAFT';
-    return { can_update: isDraft, can_post: isDraft, can_void: isDraft };
+    return {
+        can_update: isDraft,
+        can_post: isDraft,
+        can_void: isDraft,
+        // Invoiceable while there is remaining quantity to bill.
+        can_invoice: status === 'POSTED' || status === 'PARTIALLY_INVOICED',
+    };
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -410,6 +419,103 @@ export class SalesShipmentRepository extends BaseRepository {
             .eq('company_id', Number(ctx.companyId));
         if (error) throw new ApiError(error.message, 500);
         return (await this.findOne(ctx, id))!;
+    }
+
+    /**
+     * Quantity already invoiced per shipment line = SUM of invoice-line quantity
+     * across NON-CANCELLED invoices, grouped by shipment_item_id. The single
+     * source of truth for invoicing progress (computed, never stored). Pass
+     * `excludeInvoiceId` when validating an edit so the invoice's own lines are
+     * not double-counted.
+     */
+    async getInvoicedQtyByShipmentItem(
+        ctx: RequestContext,
+        shipmentId: number,
+        excludeInvoiceId?: number,
+    ): Promise<Map<number, number>> {
+        let query = this.db
+            .from('sales_invoice_items')
+            .select('shipment_item_id, quantity, invoice:sales_invoice!inner(id, status, shipment_id)')
+            .eq('company_id', Number(ctx.companyId))
+            .eq('invoice.shipment_id', shipmentId)
+            .neq('invoice.status', 'CANCELLED');
+        if (excludeInvoiceId) {
+            query = query.neq('invoice.id', excludeInvoiceId);
+        }
+        const { data, error } = await query;
+        if (error) throw new ApiError(error.message, 500);
+
+        const map = new Map<number, number>();
+        for (const row of data ?? []) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const r = row as any;
+            if (r.shipment_item_id == null) continue;
+            map.set(
+                r.shipment_item_id,
+                (map.get(r.shipment_item_id) ?? 0) + Number(r.quantity),
+            );
+        }
+        return map;
+    }
+
+    /**
+     * Derive a shipped shipment's status from invoiced vs shipped quantity:
+     *   every item invoiced 0            → POSTED (shipped, nothing invoiced)
+     *   every item fully invoiced        → INVOICED
+     *   otherwise                        → PARTIALLY_INVOICED
+     * DRAFT/VOID shipments are left untouched. Call after any invoice change.
+     */
+    async recomputeInvoiceStatus(
+        ctx: RequestContext,
+        shipmentId: number,
+    ): Promise<void> {
+        const companyId = Number(ctx.companyId);
+        const { data: header } = await this.db
+            .from(HEADER_TABLE)
+            .select('status')
+            .eq('id', shipmentId)
+            .eq('company_id', companyId)
+            .maybeSingle();
+        if (
+            !header ||
+            !['POSTED', 'PARTIALLY_INVOICED', 'INVOICED'].includes(
+                header.status,
+            )
+        ) {
+            return;
+        }
+
+        const { data: items, error } = await this.db
+            .from(LINE_TABLE)
+            .select('id, shipment_qty')
+            .eq('shipment_id', shipmentId)
+            .eq('company_id', companyId);
+        if (error) throw new ApiError(error.message, 500);
+
+        const invoiced = await this.getInvoicedQtyByShipmentItem(
+            ctx,
+            shipmentId,
+        );
+
+        let anyInvoiced = false;
+        let anyRemaining = false;
+        for (const it of items ?? []) {
+            const inv = invoiced.get(it.id) ?? 0;
+            if (inv > 0) anyInvoiced = true;
+            if (Number(it.shipment_qty) - inv > 0) anyRemaining = true;
+        }
+
+        const status = !anyInvoiced
+            ? 'POSTED'
+            : anyRemaining
+              ? 'PARTIALLY_INVOICED'
+              : 'INVOICED';
+
+        await this.db
+            .from(HEADER_TABLE)
+            .update({ status })
+            .eq('id', shipmentId)
+            .eq('company_id', companyId);
     }
 
     // ── internals ───────────────────────────────────────────────────────────

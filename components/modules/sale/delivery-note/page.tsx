@@ -21,6 +21,8 @@ function StatusBadge({ status }: { status: SalesShipmentStatus }) {
         DRAFT: 'bg-gray-100 text-gray-600',
         POSTED: 'bg-emerald-100 text-emerald-800',
         VOID: 'bg-rose-100 text-rose-800',
+        INVOICED: 'bg-sky-100 text-sky-800',
+        PARTIALLY_INVOICED: 'bg-amber-100 text-amber-800',
     };
     return <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-mono font-medium ${map[status]}`}>{status}</span>;
 }

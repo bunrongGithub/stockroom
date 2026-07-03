@@ -1,2 +1,3 @@
 export { SalesOrderRepository } from './repo/order';
 export { SalesShipmentRepository } from './repo/shipment';
+export { SalesInvoiceRepository } from './repo/invoice';

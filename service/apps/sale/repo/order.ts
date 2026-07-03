@@ -5,6 +5,10 @@ import type {
 } from '@/service/core/pagination';
 import type { RequestContext } from '@/types/request-context';
 import { generateSequenNumbering } from '@/lib/utils/sequenumbering';
+import {
+    lineTotal as calcLineTotal,
+    documentTotals,
+} from '../pricing';
 import { ApiError, NotFoundError } from '@/service/core/api-response';
 import type {
     CreateSalesOrderInput,
@@ -27,6 +31,7 @@ const SELECT_DETAIL =
 
 // ─── Pure helpers ───────────────────────────────────────────────────────────
 
+// Thin adapters over the shared sales pricing util (order lines use `ordered_qty`).
 type LineCalcInput = {
     ordered_qty: number;
     unit_price: number;
@@ -34,30 +39,24 @@ type LineCalcInput = {
     tax: number;
 };
 
-function lineTotal({ ordered_qty, unit_price, discount, tax }: LineCalcInput) {
-    const base = ordered_qty * unit_price;
-    const afterDisc = base - base * (discount / 100);
-    return afterDisc + afterDisc * (tax / 100);
+function lineTotal(l: LineCalcInput) {
+    return calcLineTotal({
+        quantity: l.ordered_qty,
+        unit_price: l.unit_price,
+        discount: l.discount,
+        tax: l.tax,
+    });
 }
 
 function orderTotals(lines: LineCalcInput[]) {
-    let subtotal = 0;
-    let discount_total = 0;
-    let tax_total = 0;
-    for (const l of lines) {
-        const base = l.ordered_qty * l.unit_price;
-        const disc = base * (l.discount / 100);
-        const afterDisc = base - disc;
-        subtotal += base;
-        discount_total += disc;
-        tax_total += afterDisc * (l.tax / 100);
-    }
-    return {
-        subtotal,
-        discount_total,
-        tax_total,
-        grand_total: subtotal - discount_total + tax_total,
-    };
+    return documentTotals(
+        lines.map((l) => ({
+            quantity: l.ordered_qty,
+            unit_price: l.unit_price,
+            discount: l.discount,
+            tax: l.tax,
+        })),
+    );
 }
 
 /** Progress status from shipped vs ordered. Never returns 'cancelled'. */

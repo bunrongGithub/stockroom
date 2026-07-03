@@ -4,8 +4,10 @@ import { API } from '@/lib/constant';
 import type {
     SalesOrder,
     SalesShipment,
+    SalesInvoice,
     CreateSalesOrderPayload,
     CreateSalesShipmentPayload,
+    CreateSalesInvoicePayload,
 } from '@/types/sales/order-management';
 
 // ─── Response helpers ────────────────────────────────────────────────────────
@@ -138,6 +140,68 @@ export const saleShipmentApi = {
     async remove(id: number | string): Promise<void> {
         await unwrap(
             await fetch(API.sale.shipment.detail(id), { method: 'DELETE' }),
+        );
+    },
+};
+
+// ─── Sales Invoice ───────────────────────────────────────────────────────────
+
+export const saleInvoiceApi = {
+    async list(search = ''): Promise<SalesInvoice[]> {
+        const url = new URL(API.sale.invoice.root, window.location.origin);
+        url.searchParams.set('limit', '100');
+        if (search) url.searchParams.set('search', search);
+        const body = await unwrap<{ data: SalesInvoice[] }>(
+            await fetch(url.toString()),
+        );
+        return body.data ?? [];
+    },
+    async get(id: number | string): Promise<SalesInvoice> {
+        const body = await unwrap<{ data: SalesInvoice }>(
+            await fetch(API.sale.invoice.detail(id)),
+        );
+        return body.data;
+    },
+    async byShipment(shipmentId: number): Promise<SalesInvoice[]> {
+        const url = new URL(API.sale.invoice.root, window.location.origin);
+        url.searchParams.set('shipment_id', String(shipmentId));
+        const body = await unwrap<{ data: SalesInvoice[] }>(
+            await fetch(url.toString()),
+        );
+        return body.data ?? [];
+    },
+    async createFromShipment(
+        payload: CreateSalesInvoicePayload,
+    ): Promise<SalesInvoice> {
+        const body = await unwrap<{ data: SalesInvoice }>(
+            await fetch(API.sale.invoice.root, jsonInit('POST', payload)),
+        );
+        return body.data;
+    },
+    async update(
+        id: number | string,
+        payload: Omit<CreateSalesInvoicePayload, 'shipment_id'>,
+    ): Promise<SalesInvoice> {
+        const body = await unwrap<{ data: SalesInvoice }>(
+            await fetch(API.sale.invoice.detail(id), jsonInit('PATCH', payload)),
+        );
+        return body.data;
+    },
+    async post(id: number | string): Promise<SalesInvoice> {
+        const body = await unwrap<{ data: SalesInvoice }>(
+            await fetch(API.sale.invoice.post(id), { method: 'POST' }),
+        );
+        return body.data;
+    },
+    async cancel(id: number | string): Promise<SalesInvoice> {
+        const body = await unwrap<{ data: SalesInvoice }>(
+            await fetch(API.sale.invoice.cancel(id), { method: 'POST' }),
+        );
+        return body.data;
+    },
+    async remove(id: number | string): Promise<void> {
+        await unwrap(
+            await fetch(API.sale.invoice.detail(id), { method: 'DELETE' }),
         );
     },
 };

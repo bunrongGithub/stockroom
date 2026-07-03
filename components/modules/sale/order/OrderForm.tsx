@@ -134,6 +134,10 @@ export default function OrderForm({
             setActiveTab('details');
             return setError('Customer name is required');
         }
+        if (!customerPhone.trim()) {
+            setActiveTab('details');
+            return setError('Customer phone is required');
+        }
         if (!warehouseId) {
             setActiveTab('details');
             return setError('Warehouse is required');
@@ -337,11 +341,11 @@ export default function OrderForm({
                                         />
                                     </div>
                                     <div className="space-y-1.5">
-                                        <Label className="text-xs">Customer Phone</Label>
+                                        <Label className="text-xs">Customer Phone *</Label>
                                         <Input
                                             value={customerPhone ?? ''}
                                             onChange={(e) => setCustomerPhone(e.target.value)}
-                                            placeholder="Optional"
+                                            placeholder="e.g. 012 345 678"
                                             className="text-xs font-mono"
                                         />
                                     </div>
