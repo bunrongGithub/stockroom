@@ -19,6 +19,7 @@ import {
     Award,
     ChevronDown,
     ChevronRight,
+    LayoutDashboard,
     Loader2,
     LogOut,
     User,
@@ -65,6 +66,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   Zap,
   RulerDimensionLine,
   Edit2Icon,
+  LayoutDashboard,
 };
 
 function ModuleIcon({
@@ -116,6 +118,34 @@ function SidebarNav() {
                         visibleChildren(c.id).some((s) => isActive(s.path)),
                     );
                 const isOpen = openMap[mod.key] ?? modActive;
+
+                // Childless root modules (e.g. Dashboard) navigate directly;
+                // roots with children toggle their submenu.
+                if (children.length === 0) {
+                    return (
+                        <Link
+                            key={mod.key}
+                            href={mod.path}
+                            className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
+                                ${
+                                    modActive
+                                        ? 'bg-emerald-500/10 text-emerald-300'
+                                        : 'text-gray-400 hover:bg-gray-800/50 hover:text-gray-200'
+                                }`}
+                        >
+                            <ModuleIcon
+                                name={mod.icon}
+                                size={16}
+                                className={
+                                    modActive
+                                        ? 'text-emerald-400'
+                                        : 'text-gray-500'
+                                }
+                            />
+                            <span className="flex-1 text-left">{mod.label}</span>
+                        </Link>
+                    );
+                }
 
                 return (
                     <div key={mod.key}>

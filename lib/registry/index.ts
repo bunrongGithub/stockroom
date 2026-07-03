@@ -1,3 +1,4 @@
+import { dashboardRegistry } from './dashboard';
 import { inventoryRegistry } from './inventory';
 import { settingRegistry }   from './setting';
 import { saleRegistry }      from './sale';
@@ -10,6 +11,7 @@ export type { ModuleProps } from './types';
 // Add a new domain file and spread it here — no other file needs touching.
 
 const registry = new Map<string, LazyLoader>([
+    ...dashboardRegistry,
     ...inventoryRegistry,
     ...settingRegistry,
     ...saleRegistry,

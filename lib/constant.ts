@@ -44,6 +44,10 @@ export const API = {
         init: '/api/app/init',
     },
 
+    dashboard: {
+        summary: '/api/dashboard/summary',
+    },
+
     inventory: {
         category: resource(`${INV_CONFIG}/category`),
         uom: resource(`${INV_CONFIG}/uom`),
