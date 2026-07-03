@@ -53,4 +53,8 @@ export const saleRegistry: RegistryEntry[] = [
         'SaleInvoiceUpdate',
         () => import('@/components/modules/sale/invoice/action/Update'),
     ],
+    [
+        'SaleInvoicePrint',
+        () => import('@/components/modules/sale/invoice/action/Print'),
+    ],
 ];

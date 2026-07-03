@@ -389,9 +389,9 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     const [actionList, setActionList] = useState<Action>([]);
 
     return (
-        <div className="flex h-screen w-full overflow-hidden bg-gray-50 font-sans">
+        <div className="flex h-screen w-full overflow-hidden bg-gray-50 font-sans print:h-auto print:overflow-visible print:bg-white">
             {/* ═══════════════════ SIDEBAR ═══════════════════ */}
-            <aside className="w-64 bg-gray-950 border-r border-gray-800 flex flex-col shrink-0">
+            <aside className="w-64 bg-gray-950 border-r border-gray-800 flex flex-col shrink-0 print:hidden">
                 {/* Brand */}
                 <div className="h-16 flex items-center gap-3 px-5 border-b border-gray-800/60 shrink-0">
                     <div className="bg-white p-0.5 rounded-lg w-9 h-9 shrink-0 overflow-hidden shadow">
@@ -425,16 +425,16 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
             </aside>
 
             {/* ═══════════════════ MAIN AREA ═══════════════════ */}
-            <div className="flex flex-1 min-w-0 flex-col overflow-hidden">
+            <div className="flex flex-1 min-w-0 flex-col overflow-hidden print:overflow-visible">
                 {/* Top Navbar — configuration tabs (only visible when active module has config children) */}
-                <nav className="shrink-0 bg-gray-950 border-b border-gray-800/60">
+                <nav className="shrink-0 bg-gray-950 border-b border-gray-800/60 print:hidden">
                     <div className="flex h-12 items-center gap-1 px-6 overflow-x-auto scrollbar-hide">
                         <TopNavConfigTabs />
                     </div>
                 </nav>
 
                 {/* Page Content */}
-                <main className="flex-1 min-h-0 overflow-y-auto bg-gray-50">
+                <main className="flex-1 min-h-0 overflow-y-auto bg-gray-50 print:overflow-visible print:bg-white">
                     <ModuleProvider>
                         <PageActionContext.Provider
                             value={{

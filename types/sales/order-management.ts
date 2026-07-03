@@ -174,6 +174,10 @@ export interface SalesInvoiceItem {
     sales_order_item_id: number | null;
     shipment_item_id: number | null;
     product_name: string;
+    sku: string | null;
+    track_serial: boolean;
+    /** Sold serials pulled read-only from inventory_serial (print/detail views) */
+    serial_numbers?: string[];
     description: string;
     uom: string;
     quantity: number;

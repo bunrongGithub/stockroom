@@ -17,6 +17,7 @@ import {
     FileWarning,
     Loader2Icon,
     PencilIcon,
+    PrinterIcon,
     SendIcon,
     Trash2Icon,
 } from 'lucide-react';
@@ -250,6 +251,15 @@ export default function SaleInvoiceDetail({
                             </div>
                         </div>
                     </section>
+
+                    <div className="flex flex-col gap-2">
+                        <button
+                            onClick={() => router.push(`/sale/invoice/${invoice.id}/print`)}
+                            className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-slate-700 transition-colors hover:bg-slate-50"
+                        >
+                            <PrinterIcon size={14} /> Print / PDF
+                        </button>
+                    </div>
 
                     {(a?.can_update || a?.can_post || a?.can_cancel || a?.can_delete) && (
                         <div className="flex flex-col gap-2">

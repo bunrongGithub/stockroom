@@ -26,7 +26,7 @@ const LINE_TABLE = 'sales_invoice_items' as const;
 const SELECT_LIST =
     '*, shipment:sales_shipment(id, shipment_no), sales_order:sales_order(id, order_no)';
 const SELECT_DETAIL =
-    '*, shipment:sales_shipment(id, shipment_no), sales_order:sales_order(id, order_no), items:sales_invoice_items(*, item:inventory_item(id, name))';
+    '*, shipment:sales_shipment(id, shipment_no), sales_order:sales_order(id, order_no), items:sales_invoice_items(*, item:inventory_item(id, name, sku, track_serial))';
 
 /** Draft = editable/deletable; Posted = official/cancellable; Cancelled = terminal. */
 export function computeInvoiceActions(
@@ -48,6 +48,8 @@ function mapInvoiceItem(r: any): SalesInvoiceItem {
         sales_order_item_id: r.sales_order_item_id ?? null,
         shipment_item_id: r.shipment_item_id ?? null,
         product_name: r.item?.name ?? r.description ?? `#${r.item_id}`,
+        sku: r.item?.sku ?? null,
+        track_serial: r.item?.track_serial ?? false,
         description: r.description ?? '',
         uom: r.uom ?? '',
         quantity: Number(r.quantity),
@@ -141,7 +143,39 @@ export class SalesInvoiceRepository extends BaseRepository {
             isSuperUser,
         ).maybeSingle();
         if (error) throw new ApiError(error.message, 500);
-        return data ? mapInvoice(data) : null;
+        if (!data) return null;
+
+        const invoice = mapInvoice(data);
+
+        // Enrich lines with serial numbers from inventory_serial (the source of
+        // truth — sold serials reference the shipment line). READ-ONLY: printing
+        // an invoice never touches inventory or serial state.
+        const shipItemIds = invoice.items
+            .map((i) => i.shipment_item_id)
+            .filter((v): v is number => v != null);
+        if (shipItemIds.length) {
+            const { data: serialRows } = await this.db
+                .from('inventory_serial')
+                .select('serial_number, sale_item_id')
+                .eq('company_id', Number(ctx.companyId))
+                .in('sale_item_id', shipItemIds)
+                .order('serial_number', { ascending: true });
+            const byShipItem = new Map<number, string[]>();
+            for (const row of serialRows ?? []) {
+                if (row.sale_item_id == null) continue;
+                const list = byShipItem.get(row.sale_item_id) ?? [];
+                list.push(row.serial_number);
+                byShipItem.set(row.sale_item_id, list);
+            }
+            for (const item of invoice.items) {
+                item.serial_numbers =
+                    item.shipment_item_id != null
+                        ? (byShipItem.get(item.shipment_item_id) ?? [])
+                        : [];
+            }
+        }
+
+        return invoice;
     }
 
     /** All invoices raised against a shipment (for the shipment's Invoices tab). */
