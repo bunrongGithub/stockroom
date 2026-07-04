@@ -234,14 +234,6 @@ export default function ReceiptItemFields({
           )}
         </div>
         <div className="space-y-1.5">
-          <FieldLabel>Lot #</FieldLabel>
-          <EditableInput
-            type="text"
-            placeholder="optional"
-            {...register('lot_number')}
-          />
-        </div>
-        <div className="space-y-1.5">
           <FieldLabel>Purchase Date</FieldLabel>
           <EditableInput type="date" {...register('purchased_date')} />
         </div>

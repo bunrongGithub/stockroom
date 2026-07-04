@@ -30,6 +30,8 @@ import {
   RulerDimensionLine,
   Edit2Icon,
   HandCoins,
+  LayoutGrid,
+  Weight,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import Image from 'next/image';
@@ -69,6 +71,8 @@ const ICON_MAP: Record<string, LucideIcon> = {
   Edit2Icon,
   LayoutDashboard,
   HandCoins,
+  LayoutGrid,
+  Weight,
 };
 
 function ModuleIcon({

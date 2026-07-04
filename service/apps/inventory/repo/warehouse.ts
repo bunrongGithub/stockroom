@@ -7,6 +7,7 @@ import type { RequestContext } from '@/types/request-context';
 import type { Warehouse } from '@/types/branch';
 import { PaginatedResult, PaginationParams } from '@/service/core';
 import { ApiError } from '@/service/core/api-response';
+import { PostgrestError } from '@supabase/supabase-js';
 
 const TABLE = 'warehouse' as const;
 
@@ -39,14 +40,14 @@ export class WarehouseRepository extends BaseRepository {
     ): Promise<PaginatedResult<Warehouse>> {
         const isSuperUser = await this.isSupperUser(ctx);
 
-        const query = this.applyFilter(
-            this.db
-                .from(TABLE)
-                .select('*,company(id,name)', { count: 'exact' }),
-            ctx,
-            isSuperUser,
-        ).order('id', { ascending: false });
+        const baseQuery = this.db
+            .from(TABLE)
+            .select('*,company(id,name)', { count: 'exact' })
+            .order('id', { ascending: false });
 
+        if (isSuperUser) return this.paginate(baseQuery, params);
+
+        const query = this.applyCompanyFilter(baseQuery, Number(ctx.companyId));
         return this.paginate(query, params);
     }
 
@@ -54,15 +55,27 @@ export class WarehouseRepository extends BaseRepository {
         context: RequestContext,
         id: number,
     ): Promise<Warehouse | null> {
+        const baseQuery = this.db
+            .from(TABLE)
+            .select('*,warehouse_location(*)')
+            .eq('id', id)
+            .maybeSingle();
+
+        const isSuperUser = await this.isSupperUser(context);
+        if (isSuperUser) {
+            const { data, error } = await baseQuery;
+            if (error && error instanceof PostgrestError) {
+                throw new ApiError(error.message);
+            }
+            return data;
+        }
         const { data, error } = await this.applyCompanyFilter(
-            this.db
-                .from(TABLE)
-                .select('*,warehouse_location(*)')
-                .eq('id', id)
-                .maybeSingle(),
+            baseQuery,
             parseInt(context.companyId),
         );
-        if (error) new ApiError(error.metadata);
+        if (error && error instanceof PostgrestError) {
+            throw new ApiError(error.message);
+        }
         return data;
     }
 
