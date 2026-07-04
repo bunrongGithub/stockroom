@@ -1,6 +1,7 @@
 'use client';
 
 import AsyncSearchSelect from '@/components/ui/AsyncSearchSelect';
+import SerialLookupPanel from '@/components/ui/serial/SerialLookupPanel';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { saleShipmentApi } from '@/lib/api/sale';
@@ -90,124 +91,6 @@ function buildLines(order: SalesOrder, initial?: SalesShipment): ShipLine[] {
       };
     })
     .filter((l) => l.remaining > 0);
-}
-
-/**
- * Serial picker for a serial-tracked shipment line. Loads the AVAILABLE serials
- * for the item in the shipment's warehouse + the chosen location and lets the
- * user check exactly `max` of them. Only available serials are ever selectable.
- */
-function SerialPicker({
-  itemId,
-  warehouseId,
-  locationId,
-  max,
-  selected,
-  onChange,
-}: {
-  itemId: number;
-  warehouseId: number;
-  locationId: number | null;
-  max: number;
-  selected: string[];
-  onChange: (serials: string[]) => void;
-}) {
-  const [options, setOptions] = useState<string[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (!locationId) {
-      setOptions([]);
-      return;
-    }
-    let active = true;
-    setLoading(true);
-    const url = new URL(API.inventory.serial.root, window.location.origin);
-    url.searchParams.set('item_id', String(itemId));
-    url.searchParams.set('warehouse_id', String(warehouseId));
-    url.searchParams.set('location_id', String(locationId));
-    fetch(url.toString())
-      .then((r) => r.json())
-      .then((j) => {
-        if (!active) return;
-        const rows = Array.isArray(j.data) ? j.data : (j.data?.data ?? []);
-        setOptions(
-          rows.map((r: { serial_number: string }) => r.serial_number),
-        );
-      })
-      .catch(() => active && setOptions([]))
-      .finally(() => active && setLoading(false));
-    return () => {
-      active = false;
-    };
-  }, [itemId, warehouseId, locationId]);
-
-  // Keep only still-available selections when the option set changes.
-  useEffect(() => {
-    const pruned = selected.filter((s) => options.includes(s));
-    if (pruned.length !== selected.length) onChange(pruned);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [options]);
-
-  function toggle(sn: string) {
-    if (selected.includes(sn)) {
-      onChange(selected.filter((s) => s !== sn));
-    } else if (selected.length < max) {
-      onChange([...selected, sn]);
-    }
-  }
-
-  const complete = selected.length === max && max > 0;
-
-  return (
-    <div className="space-y-2 rounded-xl border border-emerald-100 bg-emerald-50/50 p-3">
-      <div className="flex items-center justify-between">
-        <Label className="text-xs">Select Serial Numbers</Label>
-        <span
-          className={`text-[11px] font-mono ${complete ? 'text-emerald-600' : 'text-amber-600'}`}
-        >
-          {selected.length}/{max} selected
-        </span>
-      </div>
-      {!locationId ? (
-        <p className="text-[11px] text-slate-500">Select a location first.</p>
-      ) : loading ? (
-        <p className="text-[11px] text-slate-500">Loading available serials…</p>
-      ) : options.length === 0 ? (
-        <p className="text-[11px] text-rose-500">
-          No available serials in this location.
-        </p>
-      ) : (
-        <div className="grid max-h-40 grid-cols-2 gap-1 overflow-y-auto sm:grid-cols-3">
-          {options.map((sn) => {
-            const checked = selected.includes(sn);
-            const disabled = !checked && selected.length >= max;
-            return (
-              <label
-                key={sn}
-                className={`flex cursor-pointer items-center gap-1.5 rounded-lg border px-2 py-1.5 text-xs font-mono ${
-                  checked
-                    ? 'border-emerald-300 bg-emerald-100 text-emerald-800'
-                    : disabled
-                      ? 'cursor-not-allowed border-slate-100 bg-slate-50 text-slate-300'
-                      : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  disabled={disabled}
-                  onChange={() => toggle(sn)}
-                  className="accent-emerald-600"
-                />
-                {sn}
-              </label>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
 }
 
 export default function ShipmentForm({
@@ -576,12 +459,12 @@ export default function ShipmentForm({
                           </div>
                         </div>
                         {line.track_serial && (
-                          <SerialPicker
+                          <SerialLookupPanel
                             itemId={line.item_id}
                             warehouseId={order.warehouse_id}
                             locationId={line.location_id}
-                            max={Number(line.shipment_qty) || 0}
-                            selected={line.serial_numbers}
+                            requiredCount={Number(line.shipment_qty) || 0}
+                            value={line.serial_numbers}
                             onChange={(serials) =>
                               setLine(idx, { serial_numbers: serials })
                             }

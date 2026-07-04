@@ -136,23 +136,47 @@ export class InventorySerialRepository extends BaseRepository {
         return data ?? [];
     }
 
-    /** Available serials for a given item + warehouse + location (sale picker). */
+    /**
+     * Available serials for a given item + warehouse + location, with
+     * server-side prefix search and a hard limit — the browser never receives
+     * the full set. Ordered id ASC (FIFO, oldest received first) so
+     * "auto-fill remaining" is simply the first N rows. Returns the total
+     * matching count for "Showing X of N" UIs.
+     */
     async findAvailable(
         ctx: RequestContext,
-        params: { itemId: number; warehouseId: number; locationId: number },
-    ): Promise<{ id: number; serial_number: string }[]> {
-        const { data, error } = await this.db
+        params: {
+            itemId: number;
+            warehouseId: number;
+            locationId: number;
+            search?: string;
+            limit?: number;
+        },
+    ): Promise<{
+        rows: { id: number; serial_number: string; created_at: string }[];
+        total: number;
+    }> {
+        const limit = Math.min(Math.max(params.limit ?? 50, 1), 200);
+        let query = this.db
             .from(SERIAL_TABLE)
-            .select('id, serial_number')
+            .select('id, serial_number, created_at', { count: 'exact' })
             .eq('company_id', Number(ctx.companyId))
             .eq('item_id', params.itemId)
             .eq('warehouse_id', params.warehouseId)
             .eq('location_id', params.locationId)
-            .eq('status', 'available')
-            .order('serial_number', { ascending: true });
+            .eq('status', 'available');
+
+        const search = params.search?.trim();
+        if (search) {
+            query = query.ilike('serial_number', `${search}%`);
+        }
+
+        const { data, error, count } = await query
+            .order('id', { ascending: true })
+            .limit(limit);
 
         if (error) throw new ApiError(error.message, 500, 'SERIAL_ERROR');
-        return data ?? [];
+        return { rows: data ?? [], total: count ?? 0 };
     }
 
     /**

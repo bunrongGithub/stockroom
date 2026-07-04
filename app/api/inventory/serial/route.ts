@@ -5,9 +5,10 @@ import { ApiError, ApiResponseSuccess } from '@/service/core/api-response';
 
 const service = InventorySerialRepository.getInstance();
 
-// GET /api/inventory/serial?item_id=&warehouse_id=&location_id=[&status=available]
-// Returns the AVAILABLE serials for an item in a specific warehouse+location —
-// used by the Sales "select serial numbers" picker.
+// GET /api/inventory/serial?item_id=&warehouse_id=&location_id=[&search=][&limit=]
+// AVAILABLE serials for an item in a warehouse+location, server-side prefix
+// search, limited (default 50, cap 200), FIFO order. Returns { data, total }
+// so pickers can show "Showing X of N" without ever loading the full set.
 export async function GET(req: NextRequest) {
     try {
         const ctx = getRequestContext(req);
@@ -18,15 +19,17 @@ export async function GET(req: NextRequest) {
         const locationId = Number(sp.get('location_id'));
 
         if (!itemId || !warehouseId || !locationId) {
-            return NextResponse.json({ data: [] }, { status: 200 });
+            return NextResponse.json({ data: [], total: 0 }, { status: 200 });
         }
 
-        const data = await service.findAvailable(ctx, {
+        const { rows, total } = await service.findAvailable(ctx, {
             itemId,
             warehouseId,
             locationId,
+            search: sp.get('search') ?? undefined,
+            limit: Number(sp.get('limit')) || undefined,
         });
-        return new ApiResponseSuccess({ data }, 'Success').toResponse();
+        return new ApiResponseSuccess({ data: rows, total }, 'Success').toResponse();
     } catch (error) {
         if (error instanceof ApiError) return error.toResponse();
         const message =
