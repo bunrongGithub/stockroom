@@ -352,6 +352,8 @@ export default function SaleInvoiceDetail({
                                     Invoice Information
                                 </h3>
                                 <div className="grid grid-cols-2 gap-y-3">
+                                    <span className="text-slate-400">Reference No</span>
+                                    <span>{invoice.reference_no || '—'}</span>
                                     <span className="text-slate-400">Customer</span>
                                     <span className="font-medium">{invoice.customer_name || '—'}</span>
                                     <span className="text-slate-400">Customer Phone</span>

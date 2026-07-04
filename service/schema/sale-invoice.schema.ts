@@ -21,6 +21,8 @@ export const updateSalesInvoiceLineSchema = z.object(invoiceLineBase);
 // ─── Sales Invoice Header ───────────────────────────────────────────────────
 
 const invoiceHeaderBase = {
+    // User-entered reference (customer PO…) — never generated.
+    reference_no: z.string().max(100).trim().optional().nullable(),
     invoice_date: z.string(),
     currency: z.string().default('USD'),
     exchange_rate: z.number().positive().optional(),

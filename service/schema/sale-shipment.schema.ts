@@ -25,6 +25,8 @@ export type CreateSalesShipmentLineInput = z.infer<
 // ─── Sales Shipment Header ──────────────────────────────────────────────────
 
 const shipmentHeaderBase = {
+    // User-entered reference (courier tracking, customer PO…) — never generated.
+    reference_no: z.string().max(100).trim().optional().nullable(),
     sales_order_id: z.number().int().positive(),
     customer_name: z.string().optional().nullable(),
     customer_phone: z.string().min(1, 'Customer phone is required'),

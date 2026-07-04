@@ -106,6 +106,7 @@ export default function ShipmentForm({
   const today = new Date().toISOString().slice(0, 10);
 
   const [activeTab, setActiveTab] = useState<TabId>('details');
+  const [referenceNo, setReferenceNo] = useState(initial?.reference_no ?? '');
   const [deliveryDate, setDeliveryDate] = useState(
     initial?.delivery_date?.slice(0, 10) ?? today,
   );
@@ -160,6 +161,7 @@ export default function ShipmentForm({
         customer_phone: order.customer_phone || undefined,
         delivery_date: deliveryDate,
         warehouse_id: order.warehouse_id,
+        reference_no: referenceNo.trim() || undefined,
         receiver_name: receiverName || undefined,
         delivery_address: deliveryAddress || undefined,
         notes: notes || undefined,
@@ -329,6 +331,15 @@ export default function ShipmentForm({
                     <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-mono text-slate-600">
                       {order.customer_phone || '—'}
                     </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Reference No</Label>
+                    <Input
+                      value={referenceNo}
+                      onChange={(e) => setReferenceNo(e.target.value)}
+                      placeholder="Tracking / customer PO (optional)"
+                      className="text-xs font-mono"
+                    />
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs">Delivery Date *</Label>

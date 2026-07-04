@@ -1,4 +1,4 @@
-import { generateSequenNumbering } from '@/lib/utils/sequenumbering';
+import { getNextDocumentNumber } from '@/service/core/document-number';
 import {
     ApiError,
     BadRequesstExceptionError,
@@ -86,6 +86,8 @@ export type ReceiptTxnType = {
     company: { id: number; name: string };
     user_id: string;
     reference_no: string;
+    /** User-entered reference (supplier invoice / PO) — never generated */
+    source_reference_no: string | null;
     received_date: string;
     status: 'DRAFT' | 'POSTED' | 'VOID';
     notes: string | null;
@@ -189,12 +191,22 @@ export class ReceiptRepository extends BaseRepository {
         params: PaginationParams,
     ): Promise<PaginatedResult<ReceiptTxnType>> {
         const isSuperUser = await this.isSupperUser(ctx);
-        const query = this.applyFilter(
+        let query = this.applyFilter(
             this.db.from(HEADER_TABLE).select(SELECT_LIST, { count: 'exact' }),
             ctx,
             isSuperUser,
         ).order('id', { ascending: false });
-        const result = await this.paginate<ReceiptTxnType>(query, params);
+        // Search matches the system number OR the user reference number.
+        if (params.search) {
+            query = query.or(
+                `reference_no.ilike.%${params.search}%,source_reference_no.ilike.%${params.search}%`,
+            );
+        }
+        const result = await this.paginate<ReceiptTxnType>(query, {
+            ...params,
+            search: undefined,
+            searchColumn: undefined,
+        });
         return {
             ...result,
             data: result.data.map((row) => ({
@@ -225,7 +237,11 @@ export class ReceiptRepository extends BaseRepository {
         ctx: RequestContext,
         input: CreateReceiptInput,
     ): Promise<ReceiptTxnType> {
-        const reference_no = generateSequenNumbering('INR');
+        const reference_no = await getNextDocumentNumber(
+            ctx,
+            'inventory_receipt',
+            'RCT',
+        );
         const { items, ...header } = input;
 
         const { data: headerData, error: headerError } = await this.db

@@ -88,6 +88,9 @@ export default function InvoiceDocument({ invoice }: { invoice: SalesInvoice }) 
                     <tbody>
                         {[
                             ['Invoice No', invoice.invoice_no],
+                            ...(invoice.reference_no
+                                ? [['Reference', invoice.reference_no]]
+                                : []),
                             ['Date', longDate(invoice.invoice_date)],
                             ['Status', invoice.status],
                             ['Sales Order', invoice.sales_order_no || '—'],

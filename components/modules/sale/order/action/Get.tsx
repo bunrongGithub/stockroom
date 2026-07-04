@@ -362,6 +362,8 @@ export default function SaleOrderDetail({
                                     Order Information
                                 </h3>
                                 <div className="grid grid-cols-2 gap-y-3">
+                                    <span className="text-slate-400">Reference No</span>
+                                    <span>{order.reference_no || '—'}</span>
                                     <span className="text-slate-400">Customer</span>
                                     <span className="font-medium">
                                         {order.customer_name}

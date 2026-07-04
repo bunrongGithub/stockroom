@@ -59,6 +59,7 @@ export interface SalesOrderItem {
 export interface SalesOrder {
     id: number;
     order_no: string;
+    reference_no: string | null;
     customer_name: string;
     customer_phone: string | null;
     order_date: string;
@@ -99,6 +100,7 @@ export interface SalesShipmentItem {
 export interface SalesShipment {
     id: number;
     shipment_no: string;
+    reference_no: string | null;
     sales_order_id: number;
     sales_order_no: string;
     customer_name: string | null;
@@ -133,6 +135,7 @@ export interface CreateSalesOrderLinePayload {
 }
 
 export interface CreateSalesOrderPayload {
+    reference_no?: string;
     customer_name: string;
     customer_phone?: string;
     order_date: string;
@@ -155,6 +158,7 @@ export interface CreateSalesShipmentLinePayload {
 }
 
 export interface CreateSalesShipmentPayload {
+    reference_no?: string;
     sales_order_id: number;
     customer_name?: string;
     customer_phone?: string;
@@ -190,6 +194,7 @@ export interface SalesInvoiceItem {
 export interface SalesInvoice {
     id: number;
     invoice_no: string;
+    reference_no: string | null;
     shipment_id: number;
     shipment_no: string;
     sales_order_id: number | null;
@@ -227,6 +232,7 @@ export interface CreateSalesInvoiceLinePayload {
 }
 
 export interface CreateSalesInvoicePayload {
+    reference_no?: string;
     shipment_id: number;
     invoice_date: string;
     currency: string;

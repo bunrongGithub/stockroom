@@ -4,7 +4,7 @@ import type {
     PaginatedResult,
 } from '@/service/core/pagination';
 import type { RequestContext } from '@/types/request-context';
-import { generateSequenNumbering } from '@/lib/utils/sequenumbering';
+import { getNextDocumentNumber } from '@/service/core/document-number';
 import {
     lineTotal as calcLineTotal,
     documentTotals,
@@ -112,6 +112,7 @@ function mapOrder(r: any): SalesOrder {
     return {
         id: r.id,
         order_no: r.order_no,
+        reference_no: r.reference_no ?? null,
         customer_name: r.customer_name,
         customer_phone: r.customer_phone ?? null,
         order_date: r.order_date,
@@ -149,15 +150,22 @@ export class SalesOrderRepository extends BaseRepository {
         params: PaginationParams,
     ): Promise<PaginatedResult<SalesOrder>> {
         const isSuperUser = await this.isSupperUser(ctx);
-        const query = this.applyFilter(
+        let query = this.applyFilter(
             this.db.from(HEADER_TABLE).select(SELECT_LIST, { count: 'exact' }),
             ctx,
             isSuperUser,
         ).order('id', { ascending: false });
-        const result = await this.paginate<Record<string, unknown>>(
-            query,
-            params,
-        );
+        // Search matches the system number OR the user reference number.
+        if (params.search) {
+            query = query.or(
+                `order_no.ilike.%${params.search}%,reference_no.ilike.%${params.search}%`,
+            );
+        }
+        const result = await this.paginate<Record<string, unknown>>(query, {
+            ...params,
+            search: undefined,
+            searchColumn: undefined,
+        });
         return { ...result, data: result.data.map(mapOrder) };
     }
 
@@ -177,7 +185,7 @@ export class SalesOrderRepository extends BaseRepository {
         input: CreateSalesOrderInput,
     ): Promise<SalesOrder> {
         const companyId = Number(ctx.companyId);
-        const order_no = generateSequenNumbering('SO');
+        const order_no = await getNextDocumentNumber(ctx, 'sales_order', 'SO');
         const totals = orderTotals(input.items);
 
         const { data: header, error } = await this.db
@@ -186,6 +194,7 @@ export class SalesOrderRepository extends BaseRepository {
                 company_id: companyId,
                 user_id: ctx.userId,
                 order_no,
+                reference_no: input.reference_no ?? null,
                 customer_name: input.customer_name,
                 customer_phone: input.customer_phone ?? null,
                 order_date: input.order_date,
@@ -240,6 +249,7 @@ export class SalesOrderRepository extends BaseRepository {
         const { error } = await this.db
             .from(HEADER_TABLE)
             .update({
+                reference_no: input.reference_no ?? null,
                 customer_name: input.customer_name,
                 customer_phone: input.customer_phone ?? null,
                 order_date: input.order_date,

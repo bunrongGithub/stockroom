@@ -1,6 +1,6 @@
 import { BaseRepository } from '@/service/core/base-repository';
 import { ApiError } from '@/service/core/api-response';
-import { generateSequenNumbering } from '@/lib/utils/sequenumbering';
+import { getNextDocumentNumber } from '@/service/core/document-number';
 import type { RequestContext } from '@/types/request-context';
 import type { InventoryTxnMovementType } from './receipt';
 
@@ -149,7 +149,11 @@ export class MovementRepository extends BaseRepository {
         // referencing a non-stock (or service) item is rejected here.
         await this.ensureStockItems(input.items.map((i) => i.item_id));
 
-        const reference_no = generateSequenNumbering('MOV');
+        const reference_no = await getNextDocumentNumber(
+            ctx,
+            'inventory_movement',
+            'MOV',
+        );
 
         // 1. header
         const { data: header, error: headerError } = await this.db

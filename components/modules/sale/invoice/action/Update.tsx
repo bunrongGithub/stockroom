@@ -87,6 +87,7 @@ export default function SaleInvoiceUpdate({
     }
 
     const header: InvoiceHeaderDraft = {
+        reference_no: invoice.reference_no ?? '',
         customer_name: invoice.customer_name ?? '',
         customer_phone: invoice.customer_phone ?? '',
         customer_address: invoice.customer_address ?? '',

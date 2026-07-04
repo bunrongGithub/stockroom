@@ -136,6 +136,7 @@ export default function SaleInvoiceCreate({
     }
 
     const header: InvoiceHeaderDraft = {
+        reference_no: '',
         customer_name: shipment.customer_name ?? '',
         customer_phone: shipment.customer_phone ?? '',
         customer_address: shipment.delivery_address ?? '',

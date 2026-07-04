@@ -115,6 +115,7 @@ function ReasonSelect({
 type Status = 'DRAFT' | 'OPEN' | 'VOID';
 type FormValues = {
   transaction_date: string;
+  source_reference_no: string;
   reason: InventoryMovemtTypeReasonMeta | '';
   notes: string;
   status: Status;
@@ -128,6 +129,7 @@ function toFormValues(receipt: ReceiptTxnType): FormValues {
   const warehouse = items[0]?.warehouse;
   return {
     transaction_date: (receipt.transaction_date ?? '').slice(0, 10),
+    source_reference_no: receipt.source_reference_no ?? '',
     reason: receipt.reason ?? '',
     notes: receipt.notes ?? '',
     status: 'DRAFT',
@@ -185,6 +187,7 @@ export default function Update({
       ? toFormValues(receiptData)
       : {
           transaction_date: new Date().toISOString().slice(0, 10),
+          source_reference_no: '',
           reason: '',
           notes: '',
           status: 'DRAFT',
@@ -262,6 +265,7 @@ export default function Update({
       const payload = {
         transaction_date: data.transaction_date,
         reference_no: receipt?.reference_no ?? null,
+        source_reference_no: data.source_reference_no || null,
         reason: data.reason || '',
         notes: data.notes || null,
         movement_type: 'receipt',
@@ -346,6 +350,14 @@ export default function Update({
             <div className="space-y-1.5">
               <FieldLabel>Reference No</FieldLabel>
               <ReadonlyInput value={receipt.reference_no ?? ''} />
+            </div>
+            <div className="space-y-1.5">
+              <FieldLabel>Supplier Ref No</FieldLabel>
+              <EditableInput
+                type="text"
+                placeholder="Supplier invoice / PO (optional)"
+                {...register('source_reference_no')}
+              />
             </div>
             {/* Warehouse */}
             <Controller

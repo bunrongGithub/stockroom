@@ -112,6 +112,7 @@ function ReasonSelect({
 type Status = 'DRAFT' | 'OPEN' | 'VOID';
 type FormValues = {
   transaction_date: string;
+  source_reference_no: string;
   reason: InventoryMovemtTypeReasonMeta | '';
   notes: string;
   status: Status;
@@ -136,6 +137,7 @@ export default function Create() {
   } = useForm<FormValues>({
     defaultValues: {
       transaction_date: today,
+      source_reference_no: '',
       reason: '',
       notes: '',
       status: 'DRAFT',
@@ -188,6 +190,7 @@ export default function Create() {
     try {
       const payload = {
         transaction_date: data.transaction_date,
+        source_reference_no: data.source_reference_no || null,
         reason: data.reason || null,
         notes: data.notes || null,
         movement_type: 'receipt',
@@ -260,6 +263,14 @@ export default function Create() {
             <div className="space-y-1.5">
               <FieldLabel>Reference No</FieldLabel>
               <ReadonlyInput placeholder="Auto-generated" />
+            </div>
+            <div className="space-y-1.5">
+              <FieldLabel>Supplier Ref No</FieldLabel>
+              <EditableInput
+                type="text"
+                placeholder="Supplier invoice / PO (optional)"
+                {...register('source_reference_no')}
+              />
             </div>
             {/* Warehouse */}
             <Controller

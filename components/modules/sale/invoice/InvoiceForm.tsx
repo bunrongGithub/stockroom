@@ -36,6 +36,7 @@ export type InvoiceLineDraft = {
 };
 
 export type InvoiceHeaderDraft = {
+    reference_no: string;
     customer_name: string;
     customer_phone: string;
     customer_address: string;
@@ -140,6 +141,7 @@ export default function InvoiceForm({
                 tax: Number(l.tax),
             }));
             const headerPayload = {
+                reference_no: header.reference_no.trim() || undefined,
                 invoice_date: header.invoice_date,
                 currency: header.currency,
                 exchange_rate: Number(header.exchange_rate) || 1,
@@ -305,6 +307,15 @@ export default function InvoiceForm({
                                     Invoice Information
                                 </h3>
                                 <div className="grid gap-4 lg:grid-cols-2">
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs">Reference No</Label>
+                                        <Input
+                                            value={header.reference_no}
+                                            onChange={(e) => setH('reference_no', e.target.value)}
+                                            placeholder="Customer PO (optional)"
+                                            className="text-xs font-mono"
+                                        />
+                                    </div>
                                     <div className="space-y-1.5">
                                         <Label className="text-xs">Customer Name *</Label>
                                         <Input

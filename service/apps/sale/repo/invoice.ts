@@ -4,7 +4,7 @@ import type {
     PaginatedResult,
 } from '@/service/core/pagination';
 import type { RequestContext } from '@/types/request-context';
-import { generateSequenNumbering } from '@/lib/utils/sequenumbering';
+import { getNextDocumentNumber } from '@/service/core/document-number';
 import { ApiError, NotFoundError } from '@/service/core/api-response';
 import { lineTotal, documentTotals } from '../pricing';
 import { SalesShipmentRepository } from './shipment';
@@ -65,6 +65,7 @@ function mapInvoice(r: any): SalesInvoice {
     return {
         id: r.id,
         invoice_no: r.invoice_no,
+        reference_no: r.reference_no ?? null,
         shipment_id: r.shipment_id,
         shipment_no: r.shipment?.shipment_no ?? '',
         sales_order_id: r.sales_order_id ?? null,
@@ -123,15 +124,22 @@ export class SalesInvoiceRepository extends BaseRepository {
         params: PaginationParams,
     ): Promise<PaginatedResult<SalesInvoice>> {
         const isSuperUser = await this.isSupperUser(ctx);
-        const query = this.applyFilter(
+        let query = this.applyFilter(
             this.db.from(HEADER_TABLE).select(SELECT_LIST, { count: 'exact' }),
             ctx,
             isSuperUser,
         ).order('id', { ascending: false });
-        const result = await this.paginate<Record<string, unknown>>(
-            query,
-            params,
-        );
+        // Search matches the system number OR the user reference number.
+        if (params.search) {
+            query = query.or(
+                `invoice_no.ilike.%${params.search}%,reference_no.ilike.%${params.search}%`,
+            );
+        }
+        const result = await this.paginate<Record<string, unknown>>(query, {
+            ...params,
+            search: undefined,
+            searchColumn: undefined,
+        });
         return { ...result, data: result.data.map(mapInvoice) };
     }
 
@@ -292,7 +300,12 @@ export class SalesInvoiceRepository extends BaseRepository {
             .insert({
                 company_id: companyId,
                 user_id: ctx.userId,
-                invoice_no: generateSequenNumbering('INV'),
+                invoice_no: await getNextDocumentNumber(
+                    ctx,
+                    'sales_invoice',
+                    'INV',
+                ),
+                reference_no: input.reference_no ?? null,
                 shipment_id: input.shipment_id,
                 sales_order_id: shipment.sales_order_id,
                 customer_name: input.customer_name ?? shipment.customer_name,
@@ -406,6 +419,7 @@ export class SalesInvoiceRepository extends BaseRepository {
         const { error } = await this.db
             .from(HEADER_TABLE)
             .update({
+                reference_no: input.reference_no ?? existing.reference_no,
                 customer_name: input.customer_name ?? existing.customer_name,
                 customer_phone: input.customer_phone ?? existing.customer_phone,
                 customer_address:

@@ -30,6 +30,8 @@ export type UpdateSalesOrderLineInput = z.infer<
 // ─── Sales Order Header ─────────────────────────────────────────────────────
 
 const orderHeaderBase = {
+    // User-entered reference (customer PO, tracking no…) — never generated.
+    reference_no: z.string().max(100).trim().optional().nullable(),
     customer_name: z.string().min(1, 'Customer is required').trim(),
     customer_phone: z.string().min(1, 'Customer phone is required').trim(),
     order_date: z.string(),

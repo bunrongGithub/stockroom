@@ -30,6 +30,8 @@ export type CreateReceiptLineInput = z.infer<typeof createReceiptLineSchema>;
 const receiptTxnBaseSchema = {
     transaction_date: z.string(),
     reference_no: z.string().optional().nullable(),
+    // User-entered reference (supplier invoice / PO no…) — never generated.
+    source_reference_no: z.string().max(100).trim().optional().nullable(),
     status: z.string(),
     reason: z.string(),
     movement_type: z.string(),

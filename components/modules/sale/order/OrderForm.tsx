@@ -72,6 +72,9 @@ export default function OrderForm({
     const today = new Date().toISOString().slice(0, 10);
 
     const [activeTab, setActiveTab] = useState<TabId>('details');
+    const [referenceNo, setReferenceNo] = useState(
+        initial?.reference_no ?? '',
+    );
     const [customerName, setCustomerName] = useState(
         initial?.customer_name ?? '',
     );
@@ -164,6 +167,7 @@ export default function OrderForm({
         setSaving(true);
         try {
             const payload = {
+                reference_no: referenceNo.trim() || undefined,
                 customer_name: customerName.trim(),
                 customer_phone: customerPhone || undefined,
                 order_date: orderDate,
@@ -331,6 +335,15 @@ export default function OrderForm({
                                     Order Information
                                 </h3>
                                 <div className="grid gap-4 lg:grid-cols-2">
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs">Reference No</Label>
+                                        <Input
+                                            value={referenceNo}
+                                            onChange={(e) => setReferenceNo(e.target.value)}
+                                            placeholder="Customer PO / manual reference (optional)"
+                                            className="text-xs font-mono"
+                                        />
+                                    </div>
                                     <div className="space-y-1.5">
                                         <Label className="text-xs">Customer Name *</Label>
                                         <Input

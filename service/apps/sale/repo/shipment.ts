@@ -1,4 +1,4 @@
-import { generateSequenNumbering } from '@/lib/utils/sequenumbering';
+import { getNextDocumentNumber } from '@/service/core/document-number';
 import { ItemUomRepository } from '@/service/apps/inventory/repo/item-uom';
 import { MovementRepository } from '@/service/apps/inventory/repo/movement';
 import { InventorySerialRepository } from '@/service/apps/inventory/repo/serial';
@@ -72,6 +72,7 @@ function mapShipment(r: any): SalesShipment {
     return {
         id: r.id,
         shipment_no: r.shipment_no,
+        reference_no: r.reference_no ?? null,
         sales_order_id: r.sales_order_id,
         sales_order_no: r.sales_order?.order_no ?? '',
         customer_name: r.customer_name ?? null,
@@ -107,15 +108,22 @@ export class SalesShipmentRepository extends BaseRepository {
         params: PaginationParams,
     ): Promise<PaginatedResult<SalesShipment>> {
         const isSuperUser = await this.isSupperUser(ctx);
-        const query = this.applyFilter(
+        let query = this.applyFilter(
             this.db.from(HEADER_TABLE).select(SELECT_LIST, { count: 'exact' }),
             ctx,
             isSuperUser,
         ).order('id', { ascending: false });
-        const result = await this.paginate<Record<string, unknown>>(
-            query,
-            params,
-        );
+        // Search matches the system number OR the user reference number.
+        if (params.search) {
+            query = query.or(
+                `shipment_no.ilike.%${params.search}%,reference_no.ilike.%${params.search}%`,
+            );
+        }
+        const result = await this.paginate<Record<string, unknown>>(query, {
+            ...params,
+            search: undefined,
+            searchColumn: undefined,
+        });
         return { ...result, data: result.data.map(mapShipment) };
     }
 
@@ -141,13 +149,18 @@ export class SalesShipmentRepository extends BaseRepository {
         const order = await this.loadShippableOrder(ctx, input.sales_order_id);
         this.validateLines(order, input.items);
 
-        const shipment_no = generateSequenNumbering('SH');
+        const shipment_no = await getNextDocumentNumber(
+            ctx,
+            'sales_shipment',
+            'SHP',
+        );
         const { data: header, error } = await this.db
             .from(HEADER_TABLE)
             .insert({
                 company_id: companyId,
                 user_id: ctx.userId,
                 shipment_no,
+                reference_no: input.reference_no ?? null,
                 sales_order_id: input.sales_order_id,
                 customer_name: input.customer_name ?? order.customer_name,
                 customer_phone: input.customer_phone ?? order.customer_phone,
@@ -192,6 +205,7 @@ export class SalesShipmentRepository extends BaseRepository {
         const { error } = await this.db
             .from(HEADER_TABLE)
             .update({
+                reference_no: input.reference_no ?? null,
                 customer_name: input.customer_name ?? null,
                 customer_phone: input.customer_phone ?? null,
                 delivery_date: input.delivery_date,

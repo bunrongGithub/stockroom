@@ -227,6 +227,10 @@ export default function View({ receiptData }: { receiptData: ReceiptTxnType }) {
             <ReadonlyInput value={receipt.reference_no ?? ''} />
           </div>
           <div className="space-y-1.5">
+            <FieldLabel>Supplier Ref No</FieldLabel>
+            <ReadonlyInput value={receipt.source_reference_no ?? ''} placeholder="—" />
+          </div>
+          <div className="space-y-1.5">
             <FieldLabel>Warehouse</FieldLabel>
             <ReadonlyInput value={warehouseName} placeholder="—" />
           </div>
