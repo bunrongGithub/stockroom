@@ -8,14 +8,7 @@ import { DataTable, type DataTableColumn } from '@/components/ui/DataTable';
 import { usePageActions } from '@/hook/usePageAction';
 import type { TMeta } from '@/types/app';
 import type { InventoryItemProps } from '@/types/inventory/item';
-import {
-  Package,
-  Percent,
-  RotateCcw,
-  ShieldCheck,
-  Tags,
-} from 'lucide-react';
-import Image from 'next/image';
+import { Package, Percent, RotateCcw, ShieldCheck, Tags } from 'lucide-react';
 import { JSX } from 'react';
 
 function PropertyBadges({ item }: { item: InventoryItemProps }) {
@@ -87,7 +80,6 @@ export default function StockForm({
   const staticActions = pageAction?.actions.filter((a) => !a.dynamic) ?? [];
   const dynamicActions = pageAction?.actions.filter((a) => a.dynamic) ?? [];
 
-
   const columns: DataTableColumn<InventoryItemProps>[] = [
     {
       key: 'reference_no',
@@ -104,25 +96,14 @@ export default function StockForm({
       cellClassName: 'whitespace-normal max-w-xs',
       cell: (row) => (
         <div className="flex items-start gap-2">
-          {row.images_url && row.images_url.length > 0 ? (
-            <div className="h-9 w-9 shrink-0 overflow-hidden rounded-lg border border-gray-200">
-              <Image
-                src={row.images_url[0]}
-                alt={row.name}
-                width={36}
-                height={36}
-                className="h-full w-full object-cover"
-              />
-            </div>
-          ) : (
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-gray-100 text-gray-400">
-              <Package size={16} />
-            </div>
-          )}
           <div className="min-w-0 flex-1">
-            <div className="truncate font-mono text-xs text-gray-900">{row.name}</div>
+            <div className="truncate font-mono text-xs text-gray-900">
+              {row.name}
+            </div>
             <div className="mt-0.5 truncate text-xs text-gray-500">
-              {row.item_class === 'stock' ? 'Stock Item' : 'Non-Stock / Service'}
+              {row.item_class === 'stock'
+                ? 'Stock Item'
+                : 'Non-Stock / Service'}
             </div>
             <PropertyBadges item={row} />
           </div>
@@ -182,7 +163,7 @@ export default function StockForm({
         <div>
           <h2 className="flex items-center gap-2 text-2xl text-slate-800">
             <Package className="text-[#1a9e52]" />
-            Item Stock
+            Stock
           </h2>
           <p className="mt-1 text-slate-500">Manage your stock items</p>
         </div>

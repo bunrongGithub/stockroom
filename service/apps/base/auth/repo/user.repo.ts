@@ -24,18 +24,15 @@ export async function getUserProfile(
 }
 
 export class UserRepository extends BaseRepository {
-    protected tableName = 'profiles';
     protected database = this.db;
     protected schema = 'public';
-
+    protected userProfileView = 'user_profiles_view';
     async findAll(context: RequestContext, params: PaginationParams) {
         const isSuperUser = await this.isSupperUser(context);
         try {
             const baseQuery = this.database
-                .from(this.tableName)
-                .select(
-                    'id,full_name,company_id,created_at,avatar_url,writed_at',
-                )
+                .from(this.userProfileView)
+                .select('*')
                 .order('id', { ascending: false });
 
             if (isSuperUser) {

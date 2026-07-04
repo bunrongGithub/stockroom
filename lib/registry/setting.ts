@@ -6,7 +6,7 @@ export const settingRegistry: RegistryEntry[] = [
     // ── User ──────────────────────────────────────────────────────────────────
     [
         'User',
-        () => import('@/components/modules/setting/User'),
+        () => import('@/components/modules/setting/user/page'),
     ],
 
     // ── Role ──────────────────────────────────────────────────────────────────

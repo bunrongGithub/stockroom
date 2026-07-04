@@ -1,5 +1,9 @@
 import { BaseRepository, PaginationParams } from '@/service/core';
-import { ApiError, ValidationError } from '@/service/core/api-response';
+import {
+    ApiError,
+    NotFoundError,
+    ValidationError,
+} from '@/service/core/api-response';
 import {
     CreateRoleInput,
     createRoleSchema,
@@ -58,16 +62,35 @@ export class Role extends BaseRepository {
     }
 
     async findOne(context: RequestContext, id: number) {
+        const baseQuery = this.db
+            .from('roles')
+            .select(
+                '*, company(id, name), role_module_permission(id,can_view,can_create,can_update,can_delete,module:modules(id,key,label,path))',
+            )
+            .eq('id', id);
+
+        const isSuperUser = await this.isSupperUser(context);
+        if (isSuperUser) {
+            const { data, error } = await baseQuery.maybeSingle();
+            if (!data) {
+                throw new NotFoundError(`Role with id ${id} not found`);
+            }
+            if (error) {
+                console.log(error);
+                throw new ApiError(error.message, 500, error.code).toResponse();
+            }
+            return data;
+        }
         const { data, error } = await this.applyCompanyFilter(
-            this.db
-                .from('roles')
-                .select(
-                    '*, company(id, name), role_module_permission(id,can_view,can_create,can_update,can_delete,module:modules(id,key,label,path))',
-                )
-                .eq('id', id),
+            baseQuery,
             Number(context.companyId),
-        ).single();
+        ).maybeSingle();
+
+        if (!data) {
+            throw new NotFoundError(`Role with id ${id} not found`);
+        }
         if (error) {
+            console.log(error);
             throw new ApiError(error.message, 500, error.code).toResponse();
         }
         return data;
@@ -78,6 +101,20 @@ export class Role extends BaseRepository {
         id: number,
         payload: { name: string; description?: string | null },
     ) {
+        const baseQuery = this.db
+            .from('roles')
+            .update(payload)
+            .eq('id', id)
+            .select('id, name, description')
+            .single();
+
+        const isSuperUser = await this.isSupperUser(context);
+
+        if (isSuperUser) {
+            const { data, error, status } = await baseQuery;
+            return data;
+        }
+
         const { data, error, status } = await this.applyCompanyFilter(
             this.db
                 .from('roles')

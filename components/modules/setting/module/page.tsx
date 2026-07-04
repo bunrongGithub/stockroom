@@ -25,9 +25,9 @@ export default function Page({
         modulePath: currentPath.path,
     });
 
-    const pageAction = usePageActions();
-    const staticActions = pageAction?.actions.filter((a) => !a.dynamic) ?? [];
-    const dynamicActions = pageAction?.actions.filter((a) => a.dynamic) ?? [];
+  const pageAction = usePageActions();
+  const staticActions = pageAction?.actions.filter((a) => !a.dynamic) ?? [];
+  const dynamicActions = pageAction?.actions.filter((a) => a.dynamic) ?? [];
 
     const apiBase = `/api${currentPath.path}`;
 
