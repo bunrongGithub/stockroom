@@ -154,7 +154,7 @@ export default function SaleShipmentPage({ currentPath, permission, currentPathA
 
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight">Sales Shipments</h1>
+                    <h1 className="text-2xl font-bold tracking-tight">Delivery Note</h1>
                     <p className="text-xs text-muted-foreground mt-0.5">Delivery notes and stock issue on posting</p>
                 </div>
             </div>

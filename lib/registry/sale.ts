@@ -57,4 +57,19 @@ export const saleRegistry: RegistryEntry[] = [
         'SaleInvoicePrint',
         () => import('@/components/modules/sale/invoice/action/Print'),
     ],
+
+    // ── Customer Payment ──────────────────────────────────────────────────────
+    ['SalePayment', () => import('@/components/modules/sale/payment/page')],
+    [
+        'SalePaymentCreate',
+        () => import('@/components/modules/sale/payment/action/Create'),
+    ],
+    [
+        'SalePaymentDetail',
+        () => import('@/components/modules/sale/payment/action/Get'),
+    ],
+    [
+        'SalePaymentUpdate',
+        () => import('@/components/modules/sale/payment/action/Update'),
+    ],
 ];

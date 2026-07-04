@@ -19,6 +19,11 @@ import type {
     SalesInvoiceStatus,
     SalesInvoiceActions,
 } from '@/types/sales/order-management';
+import type {
+    OutstandingInvoice,
+    InvoicePaymentRef,
+} from '@/types/sales/payment';
+import { deriveInvoicePayment } from '../payment-summary';
 
 const HEADER_TABLE = 'sales_invoice' as const;
 const LINE_TABLE = 'sales_invoice_items' as const;
@@ -62,6 +67,12 @@ function mapInvoiceItem(r: any): SalesInvoiceItem {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapInvoice(r: any): SalesInvoice {
+    // Payment state derived through the single source of truth so
+    // amount_paid / outstanding / payment_status can never drift apart.
+    const pay = deriveInvoicePayment(
+        Number(r.grand_total),
+        Number(r.amount_paid ?? 0),
+    );
     return {
         id: r.id,
         invoice_no: r.invoice_no,
@@ -81,6 +92,9 @@ function mapInvoice(r: any): SalesInvoice {
         discount_total: Number(r.discount_total),
         tax_total: Number(r.tax_total),
         grand_total: Number(r.grand_total),
+        amount_paid: pay.amount_paid,
+        outstanding: pay.outstanding,
+        payment_status: pay.payment_status,
         total_quantity: (r.items ?? []).reduce(
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             (sum: number, it: any) => sum + Number(it.quantity ?? 0),
@@ -143,7 +157,10 @@ export class SalesInvoiceRepository extends BaseRepository {
         return { ...result, data: result.data.map(mapInvoice) };
     }
 
-    async findOne(ctx: RequestContext, id: number): Promise<SalesInvoice | null> {
+    async findOne(
+        ctx: RequestContext,
+        id: number,
+    ): Promise<SalesInvoice | null> {
         const isSuperUser = await this.isSupperUser(ctx);
         const { data, error } = await this.applyFilter(
             this.db.from(HEADER_TABLE).select(SELECT_DETAIL).eq('id', id),
@@ -506,6 +523,124 @@ export class SalesInvoiceRepository extends BaseRepository {
             existing.shipment_id,
         );
         return updated;
+    }
+
+    /**
+     * Outstanding invoices for the payment allocation grid — POSTED invoices
+     * with amount_paid < grand_total. Server-side filtered (optional customer
+     * name / number search) and paginated so a customer with thousands of
+     * invoices never loads everything.
+     */
+    async findOutstanding(
+        ctx: RequestContext,
+        params: PaginationParams & { customer?: string; phone?: string },
+    ): Promise<PaginatedResult<OutstandingInvoice>> {
+        const isSuperUser = await this.isSupperUser(ctx);
+        let query = this.applyFilter(
+            this.db
+                .from(HEADER_TABLE)
+                .select(
+                    'id, invoice_no, invoice_date, customer_name, customer_phone, currency, grand_total, amount_paid',
+                    { count: 'exact' },
+                ),
+            ctx,
+            isSuperUser,
+        )
+            .eq('status', 'POSTED')
+            // Only invoices with a remaining balance (generated column, indexed).
+            .gt('outstanding', 0)
+            .order('id', { ascending: true }); // FIFO — oldest first
+
+        // Customer match: free-text name OR phone (no customer master). Phone
+        // disambiguates when names are entered inconsistently; either alone
+        // still works.
+        const clauses: string[] = [];
+        if (params.customer) {
+            clauses.push(`customer_name.ilike.%${params.customer}%`);
+        }
+        if (params.phone) {
+            clauses.push(`customer_phone.eq.${params.phone}`);
+        }
+        if (clauses.length) {
+            query = query.or(clauses.join(','));
+        }
+        if (params.search) {
+            query = query.or(
+                `invoice_no.ilike.%${params.search}%,reference_no.ilike.%${params.search}%`,
+            );
+        }
+
+        const result = await this.paginate<Record<string, unknown>>(query, {
+            ...params,
+            search: undefined,
+            searchColumn: undefined,
+        });
+        return {
+            ...result,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            data: result.data.map((r: any) => ({
+                id: r.id,
+                invoice_no: r.invoice_no,
+                invoice_date: r.invoice_date,
+                customer_name: r.customer_name ?? null,
+                customer_phone: r.customer_phone ?? null,
+                currency: r.currency,
+                grand_total: Number(r.grand_total),
+                amount_paid: deriveInvoicePayment(
+                    Number(r.grand_total),
+                    Number(r.amount_paid ?? 0),
+                ).amount_paid,
+                outstanding: deriveInvoicePayment(
+                    Number(r.grand_total),
+                    Number(r.amount_paid ?? 0),
+                ).outstanding,
+            })),
+        };
+    }
+
+    /** POSTED customer payments settling a given invoice (invoice Payments tab). */
+    async findPayments(
+        ctx: RequestContext,
+        invoiceId: number,
+    ): Promise<InvoicePaymentRef[]> {
+        const companyId = Number(ctx.companyId);
+        const { data: allocs, error } = await this.db
+            .from('document_allocation')
+            .select('source_id, amount')
+            .eq('company_id', companyId)
+            .eq('source_type', 'customer_payment')
+            .eq('target_type', 'sales_invoice')
+            .eq('target_id', invoiceId);
+        if (error) throw new ApiError(error.message, 500);
+        if (!allocs?.length) return [];
+
+        const amountByPayment = new Map<number, number>();
+        for (const a of allocs) {
+            amountByPayment.set(
+                a.source_id,
+                (amountByPayment.get(a.source_id) ?? 0) + Number(a.amount),
+            );
+        }
+
+        const { data: payments } = await this.db
+            .from('customer_payment')
+            .select(
+                'id, payment_no, payment_date, payment_method, reference_no, status',
+            )
+            .eq('company_id', companyId)
+            .in('id', [...amountByPayment.keys()])
+            .eq('status', 'POSTED')
+            .order('id', { ascending: false });
+
+        return (payments ?? []).map((p) => ({
+            id: p.id,
+            payment_no: p.payment_no,
+            payment_date: p.payment_date,
+            payment_method: p.payment_method,
+            reference_no: p.reference_no ?? null,
+            status: p.status,
+            amount: amountByPayment.get(p.id) ?? 0,
+        }));
     }
 
     // ── internals ───────────────────────────────────────────────────────────

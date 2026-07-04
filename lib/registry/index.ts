@@ -1,8 +1,9 @@
 import { dashboardRegistry } from './dashboard';
 import { inventoryRegistry } from './inventory';
-import { settingRegistry }   from './setting';
-import { saleRegistry }      from './sale';
-import type { LazyLoader }   from './types';
+import { settingRegistry } from './setting';
+import { saleRegistry } from './sale';
+import type { LazyLoader } from './types';
+import { financeRegistry } from './finance';
 
 // Re-export so all existing consumers keep working with the same import path
 export type { ModuleProps } from './types';
@@ -15,6 +16,7 @@ const registry = new Map<string, LazyLoader>([
     ...inventoryRegistry,
     ...settingRegistry,
     ...saleRegistry,
+    ...financeRegistry,
 ]);
 
 export function getModuleLoader(componentKey: string): LazyLoader | undefined {

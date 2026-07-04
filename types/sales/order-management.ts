@@ -1,3 +1,5 @@
+import type { InvoicePaymentStatus } from './payment';
+
 // ── Statuses ──────────────────────────────────────────────────────────────────
 
 export type SalesOrderStatus =
@@ -211,6 +213,12 @@ export interface SalesInvoice {
     tax_total: number;
     grand_total: number;
     total_quantity: number;
+    /** Denormalized cache: settled amount from POSTED customer payments. */
+    amount_paid: number;
+    /** grand_total − amount_paid (never negative). Derived, not stored. */
+    outstanding: number;
+    /** Derived from amount_paid vs grand_total; independent of `status`. */
+    payment_status: InvoicePaymentStatus;
     remarks: string | null;
     created_at: string;
     updated_at: string;

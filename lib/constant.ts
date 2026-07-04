@@ -125,14 +125,23 @@ export const API = {
             post: (id: Id) => `/api/sale/shipment/${id}/post`,
             void: (id: Id) => `/api/sale/shipment/${id}/void`,
         },
-        invoice: {
-            ...resource('/api/sale/invoice'),
-            post: (id: Id) => `/api/sale/invoice/${id}/post`,
-            cancel: (id: Id) => `/api/sale/invoice/${id}/cancel`,
-        },
     },
 
     stockTransfer: {
         root: '/api/stock-transfer',
+    },
+    finances: {
+        invoice: {
+            ...resource('/api/finances/invoice'),
+            post: (id: Id) => `/api/finances/invoice/${id}/post`,
+            cancel: (id: Id) => `/api/finances/invoice/${id}/cancel`,
+            outstanding: '/api/finances/invoice/outstanding',
+            payments: (id: Id) => `/api/finances/invoice/${id}/payments`,
+        },
+        payment: {
+            ...resource('/api/finances/payment'),
+            post: (id: Id) => `/api/finances/payment/${id}/post`,
+            cancel: (id: Id) => `/api/finances/payment/${id}/cancel`,
+        },
     },
 } as const;

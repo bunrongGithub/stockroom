@@ -21,7 +21,7 @@ import { useEffect, useState } from 'react';
 
 const TABS = [
   { id: 'details' as const, label: 'Details', num: 1 },
-  { id: 'items' as const, label: 'Shipment Items', num: 2 },
+  { id: 'items' as const, label: 'Items', num: 2 },
 ];
 type TabId = (typeof TABS)[number]['id'];
 
@@ -298,15 +298,6 @@ export default function ShipmentForm({
                     : 'border-transparent text-slate-500 hover:text-slate-700'
                 }`}
               >
-                <span
-                  className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold transition-all ${
-                    activeTab === tab.id
-                      ? 'bg-[#1a9e52] text-white'
-                      : 'bg-slate-100 text-slate-500'
-                  }`}
-                >
-                  {tab.num}
-                </span>
                 {tab.label}
               </button>
             ))}

@@ -18,6 +18,7 @@ export type DocumentType =
     | 'sales_invoice'
     | 'inventory_receipt'
     | 'inventory_movement'
+    | 'customer_payment'
     // future modules:
     | 'purchase_order'
     | 'purchase_invoice'

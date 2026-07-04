@@ -3,25 +3,22 @@
 import { DataTable, type DataTableColumn } from '@/components/ui/DataTable';
 import { useRegisterModule } from '@/hook/useModule';
 import type { ModuleProps } from '@/lib/registry';
-import { financesInvoiceApi } from '@/lib/api/finances';
-import type {
-  SalesInvoice,
-  SalesInvoiceStatus,
-} from '@/types/sales/order-management';
+import { financesPaymentApi } from '@/lib/api/finances';
+import type { CustomerPayment, PaymentStatus } from '@/types/sales/payment';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  EyeIcon,
-  PencilIcon,
-  SendIcon,
   Ban,
-  Trash2Icon,
+  EyeIcon,
   Loader2Icon,
+  PencilIcon,
+  PlusIcon,
+  SendIcon,
+  Trash2Icon,
 } from 'lucide-react';
-import PaymentStatusBadge from './PaymentStatusBadge';
 
-function StatusBadge({ status }: { status: SalesInvoiceStatus }) {
-  const map: Record<SalesInvoiceStatus, string> = {
+function StatusBadge({ status }: { status: PaymentStatus }) {
+  const map: Record<PaymentStatus, string> = {
     DRAFT: 'bg-gray-100 text-gray-600',
     POSTED: 'bg-emerald-100 text-emerald-800',
     CANCELLED: 'bg-rose-100 text-rose-800',
@@ -35,6 +32,14 @@ function StatusBadge({ status }: { status: SalesInvoiceStatus }) {
   );
 }
 
+const METHOD_LABEL: Record<string, string> = {
+  CASH: 'Cash',
+  BANK_TRANSFER: 'Bank Transfer',
+  CARD: 'Card',
+  CHEQUE: 'Cheque',
+  OTHER: 'Other',
+};
+
 function fmt(n: number) {
   return n.toLocaleString('en-US', {
     minimumFractionDigits: 2,
@@ -42,7 +47,7 @@ function fmt(n: number) {
   });
 }
 
-export default function SaleInvoicePage({
+export default function SalePaymentPage({
   currentPath,
   permission,
   currentPathActions,
@@ -54,7 +59,7 @@ export default function SaleInvoicePage({
   });
 
   const router = useRouter();
-  const [invoices, setInvoices] = useState<SalesInvoice[]>([]);
+  const [payments, setPayments] = useState<CustomerPayment[]>([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{
     msg: string;
@@ -75,10 +80,10 @@ export default function SaleInvoicePage({
   async function refresh() {
     setLoading(true);
     try {
-      setInvoices(await financesInvoiceApi.list());
+      setPayments(await financesPaymentApi.list());
     } catch (e) {
       showToast(
-        e instanceof Error ? e.message : 'Failed to load invoices',
+        e instanceof Error ? e.message : 'Failed to load payments',
         'error',
       );
     } finally {
@@ -94,22 +99,22 @@ export default function SaleInvoicePage({
     if (!confirm) return;
     setBusy(true);
     try {
-      if (confirm.type === 'post') await financesInvoiceApi.post(confirm.id);
+      if (confirm.type === 'post') await financesPaymentApi.post(confirm.id);
       else if (confirm.type === 'cancel')
-        await financesInvoiceApi.cancel(confirm.id);
-      else await financesInvoiceApi.remove(confirm.id);
+        await financesPaymentApi.cancel(confirm.id);
+      else await financesPaymentApi.remove(confirm.id);
       showToast(
         confirm.type === 'post'
-          ? 'Invoice posted.'
+          ? 'Payment posted.'
           : confirm.type === 'cancel'
-            ? 'Invoice cancelled.'
-            : 'Invoice deleted.',
+            ? 'Payment cancelled.'
+            : 'Payment deleted.',
         'success',
       );
       await refresh();
     } catch (e) {
       showToast(
-        e instanceof Error ? e.message : `Cannot ${confirm.type} invoice`,
+        e instanceof Error ? e.message : `Cannot ${confirm.type} payment`,
         'error',
       );
     } finally {
@@ -118,16 +123,16 @@ export default function SaleInvoicePage({
     }
   }
 
-  const columns: DataTableColumn<SalesInvoice>[] = [
+  const columns: DataTableColumn<CustomerPayment>[] = [
     {
-      key: 'invoice_no',
-      header: 'Invoice No',
+      key: 'payment_no',
+      header: 'Payment No',
       cell: (row) => (
         <button
-          onClick={() => router.push(`/finances/invoice/${row.id}/view`)}
+          onClick={() => router.push(`/finances/payment/${row.id}/view`)}
           className="font-mono text-xs font-semibold text-sky-600 hover:underline"
         >
-          {row.invoice_no}
+          {row.payment_no}
         </button>
       ),
     },
@@ -135,47 +140,33 @@ export default function SaleInvoicePage({
       key: 'customer',
       header: 'Customer',
       cell: (row) => (
-        <span className="font-mono text-xs">{row.customer_name || '—'}</span>
+        <span className="font-mono text-xs">{row.customer_name}</span>
       ),
     },
     {
-      key: 'invoice_date',
+      key: 'payment_date',
       header: 'Date',
       cell: (row) => (
-        <span className="font-mono text-xs">{row.invoice_date}</span>
+        <span className="font-mono text-xs">{row.payment_date}</span>
       ),
     },
     {
-      key: 'shipment',
-      header: 'Shipment',
+      key: 'method',
+      header: 'Method',
       cell: (row) => (
-        <span className="font-mono text-xs">{row.shipment_no}</span>
+        <span className="font-mono text-xs">
+          {METHOD_LABEL[row.payment_method] ?? row.payment_method}
+        </span>
       ),
     },
     {
-      key: 'grand_total',
-      header: 'Grand Total',
+      key: 'amount',
+      header: 'Amount',
       cell: (row) => (
         <span className="font-mono text-xs font-semibold">
-          {row.currency} {fmt(row.grand_total)}
+          {row.currency} {fmt(row.amount)}
         </span>
       ),
-    },
-    {
-      key: 'outstanding',
-      header: 'Outstanding',
-      cell: (row) => (
-        <span
-          className={`font-mono text-xs ${row.outstanding > 0 ? 'text-amber-600 font-semibold' : 'text-slate-400'}`}
-        >
-          {fmt(row.outstanding)}
-        </span>
-      ),
-    },
-    {
-      key: 'payment_status',
-      header: 'Payment',
-      cell: (row) => <PaymentStatusBadge status={row.payment_status} />,
     },
     {
       key: 'status',
@@ -190,7 +181,7 @@ export default function SaleInvoicePage({
         return (
           <div className="flex items-center gap-1.5">
             <button
-              onClick={() => router.push(`/finances/invoice/${row.id}/view`)}
+              onClick={() => router.push(`/finances/payment/${row.id}/view`)}
               className="inline-flex items-center gap-1 rounded-lg border border-sky-200 px-2 py-1 text-xs text-sky-600 hover:bg-sky-50 font-mono"
             >
               <EyeIcon size={11} /> View
@@ -198,7 +189,7 @@ export default function SaleInvoicePage({
             {a?.can_update && (
               <button
                 onClick={() =>
-                  router.push(`/finances/invoice/${row.id}/update`)
+                  router.push(`/finances/payment/${row.id}/update`)
                 }
                 className="inline-flex items-center gap-1 rounded-lg border border-violet-200 px-2 py-1 text-xs text-violet-600 hover:bg-violet-50 font-mono"
               >
@@ -208,7 +199,7 @@ export default function SaleInvoicePage({
             {a?.can_post && (
               <button
                 onClick={() =>
-                  setConfirm({ type: 'post', id: row.id, no: row.invoice_no })
+                  setConfirm({ type: 'post', id: row.id, no: row.payment_no })
                 }
                 className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 px-2 py-1 text-xs text-emerald-600 hover:bg-emerald-50 font-mono"
               >
@@ -218,11 +209,7 @@ export default function SaleInvoicePage({
             {a?.can_cancel && (
               <button
                 onClick={() =>
-                  setConfirm({
-                    type: 'cancel',
-                    id: row.id,
-                    no: row.invoice_no,
-                  })
+                  setConfirm({ type: 'cancel', id: row.id, no: row.payment_no })
                 }
                 className="inline-flex items-center gap-1 rounded-lg border border-rose-200 px-2 py-1 text-xs text-rose-600 hover:bg-rose-50 font-mono"
               >
@@ -232,11 +219,7 @@ export default function SaleInvoicePage({
             {a?.can_delete && (
               <button
                 onClick={() =>
-                  setConfirm({
-                    type: 'delete',
-                    id: row.id,
-                    no: row.invoice_no,
-                  })
+                  setConfirm({ type: 'delete', id: row.id, no: row.payment_no })
                 }
                 className="inline-flex items-center gap-1 rounded-lg border border-rose-200 px-2 py-1 text-xs text-rose-600 hover:bg-rose-50 font-mono"
               >
@@ -253,7 +236,11 @@ export default function SaleInvoicePage({
     <main className="space-y-4">
       {toast && (
         <div
-          className={`fixed right-4 top-4 z-50 rounded-xl px-4 py-3 text-sm font-medium shadow-lg ${toast.type === 'success' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'}`}
+          className={`fixed right-4 top-4 z-50 rounded-xl px-4 py-3 text-sm font-medium shadow-lg ${
+            toast.type === 'success'
+              ? 'bg-emerald-500 text-white'
+              : 'bg-rose-500 text-white'
+          }`}
         >
           {toast.msg}
         </div>
@@ -263,14 +250,14 @@ export default function SaleInvoicePage({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
           <div className="w-80 space-y-4 rounded-2xl bg-white p-6 shadow-xl">
             <h3 className="text-sm font-semibold capitalize">
-              {confirm.type} Invoice
+              {confirm.type} Payment
             </h3>
             <p className="text-xs text-muted-foreground">
               {confirm.type === 'post'
-                ? `Post ${confirm.no}? It becomes an official, read-only invoice.`
+                ? `Post ${confirm.no}? It settles the allocated invoices and becomes read-only.`
                 : confirm.type === 'cancel'
-                  ? `Cancel ${confirm.no}? The shipment reverts to Shipped.`
-                  : `Delete draft ${confirm.no}? The shipment reverts to Shipped.`}
+                  ? `Cancel ${confirm.no}? The settled invoice balances are restored.`
+                  : `Delete draft ${confirm.no}?`}
             </p>
             <div className="flex justify-end gap-2">
               <button
@@ -282,7 +269,11 @@ export default function SaleInvoicePage({
               <button
                 disabled={busy}
                 onClick={runAction}
-                className={`rounded-lg px-3 py-1.5 text-xs text-white font-mono disabled:opacity-60 ${confirm.type === 'post' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-rose-500 hover:bg-rose-600'}`}
+                className={`rounded-lg px-3 py-1.5 text-xs text-white font-mono disabled:opacity-60 ${
+                  confirm.type === 'post'
+                    ? 'bg-emerald-600 hover:bg-emerald-700'
+                    : 'bg-rose-500 hover:bg-rose-600'
+                }`}
               >
                 {busy ? 'Working…' : 'Confirm'}
               </button>
@@ -293,11 +284,21 @@ export default function SaleInvoicePage({
 
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Invoices</h1>
+          <h1 className="text-2xl font-bold tracking-tight">
+            Customer Payments
+          </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Billing documents issued from shipments
+            Settle outstanding sales invoices
           </p>
         </div>
+        {permission?.can_create && (
+          <button
+            onClick={() => router.push('/finances/payment/create')}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-sm text-white hover:bg-emerald-500 font-mono shadow-sm"
+          >
+            <PlusIcon size={15} /> New Payment
+          </button>
+        )}
       </div>
 
       {loading ? (
@@ -305,20 +306,20 @@ export default function SaleInvoicePage({
           <Loader2Icon className="animate-spin text-emerald-500" size={26} />
         </div>
       ) : (
-        <DataTable<SalesInvoice>
+        <DataTable<CustomerPayment>
           columns={columns}
-          data={invoices}
+          data={payments}
           keyExtractor={(row) => row.id}
           searchFn={(row, q) =>
-            row.invoice_no.toLowerCase().includes(q) ||
-            (row.customer_name ?? '').toLowerCase().includes(q) ||
-            row.shipment_no.toLowerCase().includes(q) ||
+            row.payment_no.toLowerCase().includes(q) ||
+            row.customer_name.toLowerCase().includes(q) ||
+            (row.reference_no ?? '').toLowerCase().includes(q) ||
             row.status.toLowerCase().includes(q)
           }
-          searchPlaceholder="Search by invoice no, customer, shipment, or status..."
+          searchPlaceholder="Search by payment no, customer, reference, or status..."
           pageSize={10}
-          emptyTitle="No invoices"
-          emptyDescription="Create an invoice from a posted shipment"
+          emptyTitle="No payments"
+          emptyDescription="Record a customer payment to settle invoices"
         />
       )}
     </main>
