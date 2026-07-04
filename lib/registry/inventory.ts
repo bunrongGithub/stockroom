@@ -4,7 +4,7 @@ import type { RegistryEntry } from './types';
 
 export const inventoryRegistry: RegistryEntry[] = [
     [
-        'InventoryRootModule',
+        'InventoryDashboard',
         () => import('@/components/modules/inventory/InventoryRootModule'),
     ],
     [
