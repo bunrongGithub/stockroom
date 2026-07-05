@@ -5,20 +5,20 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Building2, Edit2, MapPin, Plus, Trash2, Warehouse } from 'lucide-react';
 
-import { BranchProps } from '@/types/branch';
+import { Warehouse as IWarehouse } from '@/types/branch';
 import { DataTable, type DataTableColumn } from '@/components/ui/DataTable';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import BranchForm from '@/components/forms/inventory/configurations/BranchForm';
 
 interface Props {
-    branches: BranchProps[];
+  branches: IWarehouse[];
 }
 
 export default function LocationForm({ branches }: Props) {
     const router = useRouter();
     const [showForm, setShowForm] = useState(false);
-    const [editing, setEditing] = useState<BranchProps | null>(null);
+    const [editing, setEditing] = useState<IWarehouse | null>(null);
     const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
 
     const showToast = (msg: string, type: 'success' | 'error') => {
@@ -39,92 +39,93 @@ export default function LocationForm({ branches }: Props) {
         }
     };
 
-    const columns: DataTableColumn<BranchProps>[] = [
-        {
-            key: 'name',
-            header: 'Warehouse',
-            cell: (b) => (
-                <div>
-                    <p className="font-medium text-foreground">{b.name}</p>
-                    <p className="text-xs text-muted-foreground">{b.reference_no}</p>
-                </div>
-            ),
+    const columns: DataTableColumn<IWarehouse>[] = [
+      {
+        key: 'name',
+        header: 'Warehouse',
+        cell: (b) => (
+          <div>
+            <p className="font-medium text-foreground">{b.name}</p>
+            <p className="text-xs text-muted-foreground">{b.reference_no}</p>
+          </div>
+        ),
+      },
+      {
+        key: 'address',
+        header: 'Address',
+        cell: (b) =>
+          b.address ? (
+            <span className="text-sm text-muted-foreground">{b.address}</span>
+          ) : (
+            <span className="text-xs text-muted-foreground/50">—</span>
+          ),
+      },
+      {
+        key: 'locations',
+        header: 'Locations',
+        headerClassName: 'text-center',
+        cellClassName: 'text-center',
+        cell: (b) => {
+          return (
+            <div className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 px-2.5 py-1 text-xs font-medium text-primary">
+              <MapPin className="size-3 shrink-0" />
+            </div>
+          );
         },
-        {
-            key: 'address',
-            header: 'Address',
-            cell: (b) =>
-                b.address ? (
-                    <span className="text-sm text-muted-foreground">{b.address}</span>
-                ) : (
-                    <span className="text-xs text-muted-foreground/50">—</span>
-                ),
-        },
-        {
-            key: 'locations',
-            header: 'Locations',
-            headerClassName: 'text-center',
-            cellClassName: 'text-center',
-            cell: (b) => {
-                const count = b.stock_location?.length ?? 0;
-                return (
-                    <div className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 px-2.5 py-1 text-xs font-medium text-primary">
-                        <MapPin className="size-3 shrink-0" />
-                        {count}
-                    </div>
-                );
-            },
-        },
-        {
-            key: 'status',
-            header: 'Status',
-            cell: (b) =>
-                b.is_active ? (
-                    <Badge variant="secondary" className="text-emerald-700 border-emerald-200">
-                        Active
-                    </Badge>
-                ) : (
-                    <Badge variant="outline">Inactive</Badge>
-                ),
-        },
-        {
-            key: 'actions',
-            header: '',
-            headerClassName: 'w-0',
-            cell: (b) => (
-                <div className="flex items-center justify-end gap-1.5">
-                    <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={() => setEditing(b)}
-                        title="Edit"
-                        className="text-muted-foreground hover:text-foreground"
-                    >
-                        <Edit2 className="size-3.5" />
-                    </Button>
-                    <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={() => onDelete(b.id)}
-                        title="Delete"
-                        className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                    >
-                        <Trash2 className="size-3.5" />
-                    </Button>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        asChild
-                        className="border-primary/30 text-primary hover:bg-primary/5 hover:text-primary"
-                    >
-                        <Link href={`/inventory/configurations/location/${b.id}`}>
-                            <Warehouse className="size-3.5" />
-                            Locations
-                        </Link>
-                    </Button>
-                </div>
-            ),
-        },
+      },
+      {
+        key: 'status',
+        header: 'Status',
+        cell: (b) =>
+          b.is_active ? (
+            <Badge
+              variant="secondary"
+              className="text-emerald-700 border-emerald-200"
+            >
+              Active
+            </Badge>
+          ) : (
+            <Badge variant="outline">Inactive</Badge>
+          ),
+      },
+      {
+        key: 'actions',
+        header: '',
+        headerClassName: 'w-0',
+        cell: (b) => (
+          <div className="flex items-center justify-end gap-1.5">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => setEditing(b)}
+              title="Edit"
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <Edit2 className="size-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => onDelete(b.id)}
+              title="Delete"
+              className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+            >
+              <Trash2 className="size-3.5" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              asChild
+              className="border-primary/30 text-primary hover:bg-primary/5 hover:text-primary"
+            >
+              <Link href={`/inventory/configurations/location/${b.id}`}>
+                <Warehouse className="size-3.5" />
+                Locations
+              </Link>
+            </Button>
+          </div>
+        ),
+      },
     ];
 
     return (

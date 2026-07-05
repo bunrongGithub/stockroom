@@ -48,21 +48,22 @@ export function computeInvoiceActions(
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapInvoiceItem(r: any): SalesInvoiceItem {
     return {
-        id: r.id,
-        item_id: r.item_id,
-        sales_order_item_id: r.sales_order_item_id ?? null,
-        shipment_item_id: r.shipment_item_id ?? null,
-        product_name: r.item?.name ?? r.description ?? `#${r.item_id}`,
-        sku: r.item?.sku ?? null,
-        track_serial: r.item?.track_serial ?? false,
-        description: r.description ?? '',
-        uom: r.uom ?? '',
-        quantity: Number(r.quantity),
-        unit_price: Number(r.unit_price),
-        discount: Number(r.discount),
-        tax: Number(r.tax),
-        line_total: Number(r.line_total),
-    };
+    id: r.id,
+    item_id: r.item_id,
+    sales_order_item_id: r.sales_order_item_id ?? null,
+    shipment_item_id: r.shipment_item_id ?? null,
+    product_name: r.item?.name ?? r.description ?? `#${r.item_id}`,
+    sku: r.item?.sku ?? null,
+    track_serial: r.item?.track_serial ?? false,
+    description: r.description ?? '',
+    uom: r.uom ?? '',
+    quantity: Number(r.quantity),
+    unit_price: Number(r.unit_price),
+    discount: Number(r.discount),
+    tax: Number(r.tax),
+    line_total: Number(r.line_total),
+    reference_no: r.reference_no ?? null,
+};
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

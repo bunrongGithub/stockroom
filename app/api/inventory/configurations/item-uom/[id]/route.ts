@@ -65,26 +65,26 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
 }
 
-export async function DELETE(req: NextRequest, { params }: Params) {
-    try {
-        const ctx = getRequestContext(req);
-        const { id } = await params;
+// export async function DELETE(req: NextRequest, { params }: Params) {
+//     try {
+//         const ctx = getRequestContext(req);
+//         const { id } = await params;
 
-        const parsed = itemIdSchema.safeParse({ id });
-        if (!parsed.success) {
-            return NextResponse.json(
-                { error: 'Invalid ID format' },
-                { status: 400 },
-            );
-        }
+//         const parsed = itemIdSchema.safeParse({ id });
+//         if (!parsed.success) {
+//             return NextResponse.json(
+//                 { error: 'Invalid ID format' },
+//                 { status: 400 },
+//             );
+//         }
 
-        await service.deleteOne(ctx, parsed.data.id);
-        return NextResponse.json(
-            { message: 'UOM deleted successfully' },
-            { status: 200 },
-        );
-    } catch (error) {
-        const message = error instanceof Error ? error.message : 'Unexpected error';
-        return NextResponse.json({ error: message }, { status: 500 });
-    }
-}
+//         await service.deleteOne(ctx, parsed.data.id);
+//         return NextResponse.json(
+//             { message: 'UOM deleted successfully' },
+//             { status: 200 },
+//         );
+//     } catch (error) {
+//         const message = error instanceof Error ? error.message : 'Unexpected error';
+//         return NextResponse.json({ error: message }, { status: 500 });
+//     }
+// }

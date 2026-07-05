@@ -20,7 +20,8 @@ export async function GET(request: NextRequest) {
         });
         return NextResponse.json(items, { status: 200 });
     } catch (error) {
-        const message = error instanceof Error ? error.message : 'Unexpected error';
+        const message =
+            error instanceof Error ? error.message : 'Unexpected error';
         return NextResponse.json({ error: message }, { status: 500 });
     }
 }
@@ -33,7 +34,9 @@ const createModuleSchema = z.object({
     parent_id: z.number().int().positive().nullable().optional(),
     icon: z.string().trim().nullable().optional(),
     sort_order: z.number().int().min(0).default(0),
-    type: z.enum(['transaction', 'configuration', 'action']).default('transaction'),
+    type: z
+        .enum(['transaction', 'configuration', 'action'])
+        .default('transaction'),
     is_active: z.boolean().default(true),
     is_initial_data: z.boolean().default(false),
 });
@@ -55,10 +58,18 @@ export async function POST(request: NextRequest) {
             ...parsed.data,
             parent_id: parsed.data.parent_id ?? null,
             icon: parsed.data.icon ?? null,
+            permission: {
+                can_create: false,
+                can_delete: false,
+                can_export: false,
+                can_update: false,
+                can_view: false,
+            },
         });
         return NextResponse.json({ data: item }, { status: 201 });
     } catch (error) {
-        const message = error instanceof Error ? error.message : 'Unexpected error';
+        const message =
+            error instanceof Error ? error.message : 'Unexpected error';
         return NextResponse.json({ error: message }, { status: 500 });
     }
 }

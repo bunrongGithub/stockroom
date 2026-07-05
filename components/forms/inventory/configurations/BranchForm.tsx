@@ -1,15 +1,15 @@
 'use client';
 
 import { EditableInput, FieldLabel } from '@/components/ui/FieldLabel';
-import { BranchProps } from '@/types/branch';
+import { Warehouse } from '@/types/branch';
 import { Loader2, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
 interface Props {
-    branch?: BranchProps | null;
-    onClose: () => void;
-    onSuccess?: () => void;
+  branch?: Warehouse | null;
+  onClose: () => void;
+  onSuccess?: () => void;
 }
 
 export default function BranchForm({ branch, onClose, onSuccess }: Props) {
