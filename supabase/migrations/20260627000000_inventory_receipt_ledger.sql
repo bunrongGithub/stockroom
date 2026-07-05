@@ -90,23 +90,33 @@ CREATE TRIGGER trg_inventory_balance_details_updated_at
 
 
 -- ─────────────────────────────────────────────────────────────────────────
--- 3. receipt_headers
+-- 3. receipt_transaction
 --    Transaction Document Master: one row per physical receiving event.
 --    Status lifecycle: DRAFT → POSTED → (VOID only from DRAFT)
 -- ─────────────────────────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS receipt_headers (
-    id                  BIGINT        GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    company_id          INT           NOT NULL REFERENCES company(id),
-    user_id             UUID          REFERENCES auth.users(id),
+CREATE TABLE IF NOT EXISTS receipt_transaction (
+    id                  BIGINT        GENERATED ALWAYS AS IDENTITY,
+    company_id          INT           NOT NULL,
+    user_id             UUID,
 
-    reference_no        VARCHAR(50)   NOT NULL,               -- system-generated (RCPT-DD-MM-YYYY HH:MM:SS)
-    source_reference_no VARCHAR(100),                         -- external PO / supplier reference
-    received_date       TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+    reference_no        VARCHAR(50)   NOT NULL,               -- system-generated document number
     status              VARCHAR(20)   NOT NULL DEFAULT 'DRAFT',
     notes               TEXT,
 
     created_at          TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
     updated_at          TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+
+    transaction_date    DATE          NOT NULL,
+    movement_type       TEXT,
+    reason              TEXT,
+    source_reference_no VARCHAR(100),                         -- external PO / supplier reference
+
+    CONSTRAINT receipt_transaction_pkey
+        PRIMARY KEY (id),
+    CONSTRAINT receipt_transaction_company_id_fkey
+        FOREIGN KEY (company_id) REFERENCES company(id),
+    CONSTRAINT receipt_transaction_user_id_fkey
+        FOREIGN KEY (user_id) REFERENCES profiles(id),
 
     CONSTRAINT uq_receipt_reference_per_company
         UNIQUE (company_id, reference_no),
@@ -115,29 +125,27 @@ CREATE TABLE IF NOT EXISTS receipt_headers (
         CHECK (status IN ('DRAFT', 'POSTED', 'VOID'))
 );
 
-CREATE INDEX IF NOT EXISTS idx_receipt_headers_company    ON receipt_headers (company_id);
-CREATE INDEX IF NOT EXISTS idx_receipt_headers_status     ON receipt_headers (company_id, status);
-CREATE INDEX IF NOT EXISTS idx_receipt_headers_received   ON receipt_headers (received_date DESC);
+CREATE INDEX IF NOT EXISTS idx_receipt_transaction_company ON receipt_transaction (company_id);
+CREATE INDEX IF NOT EXISTS idx_receipt_transaction_status  ON receipt_transaction (company_id, status);
 
-CREATE TRIGGER trg_receipt_headers_updated_at
-    BEFORE UPDATE ON receipt_headers
+CREATE TRIGGER trg_receipt_transaction_updated_at
+    BEFORE UPDATE ON receipt_transaction
     FOR EACH ROW EXECUTE FUNCTION fn_set_updated_at();
 
 
 -- ─────────────────────────────────────────────────────────────────────────
--- 4. receipt_lines
+-- 4. receipt_items
 --    Transaction Lines: one row per item/location in a receipt.
 --    base_qty_received is generated: receipt_qty × conversion_factor.
 --    Both qty columns are snapshotted at transaction time (immutable history).
 -- ─────────────────────────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS receipt_lines (
-    id                  BIGINT        GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    receipt_id          BIGINT        NOT NULL REFERENCES receipt_headers(id) ON DELETE CASCADE,
-    item_id             INT           NOT NULL REFERENCES inventory_item(id),
-    warehouse_id        INT           NOT NULL REFERENCES warehouse(id),
-    location_id         INT           NOT NULL REFERENCES warehouse_location(id),
-    uom_id              INT           NOT NULL REFERENCES inventory_uom(id),
-    item_uom_id         INT           REFERENCES inventory_item_uom(id),   -- source of conversion_factor
+CREATE TABLE IF NOT EXISTS receipt_items (
+    id                  BIGINT        GENERATED ALWAYS AS IDENTITY,
+    receipt_id          BIGINT        NOT NULL,
+    item_id             INT           NOT NULL,
+    warehouse_id        INT           NOT NULL,
+    location_id         INT           NOT NULL,
+    item_uom_id         INT,                                               -- source of conversion_factor
 
     -- Quantity snapshot: receipt_qty × conversion_factor = base_qty_received
     receipt_qty         NUMERIC(18,6) NOT NULL,
@@ -153,101 +161,34 @@ CREATE TABLE IF NOT EXISTS receipt_lines (
     created_at          TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
     updated_at          TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
 
+    CONSTRAINT receipt_items_pkey
+        PRIMARY KEY (id),
+    CONSTRAINT receipt_items_receipt_id_fkey
+        FOREIGN KEY (receipt_id) REFERENCES receipt_transaction(id) ON DELETE CASCADE,
+    CONSTRAINT receipt_items_item_id_fkey
+        FOREIGN KEY (item_id) REFERENCES inventory_item(id),
+    CONSTRAINT receipt_items_warehouse_id_fkey
+        FOREIGN KEY (warehouse_id) REFERENCES warehouse(id),
+    CONSTRAINT receipt_items_location_id_fkey
+        FOREIGN KEY (location_id) REFERENCES warehouse_location(id),
+    CONSTRAINT receipt_items_item_uom_id_fkey
+        FOREIGN KEY (item_uom_id) REFERENCES inventory_item_uom(id),
+
     CONSTRAINT chk_receipt_qty_positive
         CHECK (receipt_qty > 0),
     CONSTRAINT chk_conversion_factor_positive
         CHECK (conversion_factor > 0)
 );
 
-CREATE INDEX IF NOT EXISTS idx_receipt_lines_receipt  ON receipt_lines (receipt_id);
-CREATE INDEX IF NOT EXISTS idx_receipt_lines_item     ON receipt_lines (item_id);
-CREATE INDEX IF NOT EXISTS idx_receipt_lines_wh_loc   ON receipt_lines (warehouse_id, location_id);
+CREATE INDEX IF NOT EXISTS idx_receipt_items_receipt ON receipt_items (receipt_id);
+CREATE INDEX IF NOT EXISTS idx_receipt_items_item    ON receipt_items (item_id);
+CREATE INDEX IF NOT EXISTS idx_receipt_items_wh_loc  ON receipt_items (warehouse_id, location_id);
 
-CREATE TRIGGER trg_receipt_lines_updated_at
-    BEFORE UPDATE ON receipt_lines
+CREATE TRIGGER trg_receipt_items_updated_at
+    BEFORE UPDATE ON receipt_items
     FOR EACH ROW EXECUTE FUNCTION fn_set_updated_at();
 
 
--- ═══════════════════════════════════════════════════════════════════════════
--- Atomic Posting RPC Function
--- Called via: supabase.rpc('post_inventory_receipt', { p_receipt_id, p_company_id })
---
--- Flow:
---   1. Lock the receipt header row (prevents concurrent double-posts)
---   2. Validate status is DRAFT
---   3. For each receipt line:
---        a. UPSERT inventory_balances   → adds base_qty_received to qty_on_hand
---        b. UPSERT inventory_balance_details → adds to the matching lot/date layer
---   4. Mark receipt_headers.status = 'POSTED'
---   5. Any failure auto-rolls back the entire transaction
--- ═══════════════════════════════════════════════════════════════════════════
-CREATE OR REPLACE FUNCTION post_inventory_receipt(
-    p_receipt_id  BIGINT,
-    p_company_id  INT
-)
-RETURNS JSONB
-LANGUAGE plpgsql
-AS $$
-DECLARE
-    v_status     TEXT;
-    v_line       RECORD;
-    v_balance_id BIGINT;
-BEGIN
-    -- Lock the header to prevent concurrent posts of the same receipt
-    SELECT status INTO v_status
-    FROM receipt_headers
-    WHERE id = p_receipt_id
-      AND company_id = p_company_id
-    FOR UPDATE;
-
-    IF NOT FOUND THEN
-        RETURN jsonb_build_object('ok', false, 'error', 'Receipt not found');
-    END IF;
-
-    IF v_status <> 'DRAFT' THEN
-        RETURN jsonb_build_object(
-            'ok', false,
-            'error', format('Cannot post a receipt with status "%s"', v_status)
-        );
-    END IF;
-
-    -- Iterate every line and apply inventory movements
-    FOR v_line IN
-        SELECT * FROM receipt_lines WHERE receipt_id = p_receipt_id
-    LOOP
-        -- Step A: UPSERT the summary bucket
-        INSERT INTO inventory_balances
-            (company_id, item_id, warehouse_id, location_id, qty_on_hand, qty_reserved)
-        VALUES
-            (p_company_id, v_line.item_id, v_line.warehouse_id, v_line.location_id,
-             v_line.base_qty_received, 0)
-        ON CONFLICT (company_id, item_id, warehouse_id, location_id)
-        DO UPDATE SET
-            qty_on_hand = inventory_balances.qty_on_hand + EXCLUDED.qty_on_hand,
-            updated_at  = NOW()
-        RETURNING id INTO v_balance_id;
-
-        -- Step B: UPSERT the aging/FIFO layer
-        INSERT INTO inventory_balance_details
-            (balance_id, lot_number, purchased_date, qty_on_hand)
-        VALUES
-            (v_balance_id, v_line.lot_number, v_line.purchased_date, v_line.base_qty_received)
-        ON CONFLICT (balance_id, lot_number, purchased_date)
-        DO UPDATE SET
-            qty_on_hand = inventory_balance_details.qty_on_hand + EXCLUDED.qty_on_hand,
-            updated_at  = NOW();
-    END LOOP;
-
-    -- Mark the receipt as POSTED
-    UPDATE receipt_headers
-    SET status     = 'POSTED',
-        updated_at = NOW()
-    WHERE id = p_receipt_id;
-
-    RETURN jsonb_build_object('ok', true, 'receipt_id', p_receipt_id);
-
-EXCEPTION WHEN OTHERS THEN
-    -- PostgreSQL auto-rolls back on any unhandled exception
-    RETURN jsonb_build_object('ok', false, 'error', SQLERRM);
-END;
-$$;
+-- NOTE: the former `post_inventory_receipt()` RPC was removed — posting is
+-- done by the application service layer through the movement ledger
+-- (20260701000000); the function was never called from code.

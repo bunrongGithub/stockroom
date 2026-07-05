@@ -69,7 +69,7 @@ create table if not exists public.modules (
     label     text   not null,
     path      text   not null,
     component text   not null,
-    parent_id bigint null references public.modules (id) on delete cascade,
+    parent_id bigint null references public.modules (id) on delete set null,
     icon     text   null,
     sort_order integer not null default 0,
     is_active boolean not null default true,
