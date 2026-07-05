@@ -105,6 +105,11 @@ export const API = {
         role: resource(`${SETTING}/role`),
         rolePermissions: resource(`${SETTING}/role-permissions`),
         users: `${SETTING}/users`,
+        company: {
+            root: `${SETTING}/company`,
+            users: `${SETTING}/company/users`,
+            logo: `${SETTING}/company/logo`,
+        },
     },
 
     location: {

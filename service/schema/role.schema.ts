@@ -35,6 +35,7 @@ export const updateRolePermissionsSchema = z.object({
             can_create: z.boolean(),
             can_update: z.boolean(),
             can_delete: z.boolean(),
+            can_export: z.boolean().optional().default(false),
         }),
     ),
 });

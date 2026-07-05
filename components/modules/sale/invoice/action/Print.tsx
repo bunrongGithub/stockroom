@@ -3,6 +3,8 @@
 import { useRegisterModule } from '@/hook/useModule';
 import type { ModuleProps } from '@/lib/registry';
 import { financesInvoiceApi } from '@/lib/api/finances';
+import { companyApi } from '@/lib/api/company';
+import { COMPANY, toCompanyProfile, type CompanyProfile } from '@/lib/company';
 import type { SalesInvoice } from '@/types/sales/order-management';
 import InvoiceDocument from '../InvoiceDocument';
 import { useEffect, useState } from 'react';
@@ -33,6 +35,7 @@ export default function SaleInvoicePrint({
   const id = Array.isArray(params.slug) ? (params.slug.at(-2) ?? '') : '';
 
   const [invoice, setInvoice] = useState<SalesInvoice | null>(null);
+  const [company, setCompany] = useState<CompanyProfile>(COMPANY);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -40,7 +43,13 @@ export default function SaleInvoicePrint({
     if (!id) return;
     (async () => {
       try {
-        setInvoice(await financesInvoiceApi.get(id));
+        // Letterhead uses the real company; placeholder fields fill any gaps.
+        const [inv, comp] = await Promise.all([
+          financesInvoiceApi.get(id),
+          companyApi.get().catch(() => null),
+        ]);
+        setInvoice(inv);
+        setCompany(toCompanyProfile(comp));
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Failed to load invoice');
       } finally {
@@ -96,7 +105,7 @@ export default function SaleInvoicePrint({
       </div>
 
       <div className="py-6 print:py-0">
-        <InvoiceDocument invoice={invoice} />
+        <InvoiceDocument invoice={invoice} company={company} />
       </div>
     </div>
   );

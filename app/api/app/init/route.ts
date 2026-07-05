@@ -1,5 +1,6 @@
 import { getMenu } from '@/lib/modules-rpc';
 import { getRequestContext } from '@/lib/request-context';
+import { getCompanyBrief } from '@/service/apps/base/company';
 import type { AppInitData } from '@/types/app';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -12,7 +13,10 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'Invalid session' }, { status: 400 });
     }
 
-    const modules = await getMenu(ctx.userId, companyId);
+    const [modules, company] = await Promise.all([
+        getMenu(ctx.userId, companyId),
+        getCompanyBrief(companyId),
+    ]);
 
     const payload: AppInitData = {
         profile: {
@@ -22,6 +26,7 @@ export async function GET(request: NextRequest) {
             email: ctx.email,
         },
         modules,
+        company,
     };
 
     return NextResponse.json(payload);

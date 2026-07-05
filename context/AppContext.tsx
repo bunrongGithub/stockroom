@@ -9,7 +9,13 @@ import {
     useState,
     type ReactNode,
 } from 'react';
-import type { AppInitData, AppModule, AppPermission, AppProfile } from '@/types/app';
+import type {
+    AppCompanyBrief,
+    AppInitData,
+    AppModule,
+    AppPermission,
+    AppProfile,
+} from '@/types/app';
 import { DEFAULT_PERMISSION } from '@/types/app';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -18,6 +24,7 @@ import { DEFAULT_PERMISSION } from '@/types/app';
 
 interface AppContextValue {
     profile: AppProfile | null;
+    company: AppCompanyBrief | null;
     modules: AppModule[];
     isLoading: boolean;
     /** Returns merged permission for the given URL path, or deny-all if not found */
@@ -36,7 +43,8 @@ interface AppContextValue {
 // Constants
 // ─────────────────────────────────────────────────────────────────────────────
 
-const CACHE_KEY = 'erp_app_init';
+// v2: payload gained `company` — bumping the key discards stale caches.
+const CACHE_KEY = 'erp_app_init_v2';
 
 function readCache(): AppInitData | null {
     try {
@@ -69,6 +77,7 @@ export function clearAppCache() {
 
 const AppContext = createContext<AppContextValue>({
     profile: null,
+    company: null,
     modules: [],
     isLoading: true,
     getPermission: () => DEFAULT_PERMISSION,
@@ -174,6 +183,7 @@ export function AppProvider({
         <AppContext.Provider
             value={{
                 profile: data?.profile ?? null,
+                company: data?.company ?? null,
                 modules,
                 isLoading,
                 getPermission,

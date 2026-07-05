@@ -147,7 +147,11 @@ export class Role extends BaseRepository {
         const toInsert = permissions
             .filter(
                 (p) =>
-                    p.can_view || p.can_create || p.can_update || p.can_delete,
+                    p.can_view ||
+                    p.can_create ||
+                    p.can_update ||
+                    p.can_delete ||
+                    p.can_export,
             )
             .map((p) => ({
                 role_id: roleId,
@@ -156,6 +160,7 @@ export class Role extends BaseRepository {
                 can_create: p.can_create,
                 can_update: p.can_update,
                 can_delete: p.can_delete,
+                can_export: p.can_export,
             }));
 
         if (toInsert.length > 0) {

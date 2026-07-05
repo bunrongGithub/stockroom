@@ -62,45 +62,6 @@ export default function Sigin() {
         }
     };
 
-    const handleSignUp = async () => {
-        if (!email || !password)
-            return setError('សូមបញ្ចូលព័ត៌មានឱ្យគ្រប់ដើម្បីចុះឈ្មោះ!');
-        setLoading(true);
-        setError(null);
-
-        try {
-            const res = await fetch('/api/auth/signup', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, password }),
-            });
-
-            const json = await res.json();
-
-            if (!res.ok) {
-                const message =
-                    typeof json.error === 'string'
-                        ? json.error
-                        : 'មានបញ្ហាក្នុងការចុះឈ្មោះ។';
-                setError(message);
-                setLoading(false);
-                return;
-            }
-
-            if (json.data?.requiresConfirmation) {
-                alert(
-                    'ចុះឈ្មោះជោគជ័យ! សូមពិនិត្យអ៊ីមែលរបស់អ្នកដើម្បីបញ្ជាក់គណនី។',
-                );
-            } else {
-                router.push('/');
-                router.refresh();
-            }
-        } catch {
-            setError('មានបញ្ហាក្នុងការចុះឈ្មោះ។');
-        }
-        setLoading(false);
-    };
-
     return (
         <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4 font-sans">
             <Card className="w-full max-w-md shadow-2xl border-slate-100 rounded-3xl">
@@ -186,11 +147,11 @@ export default function Sigin() {
                             <Button
                                 type="button"
                                 variant="outline"
-                                onClick={handleSignUp}
+                                onClick={() => router.push('/register')}
                                 disabled={loading}
                                 className="w-full h-11 rounded-xl font-bold"
                             >
-                                ចុះឈ្មោះថ្មី (Sign Up)
+                                ចុះឈ្មោះក្រុមហ៊ុនថ្មី (Create Company)
                             </Button>
                         </div>
                     </form>

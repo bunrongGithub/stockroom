@@ -34,7 +34,6 @@ import {
   Weight,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import React, { useState } from 'react';
@@ -402,10 +401,12 @@ function SidebarProfile() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function DashboardShell({ children }: { children: React.ReactNode }) {
-  const [appConfig, setAppConfig] = useState({
-    name: 'iCase',
-    logo: '/public/icase-logo.jpg',
-  });
+  // Real tenant branding from /api/app/init; static assets as fallback.
+  const { company } = useApp();
+  const appConfig = {
+    name: company?.name ?? 'iCase',
+    logo: company?.logo_url ?? '/icase-logo.png',
+  };
   const [actionList, setActionList] = useState<Action>([]);
 
   return (
@@ -415,7 +416,10 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         {/* Brand */}
         <div className="h-16 flex items-center gap-3 px-5 border-b border-gray-800/60 shrink-0">
           <div className="bg-white p-0.5 rounded-lg w-9 h-9 shrink-0 overflow-hidden shadow">
-            <Image
+            {/* Plain <img>: the logo may be a Supabase Storage URL, which
+                next/image would reject without remotePatterns config. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
               src={appConfig.logo}
               alt="Logo"
               width={36}

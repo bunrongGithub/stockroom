@@ -1,7 +1,6 @@
 'use client';
 
-import Image from 'next/image';
-import { COMPANY } from '@/lib/company';
+import { COMPANY, type CompanyProfile } from '@/lib/company';
 import type { SalesInvoice } from '@/types/sales/order-management';
 
 // ─── Sales Invoice — printable A4 document ──────────────────────────────────
@@ -28,7 +27,14 @@ function longDate(iso: string) {
           });
 }
 
-export default function InvoiceDocument({ invoice }: { invoice: SalesInvoice }) {
+export default function InvoiceDocument({
+    invoice,
+    company = COMPANY,
+}: {
+    invoice: SalesInvoice;
+    /** Real tenant letterhead; falls back to the placeholder constant. */
+    company?: CompanyProfile;
+}) {
     const generatedAt = new Date().toLocaleString('en-GB', {
         day: '2-digit',
         month: 'short',
@@ -43,9 +49,12 @@ export default function InvoiceDocument({ invoice }: { invoice: SalesInvoice }) 
             {/* ── 1. Company letterhead ─────────────────────────────────── */}
             <header className="flex items-start justify-between gap-6">
                 <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-white p-1">
-                    <Image
-                        src={COMPANY.logo}
-                        alt={`${COMPANY.name} logo`}
+                    {/* Plain <img>: logo may live on Supabase Storage, which
+                        next/image rejects without remotePatterns config. */}
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                        src={company.logo}
+                        alt={`${company.name} logo`}
                         width={60}
                         height={60}
                         className="h-full w-full object-contain"
@@ -53,11 +62,11 @@ export default function InvoiceDocument({ invoice }: { invoice: SalesInvoice }) 
                 </div>
                 <div className="text-right">
                     <p className="text-base font-bold uppercase tracking-wide">
-                        {COMPANY.name}
+                        {company.name}
                     </p>
-                    <p className="mt-0.5 text-slate-600">{COMPANY.address}</p>
-                    <p className="text-slate-600">{COMPANY.phone}</p>
-                    <p className="text-slate-600">{COMPANY.email}</p>
+                    <p className="mt-0.5 text-slate-600">{company.address}</p>
+                    <p className="text-slate-600">{company.phone}</p>
+                    <p className="text-slate-600">{company.email}</p>
                 </div>
             </header>
 

@@ -1,6 +1,6 @@
-import { getServerClient } from '@/lib/supabase/server';
+import { createAuthClient, getServerClient } from '@/lib/supabase/server';
 import { signToken } from '@/lib/auth';
-import { UnauthorizedError } from '@/service/core/api-response';
+import { ApiError, UnauthorizedError } from '@/service/core/api-response';
 import type { LoginInput, SignupInput } from '@/service/schema/auth.schema';
 
 // ── Login ──────────────────────────────────────────────────────────────────
@@ -11,11 +11,13 @@ import type { LoginInput, SignupInput } from '@/service/schema/auth.schema';
 export async function login(input: LoginInput): Promise<string> {
     const supabase = getServerClient();
 
-    // 1. Verify credentials via Supabase Auth
-    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email: input.email,
-        password: input.password,
-    });
+    // 1. Verify credentials via Supabase Auth — on a throwaway client, so the
+    //    shared service client never inherits this user's session.
+    const { data: authData, error: authError } =
+        await createAuthClient().auth.signInWithPassword({
+            email: input.email,
+            password: input.password,
+        });
 
     if (authError || !authData.user) {
         throw new UnauthorizedError('Invalid login credentials');
@@ -32,33 +34,56 @@ export async function login(input: LoginInput): Promise<string> {
 
     const companyId = (profile as { company_id: number } | null)?.company_id ?? null;
 
+    // A user without a company cannot use the app — every query is scoped by
+    // company_id. Fail with a clear message instead of signing companyId:''
+    // (which turns into NaN downstream and surfaces as an opaque 400).
+    if (!companyId) {
+        throw new UnauthorizedError(
+            'Your account is not linked to a company. Please register a company or contact an administrator.',
+        );
+    }
+
     // 3. Resolve the user's primary role (highest priority from user_role)
-    const { data: roleRow } = companyId
-        ? await supabase
-              .from('user_role')
-              .select('roles(name)')
-              .eq('user_id', userId)
-              .eq('company_id', companyId)
-              .limit(1)
-              .single()
-        : { data: null };
+    const { data: roleRow } = await supabase
+        .from('user_role')
+        .select('roles(name)')
+        .eq('user_id', userId)
+        .eq('company_id', companyId)
+        .limit(1)
+        .single();
 
     const roleName =
         (roleRow as { roles: { name: string } } | null)?.roles?.name ?? 'member';
 
-    // 4. Issue custom JWT
+    // 4. Track last login (fire-and-forget — login must not fail on this)
+    supabase
+        .from('profiles')
+        .update({ last_login_at: new Date().toISOString() })
+        .eq('id', userId)
+        .then(({ error }) => {
+            if (error) console.error('[auth] last_login_at update failed:', error.message);
+        });
+
+    // 5. Issue custom JWT
     return signToken({
         userId,
-        companyId: String(companyId ?? ''),
+        companyId: String(companyId),
         role: roleName as import('@/service/apps/base/auth/constant').TAuthUserRole,
         email: authData.user.email ?? input.email,
     });
 }
 
-// ── Sign Up ────────────────────────────────────────────────────────────────
-// Creates a Supabase Auth user then inserts a profiles row.
-// company_id defaults to the first (default) company.
-export async function signup(input: SignupInput): Promise<{ requiresConfirmation: boolean }> {
+// ── Sign Up (company onboarding) ───────────────────────────────────────────
+// Register User → Create Company → Create Profile → Create Owner Role →
+// Assign Owner Role → Grant Full Permissions → Seed Document Sequences.
+//
+// The auth user is created via the Supabase admin API (cannot join a Postgres
+// transaction); everything else runs atomically inside the `onboard_company`
+// RPC. If the RPC fails, we compensate by deleting the auth user so no
+// partial onboarding state survives.
+export async function signup(
+    input: SignupInput,
+): Promise<{ userId: string; companyId: number; email: string }> {
     const supabase = getServerClient();
 
     // 1. Create Supabase Auth user
@@ -68,40 +93,59 @@ export async function signup(input: SignupInput): Promise<{ requiresConfirmation
         email_confirm: true,
     });
 
-    if (error || !data.user) throw new Error(error?.message ?? 'Signup failed');
-
-    // 2. Find the default company
-    const { data: company } = await supabase
-        .from('company')
-        .select('id')
-        .eq('domain', 'default')
-        .single();
-
-    const companyId = (company as { id: number } | null)?.id ?? null;
-
-    // 3. Create profile
-    await supabase.from('profiles').insert({
-        id: data.user.id,
-        company_id: companyId,
-        full_name: input.email.split('@')[0],
-    });
-
-    // 4. Assign default 'member' role
-    if (companyId) {
-        const { data: memberRole } = await supabase
-            .from('roles')
-            .select('id')
-            .eq('name', 'member')
-            .single();
-
-        if (memberRole) {
-            await supabase.from('user_role').insert({
-                user_id: data.user.id,
-                role_id: (memberRole as { id: number }).id,
-                company_id: companyId,
-            });
-        }
+    if (error || !data.user) {
+        const message = error?.message ?? 'Signup failed';
+        throw new ApiError(
+            message.toLowerCase().includes('already')
+                ? 'This email is already registered'
+                : message,
+            message.toLowerCase().includes('already') ? 409 : 500,
+            'SIGNUP_FAILED',
+        );
     }
 
-    return { requiresConfirmation: !data.user.email_confirmed_at };
+    // 2. Atomic onboarding: company + profile + owner role + membership +
+    //    permissions + document sequences — all or nothing.
+    const { data: companyId, error: rpcError } = await supabase.rpc(
+        'onboard_company',
+        {
+            p_user_id: data.user.id,
+            p_email: input.email,
+            p_full_name: input.fullName,
+            p_company_name: input.companyName,
+        },
+    );
+
+    if (rpcError || !companyId) {
+        // Compensating action: remove the auth user so the email can retry.
+        const { error: deleteError } = await supabase.auth.admin.deleteUser(
+            data.user.id,
+        );
+        if (deleteError) {
+            console.error(
+                '[auth] onboarding rollback failed — orphan auth user',
+                data.user.id,
+                deleteError.message,
+            );
+        }
+
+        if (rpcError?.code === '23505') {
+            throw new ApiError(
+                'This company name is already taken',
+                409,
+                'COMPANY_NAME_TAKEN',
+            );
+        }
+        throw new ApiError(
+            rpcError?.message ?? 'Company onboarding failed',
+            500,
+            'ONBOARDING_FAILED',
+        );
+    }
+
+    return {
+        userId: data.user.id,
+        companyId: Number(companyId),
+        email: input.email,
+    };
 }

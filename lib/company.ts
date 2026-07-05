@@ -20,3 +20,27 @@ export const COMPANY: CompanyProfile = {
     email: 'icasestores@gmail.com',
     logo: '/icase.jpg',
 };
+
+/**
+ * Merge a real `company` row over the placeholder constant. Fields the
+ * company hasn't filled in yet keep the COMPANY fallbacks, so printed
+ * documents never render empty letterhead lines.
+ */
+export function toCompanyProfile(
+    row?: {
+        name?: string | null;
+        address?: string | null;
+        phone?: string | null;
+        email?: string | null;
+        logo_url?: string | null;
+    } | null,
+): CompanyProfile {
+    if (!row) return COMPANY;
+    return {
+        name: row.name || COMPANY.name,
+        address: row.address || COMPANY.address,
+        phone: row.phone || COMPANY.phone,
+        email: row.email || COMPANY.email,
+        logo: row.logo_url || COMPANY.logo,
+    };
+}

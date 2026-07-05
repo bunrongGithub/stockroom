@@ -91,8 +91,10 @@ import { TAuthUserRole } from '@/service/apps/base/auth/constant';
 
 const ROLE_HIERARCHY: Record<TAuthUserRole, number> = {
     super_admin: 100,
+    owner: 90,
     admin: 80,
     member: 50,
+    staff: 40,
     user: 10,
 };
 
@@ -101,7 +103,9 @@ export function hasRole(
     userRole: TAuthUserRole,
     requiredRole: TAuthUserRole,
 ): boolean {
-    return ROLE_HIERARCHY[userRole] >= ROLE_HIERARCHY[requiredRole];
+    // Custom role names created in the Role UI land in the JWT as-is and are
+    // not in the hierarchy — they rank 0 (module permissions still apply).
+    return (ROLE_HIERARCHY[userRole] ?? 0) >= ROLE_HIERARCHY[requiredRole];
 }
 
 /** Throws a structured 403 response if role is insufficient */

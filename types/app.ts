@@ -41,9 +41,16 @@ export interface AppProfile {
     email: string;
 }
 
+export interface AppCompanyBrief {
+    id: number;
+    name: string;
+    logo_url: string | null;
+}
+
 export interface AppInitData {
     profile: AppProfile;
     modules: AppModule[];
+    company: AppCompanyBrief | null;
 }
 
 export interface TMeta {

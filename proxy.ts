@@ -3,6 +3,7 @@ import { getSessionFromRequest } from '@/lib/auth';
 
 const PUBLIC_PATHS = [
     '/signin',
+    '/register',
     '/unauthorized',
     '/api/auth/login',
     '/api/auth/signup',

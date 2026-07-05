@@ -27,6 +27,28 @@ export function getServerClient(): SupabaseClient {
 }
 
 /**
+ * Fresh, throwaway client for user-credential flows (signInWithPassword).
+ *
+ * NEVER sign a user in on the shared service client: supabase-js keeps the
+ * session in memory even with persistSession:false, silently downgrading
+ * every subsequent .from()/.storage call in this process from service_role
+ * to that user (surfaces as storage RLS violations).
+ */
+export function createAuthClient(): SupabaseClient {
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+        throw new Error('Supabase environment variables are not set');
+    }
+    const key =
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
+        process.env.SUPABASE_SERVICE_KEY;
+    if (!key) throw new Error('Supabase environment variables are not set');
+
+    return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, key, {
+        auth: { persistSession: false, autoRefreshToken: false },
+    });
+}
+
+/**
  * Creates a scoped query builder that always filters by company_id.
  * This is the App-layer enforcement replacing RLS.
  *
