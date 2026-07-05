@@ -1,7 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import type { DashboardInventory } from '@/types/dashboard';
+import { TriangleAlertIcon } from 'lucide-react';
+import type {
+    DashboardInventory,
+    DashboardLowStockImpact,
+} from '@/types/dashboard';
 
 // Inventory overview stat grid. Amber/rose are STATUS colors (low / out of
 // stock) and always ship with their label — never color alone.
@@ -17,9 +21,12 @@ const ITEM_LIST = '/inventory/configurations/stock-item';
 
 export default function InventoryOverviewWidget({
     inventory,
+    impact,
     warehouseName,
 }: {
     inventory: DashboardInventory;
+    /** How many open sales documents touch low/out-of-stock items. */
+    impact: DashboardLowStockImpact;
     warehouseName: string;
 }) {
     const stats: {
@@ -92,6 +99,17 @@ export default function InventoryOverviewWidget({
                     </Link>
                 ))}
             </div>
+
+            {/* Low-stock sales impact: is short stock blocking open sales? */}
+            {(impact.affected_orders > 0 || impact.affected_shipments > 0) && (
+                <p className="mt-3 flex items-center gap-2 rounded-xl border border-amber-100 bg-amber-50/60 px-3 py-2 font-mono text-[11px] text-amber-700">
+                    <TriangleAlertIcon size={13} className="shrink-0" />
+                    Low stock affects {impact.affected_orders} open order
+                    {impact.affected_orders === 1 ? '' : 's'} ·{' '}
+                    {impact.affected_shipments} draft shipment
+                    {impact.affected_shipments === 1 ? '' : 's'}
+                </p>
+            )}
         </section>
     );
 }

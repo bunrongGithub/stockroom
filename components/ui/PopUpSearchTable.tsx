@@ -116,7 +116,7 @@ export function PopUpSearchTable<T extends Record<string, unknown>>({
                 );
             } catch (err) {
                 if (err instanceof Error && err.name === 'AbortError') return;
-                setError('មិនអាចទាញយកទិន្នន័យបានទេ។');
+                setError('Failed to fetch data. Please try again.');
             } finally {
                 setLoading(false);
             }

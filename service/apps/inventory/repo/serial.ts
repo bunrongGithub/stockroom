@@ -8,7 +8,8 @@ export type InventorySerialStatus =
     | 'sold'
     | 'returned'
     | 'damaged'
-    | 'scrapped';
+    | 'scrapped'
+    | 'removed'; // generic negative-adjustment terminal state
 
 const SERIAL_TABLE = 'inventory_serial' as const;
 const HISTORY_TABLE = 'inventory_serial_history' as const;
@@ -101,6 +102,117 @@ export class InventorySerialRepository extends BaseRepository {
                 warehouse_id: warehouseId,
                 location_id: locationId,
                 status: 'available',
+            })),
+        );
+    }
+
+    /**
+     * Create `available` serials for a POSTED positive stock-adjustment line.
+     * Mirror of createForReceipt with adjustment provenance in the history.
+     */
+    async createForAdjustment(
+        ctx: RequestContext,
+        itemId: number,
+        warehouseId: number,
+        locationId: number,
+        adjustmentItemId: number,
+        serialNumbers: string[],
+    ): Promise<void> {
+        const uniqueSerials = [
+            ...new Set(serialNumbers.map((s) => s.trim()).filter(Boolean)),
+        ];
+        if (!uniqueSerials.length) return;
+        if (uniqueSerials.length !== serialNumbers.length) {
+            throw new ApiError(
+                'Duplicate serial numbers are not allowed.',
+                400,
+                'DUPLICATE_SERIAL',
+            );
+        }
+
+        const companyId = Number(ctx.companyId);
+        const rows = uniqueSerials.map((serial_number) => ({
+            company_id: companyId,
+            item_id: itemId,
+            serial_number,
+            warehouse_id: warehouseId,
+            location_id: locationId,
+            status: 'available',
+        }));
+
+        const { data, error } = await this.db
+            .from(SERIAL_TABLE)
+            .insert(rows)
+            .select('id');
+
+        if (error) {
+            if (error.code === '23505') {
+                throw new ApiError(
+                    'One or more serial numbers already exist.',
+                    409,
+                    'SERIAL_EXISTS',
+                );
+            }
+            throw new ApiError(error.message, 400, 'SERIAL_ERROR');
+        }
+
+        await this.appendHistory(
+            (data ?? []).map((row) => ({
+                serial_id: row.id,
+                transaction_type: 'adjustment_in',
+                transaction_id: adjustmentItemId,
+                warehouse_id: warehouseId,
+                location_id: locationId,
+                status: 'available',
+            })),
+        );
+    }
+
+    /**
+     * Terminal-state serials removed by a POSTED negative adjustment. Guarded
+     * update (only `available` rows flip) — a concurrent sale/adjustment makes
+     * the count mismatch and the whole post fails with 409. Mirror of
+     * markSoldByIds.
+     */
+    async markRemovedByIds(
+        ctx: RequestContext,
+        serialIds: number[],
+        adjustmentItemId: number,
+        warehouseId: number,
+        locationId: number,
+        terminalStatus: Extract<
+            InventorySerialStatus,
+            'removed' | 'damaged' | 'scrapped'
+        >,
+    ): Promise<void> {
+        if (!serialIds.length) return;
+
+        const { data, error } = await this.db
+            .from(SERIAL_TABLE)
+            .update({ status: terminalStatus })
+            .in('id', serialIds)
+            .eq('company_id', Number(ctx.companyId))
+            .eq('status', 'available')
+            .select('id');
+
+        if (error) throw new ApiError(error.message, 400, 'SERIAL_ERROR');
+
+        if ((data?.length ?? 0) !== serialIds.length) {
+            throw new ApiError(
+                'One or more selected serials are no longer available.',
+                409,
+                'SERIAL_NOT_AVAILABLE',
+            );
+        }
+
+        await this.appendHistory(
+            (data ?? []).map((row) => ({
+                serial_id: row.id,
+                transaction_type: 'adjustment_out',
+                transaction_id: adjustmentItemId,
+                warehouse_id: warehouseId,
+                location_id: locationId,
+                status: terminalStatus,
             })),
         );
     }

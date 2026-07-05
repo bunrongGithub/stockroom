@@ -404,7 +404,7 @@ function SidebarProfile() {
 function DashboardShell({ children }: { children: React.ReactNode }) {
   const [appConfig, setAppConfig] = useState({
     name: 'iCase',
-    logo: '/icase.jpg',
+    logo: '/public/icase-logo.jpg',
   });
   const [actionList, setActionList] = useState<Action>([]);
 

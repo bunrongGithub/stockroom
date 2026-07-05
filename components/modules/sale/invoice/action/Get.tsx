@@ -551,7 +551,7 @@ export default function SaleInvoiceDetail({
                   key: `pay-${p.id}`,
                   docType: 'Payment',
                   number: p.payment_no,
-                  href: `/sale/payment/${p.id}/view`,
+                  href: `/finances/payment/${p.id}/view`,
                   date: p.payment_date,
                   status: p.status,
                   statusClass: 'bg-emerald-100 text-emerald-700',

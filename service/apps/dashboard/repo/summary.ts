@@ -22,10 +22,12 @@ export class DashboardRepository extends BaseRepository {
     async getSummary(
         ctx: RequestContext,
         warehouseId?: number,
+        locationId?: number,
     ): Promise<DashboardSummary> {
         const { data, error } = await this.db.rpc('get_dashboard_summary', {
             p_company_id: Number(ctx.companyId),
             p_warehouse_id: warehouseId ?? null,
+            p_location_id: locationId ?? null,
         });
 
         if (error) throw new ApiError(error.message, 500, 'DASHBOARD_ERROR');

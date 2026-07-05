@@ -31,7 +31,6 @@ export type InventoryTxnMovementType =
 export type InventoryMovemtTypeReasonMeta =
     | 'Goods received from a supplier after a purchase order'
     | 'Customer returned goods back to the warehouse'
-    | 'Goods transferred to another warehouse'
     | 'Goods received from another warehouse';
 export type ReceiptItemType = {
     id: number;

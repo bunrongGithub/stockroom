@@ -7,6 +7,7 @@ import {
   PlusIcon,
   ShoppingCartIcon,
   TruckIcon,
+  WalletIcon,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -28,6 +29,11 @@ const ACTIONS: { label: string; href: string; icon: LucideIcon }[] = [
     label: 'New Invoice',
     href: '/finances/invoice/create',
     icon: FileTextIcon,
+  },
+  {
+    label: 'New Customer Payment',
+    href: '/finances/payment/create',
+    icon: WalletIcon,
   },
   {
     label: 'New Inventory Receipt',

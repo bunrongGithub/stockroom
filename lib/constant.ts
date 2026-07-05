@@ -67,6 +67,14 @@ export const API = {
             void: (id: Id) => `/api/inventory/receipts/${id}/void`,
         },
 
+        adjustment: {
+            ...resource('/api/inventory/adjustment'),
+            post: (id: Id) => `/api/inventory/adjustment/${id}/post`,
+            void: (id: Id) => `/api/inventory/adjustment/${id}/void`,
+            reasons: '/api/inventory/adjustment/reasons',
+            onhand: '/api/inventory/adjustment/onhand',
+        },
+
         stockBalance: {
             root: '/api/inventory/stock-balance',
             item: (id: Id) => `/api/inventory/stock-balance/item/${id}`,

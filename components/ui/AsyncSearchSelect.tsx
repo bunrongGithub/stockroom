@@ -10,39 +10,42 @@ import type { PopUpSearchTableColumn } from './PopUpSearchTable';
 type Option = {
   value: string | number;
   label: string;
+  reference?: string;
 };
 
 type SearchApiItem = {
   id: string | number;
   name: string;
+  reference_no?: string;
 } & Record<string, unknown>;
 
-type AsyncSearchSelectProps<T extends Record<string, unknown> = SearchApiItem> = {
-  label: string;
-  placeholder?: string;
-  apiUrl: string;
+type AsyncSearchSelectProps<T extends Record<string, unknown> = SearchApiItem> =
+  {
+    label: string;
+    placeholder?: string;
+    apiUrl: string;
 
-  /** Pass the selected item's ID here (not the name). */
-  value: string | number | null;
-  /** Returns the full selected option so callers can grab both id and name. */
-  onChangeAction: (
-    selected: { id: string | number | null; name: string } | null,
-  ) => void;
+    /** Pass the selected item's ID here (not the name). */
+    value: string | number | null;
+    /** Returns the full selected option so callers can grab both id and name. */
+    onChangeAction: (
+      selected: { id: string | number | null; name: string } | null,
+    ) => void;
 
-  required?: boolean;
-  selectedLabel?: string;
-  popupTitle?: string;
-  enablePopupSearch?: boolean;
-  /** Field name to use as the option label. Defaults to "name". */
-  nameKey?: string;
-  /** Set true when the API returns { data: [...] } instead of { data: { data: [...] } }. */
-  flatData?: boolean;
+    required?: boolean;
+    selectedLabel?: string;
+    popupTitle?: string;
+    enablePopupSearch?: boolean;
+    /** Field name to use as the option label. Defaults to "name". */
+    nameKey?: string;
+    /** Set true when the API returns { data: [...] } instead of { data: { data: [...] } }. */
+    flatData?: boolean;
 
-  /** PopUp column, for the custom popup form and specific columns*/
-  popUpColumns?: PopUpSearchTableColumn<T>[];
-  popupPageSize?: number;
-  popupPageSizeOptions?: number[];
-};
+    /** PopUp column, for the custom popup form and specific columns*/
+    popUpColumns?: PopUpSearchTableColumn<T>[];
+    popupPageSize?: number;
+    popupPageSizeOptions?: number[];
+  };
 
 export default function AsyncSearchSelect<
   T extends Record<string, unknown> = SearchApiItem,
@@ -206,7 +209,7 @@ export default function AsyncSearchSelect<
                 key={option.value}
                 type="button"
                 onClick={() => handleSelect(option)}
-                className={`flex w-full items-center px-4 py-3 text-left text-sm transition-colors hover:bg-slate-50 ${
+                className={`flex w-full items-center px-4 py-3 text-left text-sm truncate transition-colors hover:bg-slate-50 ${
                   String(option.value) === String(value ?? '')
                     ? 'bg-[#1a9e52]/5 font-medium text-[#1a9e52]'
                     : 'text-slate-700'

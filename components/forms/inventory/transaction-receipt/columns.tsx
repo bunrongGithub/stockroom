@@ -35,11 +35,6 @@ export const REASON_META: Record<InventoryMovemtTypeReasonMeta, ReasonConfig> = 
     icon: <Undo2 size={13} />,
     badge: 'bg-amber-50 text-amber-700 border-amber-200',
   },
-  'Goods transferred to another warehouse': {
-    label: 'Transfer Out',
-    icon: <ArrowLeftRight size={13} />,
-    badge: 'bg-blue-50 text-blue-700 border-blue-200',
-  },
   'Goods received from another warehouse': {
     label: 'Transfer In',
     icon: <Warehouse size={13} />,

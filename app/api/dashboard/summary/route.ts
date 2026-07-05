@@ -10,9 +10,11 @@ export async function GET(req: NextRequest) {
     try {
         const ctx = getRequestContext(req);
         const warehouseId = Number(req.nextUrl.searchParams.get('warehouse_id'));
+        const locationId = Number(req.nextUrl.searchParams.get('location_id'));
         const data = await service.getSummary(
             ctx,
             warehouseId > 0 ? warehouseId : undefined,
+            locationId > 0 ? locationId : undefined,
         );
         return new ApiResponseSuccess({ data }, 'Success').toResponse();
     } catch (error) {
