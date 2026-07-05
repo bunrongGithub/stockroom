@@ -202,7 +202,7 @@ export default function SaleOrderPage({ currentPath, permission, currentPathActi
                     onClick={() => router.push('/sale/order/create')}
                     className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-sm text-white hover:bg-emerald-500 font-mono shadow-sm"
                 >
-                    <PlusIcon size={15} /> New Order
+                    <PlusIcon size={15} /> Create Order
                 </button>
             </div>
 

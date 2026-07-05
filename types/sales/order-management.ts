@@ -181,6 +181,7 @@ export interface SalesInvoiceItem {
     shipment_item_id: number | null;
     product_name: string;
     sku: string | null;
+    reference_no: string | null;
     track_serial: boolean;
     /** Sold serials pulled read-only from inventory_serial (print/detail views) */
     serial_numbers?: string[];

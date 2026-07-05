@@ -65,7 +65,7 @@ export default function InvoiceDocument({ invoice }: { invoice: SalesInvoice }) 
 
             {/* ── 2. Document title ─────────────────────────────────────── */}
             <h1 className="text-center text-lg font-bold uppercase tracking-[0.3em]">
-                Sales Invoice
+                Invoice
             </h1>
 
             {/* ── 3+4. Bill To | Invoice meta + source documents ────────── */}
@@ -92,9 +92,8 @@ export default function InvoiceDocument({ invoice }: { invoice: SalesInvoice }) 
                                 ? [['Reference', invoice.reference_no]]
                                 : []),
                             ['Date', longDate(invoice.invoice_date)],
-                            ['Status', invoice.status],
-                            ['Sales Order', invoice.sales_order_no || '—'],
-                            ['Shipment', invoice.shipment_no || '—'],
+                            ['Order No', invoice.sales_order_no || '—'],
+                            ['Delivery No', invoice.shipment_no || '—'],
                         ].map(([label, value]) => (
                             <tr key={label}>
                                 <td className="pr-4 align-top text-[10px] font-bold uppercase tracking-widest text-slate-500">
@@ -113,13 +112,11 @@ export default function InvoiceDocument({ invoice }: { invoice: SalesInvoice }) 
             <table className="mt-5 w-full border-collapse">
                 <thead>
                     <tr className="border-y-2 border-slate-900 text-[10px] uppercase tracking-wider text-slate-600">
-                        <th className="py-1.5 pr-2 text-left font-bold">#</th>
-                        <th className="py-1.5 pr-2 text-left font-bold">SKU</th>
                         <th className="py-1.5 pr-2 text-left font-bold">
-                            Item & Description
+                            Item Name
                         </th>
                         <th className="py-1.5 pr-2 text-left font-bold">
-                            Serial No
+                            Serial
                         </th>
                         <th className="py-1.5 pr-2 text-right font-bold">Qty</th>
                         <th className="py-1.5 pr-2 text-left font-bold">UOM</th>
@@ -130,7 +127,7 @@ export default function InvoiceDocument({ invoice }: { invoice: SalesInvoice }) 
                             Disc
                         </th>
                         <th className="py-1.5 text-right font-bold">
-                            Line Total
+                            Total
                         </th>
                     </tr>
                 </thead>
@@ -140,12 +137,6 @@ export default function InvoiceDocument({ invoice }: { invoice: SalesInvoice }) 
                             key={item.id}
                             className="border-b border-slate-200 align-top break-inside-avoid"
                         >
-                            <td className="py-2 pr-2 text-slate-500">
-                                {idx + 1}
-                            </td>
-                            <td className="py-2 pr-2 font-mono text-[10px]">
-                                {item.sku || '—'}
-                            </td>
                             <td className="py-2 pr-2">
                                 <p className="font-semibold">
                                     {item.product_name}
@@ -189,8 +180,7 @@ export default function InvoiceDocument({ invoice }: { invoice: SalesInvoice }) 
                         Remarks
                     </p>
                     <p className="whitespace-pre-line text-slate-600">
-                        {invoice.remarks ||
-                            'Thank you for your purchase.\nWarranty applies according to company policy.'}
+                      {invoice.remarks}
                     </p>
                 </div>
                 <div className="w-[70mm] shrink-0 tabular-nums">
@@ -227,23 +217,6 @@ export default function InvoiceDocument({ invoice }: { invoice: SalesInvoice }) 
                     )}
                 </div>
             </div>
-
-            {/* ── 7. Signatures ─────────────────────────────────────────── */}
-            <div className="mt-14 flex justify-between gap-12 break-inside-avoid">
-                {['Prepared By', 'Customer Signature'].map((label) => (
-                    <div key={label} className="w-[60mm]">
-                        <div className="border-t border-slate-400" />
-                        <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                            {label}
-                        </p>
-                    </div>
-                ))}
-            </div>
-
-            {/* ── 8. Footer ─────────────────────────────────────────────── */}
-            <footer className="mt-10 border-t border-slate-200 pt-2 text-center text-[9px] text-slate-400">
-                Generated by ERP System • {generatedAt}
-            </footer>
         </div>
     );
 }

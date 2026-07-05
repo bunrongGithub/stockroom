@@ -7,7 +7,12 @@ export type PaymentMethod =
     | 'BANK_TRANSFER'
     | 'CARD'
     | 'CHEQUE'
-    | 'OTHER';
+    | 'OTHER'
+    | 'ABA'
+    | 'Wing Bank'
+    | 'ACLEDA'
+    | 'KHQR'
+    | 'Bank';
 
 // Derived payment state of an invoice — independent of its DOCUMENT status.
 export type InvoicePaymentStatus = 'UNPAID' | 'PARTIALLY_PAID' | 'PAID';

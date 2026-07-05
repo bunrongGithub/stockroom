@@ -16,6 +16,10 @@ const METHODS: { value: PaymentMethod; label: string }[] = [
   { value: 'BANK_TRANSFER', label: 'Bank Transfer' },
   { value: 'CARD', label: 'Card' },
   { value: 'CHEQUE', label: 'Cheque' },
+  { value: 'ABA', label: 'ABA' },
+  { value: 'ACLEDA', label: 'Aceleda' },
+  { value: 'Bank', label: 'Bank' },
+  { value: 'Wing Bank', label: 'Wing Bank' },
   { value: 'OTHER', label: 'Other' },
 ];
 
