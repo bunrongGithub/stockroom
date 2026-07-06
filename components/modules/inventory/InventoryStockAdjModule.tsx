@@ -286,7 +286,7 @@ export default function InventoryStockAdjModule({
                         onClick={() => router.push('/inventory/stock_adjust/create')}
                         className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-sm text-white hover:bg-emerald-500 font-mono shadow-sm"
                     >
-                        <PlusIcon size={15} /> New Adjustment
+                        <PlusIcon size={15} /> Create
                     </button>
                 )}
             </div>

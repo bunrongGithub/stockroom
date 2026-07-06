@@ -3,6 +3,8 @@
 import { useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import { cn } from '@/lib/cn';
+import { useIsMobile } from '@/hook/use-mobile';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -33,6 +35,16 @@ export interface DataTableColumn<T> {
     cell: (row: T, index: number) => React.ReactNode;
     headerClassName?: string;
     cellClassName?: string;
+    /** Text alignment for header + cells. */
+    align?: 'left' | 'center' | 'right';
+    /** Fixed/min column width, e.g. '140px'. */
+    width?: string;
+    /** The row's title column when rendered as a card on mobile. */
+    primary?: boolean;
+    /** Hide this column in the mobile card layout (e.g. an actions column shown in the card footer). */
+    hideOnCard?: boolean;
+    /** Render this column's cell as the card footer (e.g. row actions), full-width. */
+    cardFooter?: boolean;
 }
 
 /** Pass this to enable server-driven pagination (the server already sliced the data). */
@@ -64,6 +76,16 @@ export interface DataTableProps<T> {
     /** Server-side pagination — skips client slicing and uses server totals. */
     serverSide?: ServerSidePagination;
 
+    /**
+     * Small-screen behavior:
+     *   'scroll' (default) — the table scrolls horizontally.
+     *   'cards' — each row renders as a stacked card below `md`.
+     */
+    mobileVariant?: 'scroll' | 'cards';
+
+    /** Minimum table width before horizontal scroll kicks in (scroll variant). */
+    minTableWidth?: string;
+
     /** Empty state */
     emptyIcon?: React.ReactNode;
     emptyTitle?: string;
@@ -76,6 +98,13 @@ export interface DataTableProps<T> {
 const DEFAULT_PAGE_SIZE = 10;
 const DEFAULT_PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
 
+const alignClass = (align?: 'left' | 'center' | 'right') =>
+    align === 'right'
+        ? 'text-right'
+        : align === 'center'
+          ? 'text-center'
+          : 'text-left';
+
 export function DataTable<T>({
     columns,
     data: dataProp,
@@ -86,12 +115,15 @@ export function DataTable<T>({
     pageSize: pageSizeProp = DEFAULT_PAGE_SIZE,
     pageSizeOptions = DEFAULT_PAGE_SIZE_OPTIONS,
     serverSide,
-    emptyIcon,
+    mobileVariant = 'scroll',
+    minTableWidth = '720px',
     emptyTitle = 'No records found',
     emptyDescription,
     emptyAction,
     className,
 }: DataTableProps<T>) {
+    const isMobile = useIsMobile();
+    const asCards = mobileVariant === 'cards' && isMobile;
     const [query, setQuery] = useState('');
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(
@@ -157,8 +189,12 @@ export function DataTable<T>({
         return pages;
     }, [totalPages, safePage]);
 
+    const cardColumns = columns.filter((c) => !c.hideOnCard && !c.cardFooter);
+    const footerColumn = columns.find((c) => c.cardFooter);
+    const primaryColumn = columns.find((c) => c.primary);
+
     return (
-        <div className={cn('space-y-2 font-mono text-xs', className)}>
+        <div className={cn('space-y-3 text-sm', className)}>
             {/* Toolbar row */}
             {(searchFn || toolbar) && (
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
@@ -186,55 +222,95 @@ export function DataTable<T>({
                 </div>
             )}
 
-            {/* Table */}
-            <div className="overflow-hidden rounded-lg border border-border/60 bg-card shadow-sm">
-                <Table>
-                    <TableHeader>
-                        <TableRow className="border-b border-border/60 bg-muted/50 hover:bg-muted/50">
-                            {columns.map((col) => (
-                                <TableHead
-                                    key={col.key}
-                                    className={cn(
-                                        'text-xs font-mono tracking-wide text-muted-foreground',
-                                        col.headerClassName,
-                                    )}
-                                >
-                                    {col.header}
-                                </TableHead>
-                            ))}
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {visible.length === 0 ? (
-                            <TableRow className="hover:bg-transparent">
-                                <TableCell
-                                    colSpan={columns.length}
-                                    className="h-44 text-center"
-                                >
-                                    <div className="flex flex-col items-center gap-2 py-4">
-                                        {emptyIcon && (
-                                            <div className="text-muted-foreground/40">
-                                                {emptyIcon}
-                                            </div>
-                                        )}
-                                        <p className=" text-foreground">
-                                            {emptyTitle}
-                                        </p>
-                                        {emptyDescription && (
-                                            <p className="text-xs text-muted-foreground">
-                                                {emptyDescription}
-                                            </p>
-                                        )}
-                                        {emptyAction && (
-                                            <div className="mt-2">
-                                                {emptyAction}
-                                            </div>
+            {/* Empty state (shared by both layouts) */}
+            {visible.length === 0 ? (
+                <div className="rounded-lg border border-border/60 bg-card shadow-sm">
+                    <EmptyState
+                        icon={undefined}
+                        title={emptyTitle}
+                        description={emptyDescription}
+                        action={emptyAction}
+                    />
+                </div>
+            ) : asCards ? (
+                /* ── Mobile card layout ── */
+                <div className="space-y-3">
+                    {visible.map((row, index) => {
+                        const footer = footerColumn?.cell(
+                            row,
+                            (safePage - 1) * pageSize + index,
+                        );
+                        return (
+                            <div
+                                key={keyExtractor(row)}
+                                className="rounded-xl border border-border/60 bg-card p-4 shadow-sm"
+                            >
+                                {primaryColumn && (
+                                    <div className="mb-2 text-sm font-semibold text-foreground">
+                                        {primaryColumn.cell(
+                                            row,
+                                            (safePage - 1) * pageSize + index,
                                         )}
                                     </div>
-                                </TableCell>
+                                )}
+                                <dl className="grid grid-cols-[minmax(0,auto)_1fr] gap-x-3 gap-y-1.5">
+                                    {cardColumns
+                                        .filter((c) => !c.primary)
+                                        .map((col) => (
+                                            <div
+                                                key={col.key}
+                                                className="contents"
+                                            >
+                                                <dt className="text-xs text-muted-foreground">
+                                                    {col.header}
+                                                </dt>
+                                                <dd className="text-right text-sm text-foreground">
+                                                    {col.cell(
+                                                        row,
+                                                        (safePage - 1) *
+                                                            pageSize +
+                                                            index,
+                                                    ) ?? '—'}
+                                                </dd>
+                                            </div>
+                                        ))}
+                                </dl>
+                                {footer && (
+                                    <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/40 pt-3">
+                                        {footer}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            ) : (
+                /* ── Table layout (scrolls horizontally on narrow screens) ── */
+                <div className="overflow-x-auto rounded-lg border border-border/60 bg-card shadow-sm">
+                    <Table style={{ minWidth: minTableWidth }}>
+                        <TableHeader>
+                            <TableRow className="border-b border-border/60 bg-muted/50 hover:bg-muted/50">
+                                {columns.map((col) => (
+                                    <TableHead
+                                        key={col.key}
+                                        style={
+                                            col.width
+                                                ? { width: col.width }
+                                                : undefined
+                                        }
+                                        className={cn(
+                                            'text-xs tracking-wide text-muted-foreground',
+                                            alignClass(col.align),
+                                            col.headerClassName,
+                                        )}
+                                    >
+                                        {col.header}
+                                    </TableHead>
+                                ))}
                             </TableRow>
-                        ) : (
-                            visible.map((row, index) => (
+                        </TableHeader>
+                        <TableBody>
+                            {visible.map((row, index) => (
                                 <TableRow
                                     key={keyExtractor(row)}
                                     className="border-b border-border/40 text-sm text-foreground transition-colors hover:bg-muted/30"
@@ -249,6 +325,7 @@ export function DataTable<T>({
                                                 key={col.key}
                                                 className={cn(
                                                     'py-3',
+                                                    alignClass(col.align),
                                                     col.cellClassName,
                                                 )}
                                             >
@@ -263,15 +340,15 @@ export function DataTable<T>({
                                         );
                                     })}
                                 </TableRow>
-                            ))
-                        )}
-                    </TableBody>
-                </Table>
-            </div>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </div>
+            )}
 
             {/* Footer */}
             {(data.length > 0 || paginated) && (
-                <div className="flex flex-col gap-4 rounded-xl text-gray-900 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-col gap-4 rounded-xl text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
                     {/* Record count */}
                     <p className="text-xs">
                         {displayTotal === 0
@@ -347,13 +424,13 @@ export function DataTable<T>({
                                             ) : (
                                                 <PaginationItem key={p}>
                                                     <Button
-                                                        variant="ghost"
+                                                        variant={
+                                                            safePage === p
+                                                                ? 'default'
+                                                                : 'outline'
+                                                        }
                                                         size="icon"
-                                                        className={cn(
-                                                            'size-8 rounded-xl bg-gray-200',
-                                                            safePage === p &&
-                                                                'shadow-[0_0_0_1px_rgba(255,255,255,0.08)]',
-                                                        )}
+                                                        className="size-9 rounded-lg"
                                                         onClick={() =>
                                                             handlePageChange(
                                                                 p as number,

@@ -1,12 +1,16 @@
-import type { Metadata } from 'next';
-import { Geist, Geist_Mono, Inter } from 'next/font/google';
+import type { Metadata, Viewport } from 'next';
+import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
-
-const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
     title: 'iCase POS System',
     description: 'ប្រព័ន្ធគ្រប់គ្រងហាង iCase Service Mobile',
+};
+
+export const viewport: Viewport = {
+    width: 'device-width',
+    initialScale: 1,
+    maximumScale: 5,
 };
 
 const fontSans = Geist({
@@ -28,9 +32,9 @@ export default function RootLayout({
         <html
             lang="en"
             suppressHydrationWarning
-            className={`${fontMono.variable} font-mono font-medium antialiased`}
+            className={`${fontSans.variable} ${fontMono.variable} font-sans antialiased`}
         >
-            <body className={inter.className}>{children}</body>
+            <body>{children}</body>
         </html>
     );
 }

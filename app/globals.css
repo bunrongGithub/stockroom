@@ -3,6 +3,8 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+  --font-sans: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-mono), ui-monospace, monospace;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -30,6 +32,20 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
+  /* Semantic status tokens — one source of truth for success/warning/info/danger.
+     `*-muted` is the subtle badge/background tint; base is the solid/text color. */
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-success-muted: var(--success-muted);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning-muted: var(--warning-muted);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-info-muted: var(--info-muted);
+  --color-danger: var(--danger);
+  --color-danger-foreground: var(--danger-foreground);
+  --color-danger-muted: var(--danger-muted);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -65,6 +81,19 @@
   --chart-3: oklch(0.398 0.07 227.392);
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
+  /* Semantic status palette (light) */
+  --success: oklch(0.59 0.16 153);
+  --success-foreground: oklch(1 0 0);
+  --success-muted: oklch(0.95 0.05 153);
+  --warning: oklch(0.75 0.15 75);
+  --warning-foreground: oklch(0.28 0.06 75);
+  --warning-muted: oklch(0.96 0.06 85);
+  --info: oklch(0.6 0.13 240);
+  --info-foreground: oklch(1 0 0);
+  --info-muted: oklch(0.95 0.04 240);
+  --danger: oklch(0.577 0.245 27.325);
+  --danger-foreground: oklch(1 0 0);
+  --danger-muted: oklch(0.95 0.04 25);
   --sidebar: hsl(0 0% 98%);
   --sidebar-foreground: hsl(240 5.3% 26.1%);
   --sidebar-primary: hsl(240 5.9% 10%);
@@ -78,7 +107,22 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+}
+
+/* Referenced by the shell nav + DataTable; previously undefined (no-op). */
+@utility scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Tabular numerals for data-dense numeric/serial cells. */
+@utility tnums {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
 
 .dark {
