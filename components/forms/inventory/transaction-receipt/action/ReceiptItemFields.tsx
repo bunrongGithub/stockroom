@@ -4,6 +4,7 @@ import AsyncSearchSelect from '@/components/ui/AsyncSearchSelect';
 import SerialEntryPanel from '@/components/ui/serial/SerialEntryPanel';
 import { EditableInput, FieldLabel } from '@/components/ui/FieldLabel';
 import { API } from '@/lib/constant';
+import { useItemAutoFill } from '@/hook/useItemAutoFill';
 import { useEffect, useState } from 'react';
 import { Controller, useFormContext } from 'react-hook-form';
 
@@ -56,8 +57,10 @@ export default function ReceiptItemFields({
     register,
     watch,
     setValue,
+    getValues,
     formState: { errors },
   } = useFormContext<LineItem>();
+  const { resolveItemDefaults } = useItemAutoFill();
 
   // Prefer the receipt-level warehouse passed from the parent; fall back to the
   // value already stored on the line item (e.g. when editing an existing row).
@@ -69,6 +72,9 @@ export default function ReceiptItemFields({
   const receiptQty = Number(watch('receipt_qty') || 0);
   const [serialEnabled, setSerialEnabled] = useState(false);
 
+  // Recompute the serial-tracking flag whenever the item changes (incl. on
+  // mount when editing an existing line). Goes through the cached lookup, so it
+  // shares one request with the pick-handler auto-fill below.
   useEffect(() => {
     if (!itemId) {
       setSerialEnabled(false);
@@ -77,15 +83,11 @@ export default function ReceiptItemFields({
     }
 
     let active = true;
-    fetch(`${API.inventory.stockItem.detail(itemId)}`)
-      .then((res) => res.json())
-      .then((json) => {
+    resolveItemDefaults(itemId)
+      .then((d) => {
         if (!active) return;
-        const enabled = Boolean(json.data?.track_serial);
-        setSerialEnabled(enabled);
-        if (!enabled) {
-          setValue('serial_numbers', []);
-        }
+        setSerialEnabled(d.trackSerial);
+        if (!d.trackSerial) setValue('serial_numbers', []);
       })
       .catch(() => {
         if (active) setSerialEnabled(false);
@@ -94,7 +96,44 @@ export default function ReceiptItemFields({
     return () => {
       active = false;
     };
-  }, [itemId, setValue]);
+  }, [itemId, setValue, resolveItemDefaults]);
+
+  // Auto-populate cost / UOM / location from the item master when the user
+  // PICKS a product (not on edit-mount, so saved line values are never
+  // clobbered). Preserves qty; defaults location only when empty and valid for
+  // the receipt's warehouse.
+  async function onPickItem(
+    selected: { id: string | number | null; name: string } | null,
+  ) {
+    const id = selected?.id ? Number(selected.id) : null;
+    setValue('item_id', id, { shouldValidate: true });
+    setValue('item_label', selected?.name ?? '');
+    // Reset the dependent UOM selection until defaults resolve.
+    setValue('item_uom_id', null);
+    setValue('uom_label', '');
+    if (!id) return;
+
+    try {
+      const d = await resolveItemDefaults(id);
+      if (getValues('item_id') !== id) return; // superseded by a newer pick
+
+      if (d.cost != null) setValue('unit_cost', d.cost);
+      if (d.itemUomId != null) {
+        setValue('item_uom_id', d.itemUomId);
+        setValue('uom_label', d.uomName);
+      }
+      // Location: only when empty, and only if the item's default location is
+      // valid for the receipt warehouse (avoid injecting a cross-warehouse id).
+      const whMatches =
+        d.defaultWarehouseId == null || d.defaultWarehouseId === warehouseId;
+      if (!getValues('location_id') && d.defaultLocationId && whMatches) {
+        setValue('location_id', d.defaultLocationId);
+        setValue('location_label', d.defaultLocationName);
+      }
+    } catch {
+      // best-effort; user can enter values manually
+    }
+  }
 
   // The SerialEntryPanel manages the serial list itself (scan-first log);
   // no qty-padding here — the panel enforces the count against receipt_qty.
@@ -117,10 +156,7 @@ export default function ReceiptItemFields({
                 value={f.value}
                 selectedLabel={watch('item_label') ?? ''}
                 enablePopupSearch
-                onChangeAction={(selected) => {
-                  f.onChange(selected?.id ? Number(selected.id) : null);
-                  setValue('item_label', selected?.name ?? '');
-                }}
+                onChangeAction={onPickItem}
               />
               {errors.item_id && (
                 <p className="mt-1 text-xs text-red-500">

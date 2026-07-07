@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { API } from '@/lib/constant';
 import { stockAdjustmentApi } from '@/lib/api/adjustment';
+import { useItemAutoFill } from '@/hook/useItemAutoFill';
 import type {
   AdjustmentReason,
   StockAdjustment,
@@ -120,6 +121,7 @@ export default function AdjustmentForm({
   const [editorIndex, setEditorIndex] = useState<number | null>(null);
   const [draft, setDraft] = useState<LineDraft>(EMPTY_LINE);
   const [onHandLoading, setOnHandLoading] = useState(false);
+  const { resolveItemDefaults } = useItemAutoFill();
 
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -152,23 +154,25 @@ export default function AdjustmentForm({
       uom_label: '',
       serial_numbers: [],
     }));
-    // Track-serial flag + LIVE on-hand at the header warehouse/location.
+    // Item-master defaults (track-serial, cost, UOM) + LIVE on-hand at the
+    // header warehouse/location. `resolveItemDefaults` is the shared, cached
+    // lookup reused by Sales Order and Receipt.
     setOnHandLoading(true);
     try {
-      const [itemRes, onHand] = await Promise.all([
-        fetch(API.inventory.stockItem.detail(itemId)).then((r) => r.json()),
+      const [defaults, onHand] = await Promise.all([
+        resolveItemDefaults(itemId),
         stockAdjustmentApi.onHand(itemId, warehouse.id!, location.id!),
       ]);
       setDraft((d) =>
         d.item_id === itemId
           ? {
               ...d,
-              track_serial: Boolean(itemRes.data?.track_serial),
+              track_serial: defaults.trackSerial,
               current_qty: onHand,
               unit_cost:
-                itemRes.data?.cost != null
-                  ? String(itemRes.data.cost)
-                  : d.unit_cost,
+                defaults.cost != null ? String(defaults.cost) : d.unit_cost,
+              item_uom_id: defaults.itemUomId ?? d.item_uom_id,
+              uom_label: defaults.uomName || d.uom_label,
             }
           : d,
       );

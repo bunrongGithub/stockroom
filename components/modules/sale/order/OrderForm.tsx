@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { API } from '@/lib/constant';
 import { saleOrderApi } from '@/lib/api/sale';
+import { useItemAutoFill } from '@/hook/useItemAutoFill';
 import type { SalesOrder } from '@/types/sales/order-management';
 import {
   AlertCircle,
@@ -112,10 +113,66 @@ export default function OrderForm({
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
+  const { resolveItemDefaults } = useItemAutoFill();
+
+  function focusQty(key: string) {
+    requestAnimationFrame(() => {
+      const el = document.querySelector<HTMLInputElement>(
+        `input[data-qty="${key}"]`,
+      );
+      el?.focus();
+      el?.select();
+    });
+  }
+
   function setLine(idx: number, patch: Partial<LineDraft>) {
     setItems((prev) =>
       prev.map((l, i) => (i === idx ? { ...l, ...patch } : l)),
     );
+  }
+
+  // Auto-populate a line from the item master on selection. Fills price + UOM
+  // and defaults the (header) warehouse when empty; preserves qty/discount/tax
+  // already entered. A stale response for a superseded selection is ignored.
+  async function onPickItem(
+    idx: number,
+    key: string,
+    sel: { id: string | number | null; name: string } | null,
+  ) {
+    const id = sel?.id ? Number(sel.id) : null;
+    // Immediate: set the item + reset the dependent UOM select.
+    setLine(idx, {
+      item_id: id,
+      product_name: sel?.name ?? '',
+      item_uom_id: null,
+      uom: '',
+    });
+    if (!id) return;
+
+    try {
+      const d = await resolveItemDefaults(id);
+      setItems((prev) =>
+        prev.map((l) =>
+          l.key === key && l.item_id === id
+            ? {
+                ...l,
+                unit_price: d.price ?? l.unit_price,
+                item_uom_id: d.itemUomId ?? l.item_uom_id,
+                uom: d.uomName || l.uom,
+              }
+            : l,
+        ),
+      );
+      // Default the header warehouse only when the user hasn't chosen one.
+      if (d.defaultWarehouseId) {
+        setWarehouseId((w) => w ?? d.defaultWarehouseId);
+        setWarehouseName((n) => n || d.defaultWarehouseName);
+      }
+      // Move focus to quantity for fast entry.
+      focusQty(key);
+    } catch {
+      // Auto-fill is best-effort; the user can still enter values manually.
+    }
   }
 
   const subtotal = items.reduce((s, i) => s + i.ordered_qty * i.unit_price, 0);
@@ -450,12 +507,7 @@ export default function OrderForm({
                             selectedLabel={line.product_name}
                             enablePopupSearch
                             onChangeAction={(sel) =>
-                              setLine(idx, {
-                                item_id: sel?.id ? Number(sel.id) : null,
-                                product_name: sel?.name ?? '',
-                                item_uom_id: null,
-                                uom: '',
-                              })
+                              onPickItem(idx, line.key, sel)
                             }
                           />
                           {items.length > 1 && (
@@ -499,6 +551,7 @@ export default function OrderForm({
                           <div className="space-y-1.5">
                             <Label className="text-xs">Qty *</Label>
                             <Input
+                              data-qty={line.key}
                               type="number"
                               min={0}
                               step="0.001"
