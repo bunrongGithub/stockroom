@@ -144,7 +144,8 @@ export default function Sigin() {
                                     'ចូលប្រើប្រាស់'
                                 )}
                             </Button>
-                            <Button
+                            #TODO: Do not publish this button in production, only for testing purposes
+                            {/* <Button
                                 type="button"
                                 variant="outline"
                                 onClick={() => router.push('/register')}
@@ -152,7 +153,7 @@ export default function Sigin() {
                                 className="w-full h-11 rounded-xl font-bold"
                             >
                                 ចុះឈ្មោះក្រុមហ៊ុនថ្មី (Create Company)
-                            </Button>
+                            </Button> */}
                         </div>
                     </form>
                 </CardContent>
