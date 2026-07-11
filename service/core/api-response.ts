@@ -57,6 +57,13 @@ export class BadRequesstExceptionError extends ApiError {
     }
 }
 
+export class ConflictError extends ApiError {
+    constructor(message: string) {
+        super(message, 409, 'CONFLICT');
+        this.name = 'ConflictError';
+    }
+}
+
 export class ApiResponseSuccess<T> {
     constructor(
         public readonly data: T,

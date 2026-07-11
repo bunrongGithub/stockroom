@@ -432,7 +432,7 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
                     <AsyncSearchSelect
                       label="Base UOM"
                       placeholder="Select unit of measure..."
-                      apiUrl="/api/inventory/configurations/uom"
+                      apiUrl="/api/inventory/configurations/uom?status=active"
                       value={formData.uom_id}
                       selectedLabel={formData.uom?.name ?? ''}
                       popupTitle="Base UOM"

@@ -1,22 +1,25 @@
 'use client';
 
-import { FieldLabel } from '@/components/ui/FieldLabel';
-import { ReadonlyInput } from '@/components/ui/Readonly';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { StatusBadge } from '@/components/ui/StatusBadge';
+import { LoadingState } from '@/components/ui/Spinner';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { Button } from '@/components/ui/button';
 import { useRegisterModule } from '@/hook/useModule';
 import type { ModuleProps } from '@/lib/registry';
-import type { InventoryUom } from '@/service/apps/inventory/repo/uom';
-import {
-    ArrowLeft,
-    Building2,
-    CalendarDays,
-    Clock,
-    Edit2,
-    Loader2,
-    Ruler,
-} from 'lucide-react';
-import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { uomApi, type UomDetail } from '@/lib/api/uom';
+import { ArrowLeft, Edit2, FileWarning, Package, Star } from 'lucide-react';
+import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+
+function Field({ label, value }: { label: string; value: React.ReactNode }) {
+    return (
+        <div className="space-y-0.5">
+            <p className="text-xs text-muted-foreground">{label}</p>
+            <div className="text-sm text-foreground">{value || '—'}</div>
+        </div>
+    );
+}
 
 export default function InventoryUomView({
     currentPath,
@@ -30,131 +33,189 @@ export default function InventoryUomView({
     });
 
     const params = useParams();
+    const router = useRouter();
     const id = Number(
         Array.isArray(params.slug) ? params.slug.at(-2) : params.slug,
     );
 
-    const [item, setItem] = useState<InventoryUom | null>(null);
+    const [detail, setDetail] = useState<UomDetail | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
     useEffect(() => {
         if (!id) return;
-        setLoading(true);
-        fetch(`/api/inventory/configurations/uom/${id}`)
-            .then((r) => r.json())
-            .then((json) => {
-                if (json.data) setItem(json.data);
-                else setError(json.error ?? 'UOM not found');
-            })
-            .catch(() => setError('Failed to load UOM'))
-            .finally(() => setLoading(false));
+        (async () => {
+            try {
+                setDetail(await uomApi.get(id));
+            } catch (e) {
+                setError(e instanceof Error ? e.message : 'Failed to load unit');
+            } finally {
+                setLoading(false);
+            }
+        })();
     }, [id]);
 
-    if (loading) {
+    if (loading) return <LoadingState />;
+    if (error || !detail) {
         return (
-            <div className="flex h-64 items-center justify-center">
-                <Loader2 className="animate-spin text-emerald-500" size={28} />
+            <div className="flex h-64 flex-col items-center justify-center gap-3">
+                <FileWarning className="text-muted-foreground" size={40} />
+                <p className="text-sm text-muted-foreground">
+                    {error || 'Unit not found.'}
+                </p>
+                <button
+                    onClick={() => router.push('/inventory/configurations/uom')}
+                    className="text-xs text-primary hover:underline"
+                >
+                    Back to Units of Measure
+                </button>
             </div>
         );
     }
 
-    if (error || !item) {
-        return (
-            <div className="flex h-64 items-center justify-center text-sm text-red-500">
-                {error || 'UOM not found'}
-            </div>
-        );
-    }
-
-    const createdAt = new Date(item.created_at);
+    const { data: uom, usage, items } = detail;
+    const fmtDate = (d?: string | null) =>
+        d
+            ? new Date(d).toLocaleString('en-GB', {
+                  day: '2-digit',
+                  month: 'short',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+              })
+            : '—';
 
     return (
-        <div className="mx-auto max-w-2xl space-y-6 p-4 md:p-8">
-            <div>
-                <Link
-                    href="/inventory/configurations/uom"
-                    className="inline-flex items-center gap-2 text-sm text-slate-500 transition-colors hover:text-slate-700"
-                >
-                    <ArrowLeft size={16} /> Back to Units of Measure
-                </Link>
-                <h2 className="mt-3 flex items-center gap-2 text-2xl font-bold text-slate-800">
-                    <Ruler className="text-emerald-500" /> Unit of Measure Detail
-                </h2>
-            </div>
+        <div className="mx-auto max-w-3xl space-y-4">
+            <button
+                type="button"
+                onClick={() => router.push('/inventory/configurations/uom')}
+                className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+            >
+                <ArrowLeft size={16} /> Back to Units of Measure
+            </button>
 
-            <div className="grid gap-6 xl:grid-cols-[260px_minmax(0,1fr)]">
-                {/* Sidebar */}
-                <aside className="space-y-4 self-start xl:sticky xl:top-6">
-                    <section className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
-                        <div className="flex items-center gap-2 border-b border-slate-50 bg-slate-50/80 px-4 py-2.5">
-                            <Building2 size={13} className="text-emerald-500" />
-                            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">UOM Info</span>
-                        </div>
-                        <div className="p-4">
-                            <div className="flex items-center gap-3">
-                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-emerald-500 to-emerald-700 text-sm font-bold text-white shadow-sm">
-                                    {item.display_name?.[0]?.toUpperCase() ?? 'U'}
-                                </div>
-                                <div className="min-w-0">
-                                    <p className="truncate text-sm font-semibold text-slate-800">{item.name}</p>
-                                    <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-600">
-                                        {item.display_name}
-                                    </span>
-                                </div>
-                            </div>
-                            <div className="mt-3 space-y-1.5 rounded-xl bg-slate-50 p-3">
-                                <div className="flex items-center justify-between text-xs">
-                                    <span className="flex items-center gap-1.5 text-slate-400"><CalendarDays size={11} /> Created</span>
-                                    <span className="font-semibold text-slate-700">
-                                        {createdAt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
-                                    </span>
-                                </div>
-                                <div className="flex items-center justify-between text-xs">
-                                    <span className="flex items-center gap-1.5 text-slate-400"><Clock size={11} /> Time</span>
-                                    <span className="font-semibold text-slate-700">
-                                        {createdAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-                    </section>
-
-                    <div className="flex flex-col-reverse gap-2">
-                        <Link
-                            href="/inventory/configurations/uom"
-                            className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-center text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
-                        >
-                            Back
-                        </Link>
-                        {permission.can_update && (
-                            <Link
-                                href={`/inventory/configurations/uom/${item.id}/edit`}
-                                className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700"
-                            >
-                                <Edit2 size={15} /> Edit UOM
-                            </Link>
+            <PageHeader
+                title={
+                    <span className="inline-flex items-center gap-2">
+                        {uom.code}
+                        {uom.is_default && (
+                            <Star className="size-4 fill-warning text-warning" />
                         )}
-                    </div>
-                </aside>
+                    </span>
+                }
+                description={uom.name}
+                actions={
+                    permission.can_update && (
+                        <Button
+                            onClick={() =>
+                                router.push(
+                                    `/inventory/configurations/uom/${uom.id}/update`,
+                                )
+                            }
+                        >
+                            <Edit2 size={15} /> Edit
+                        </Button>
+                    )
+                }
+            />
 
-                {/* Detail card */}
-                <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-                    <h3 className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
-                        <Ruler size={13} className="text-emerald-500" /> UOM Information
-                    </h3>
-                    <div className="space-y-4">
-                        <div>
-                            <FieldLabel>Full Name</FieldLabel>
-                            <ReadonlyInput value={item.name} />
-                        </div>
-                        <div>
-                            <FieldLabel>Abbreviation</FieldLabel>
-                            <ReadonlyInput value={item.display_name} />
-                        </div>
+            {/* General information */}
+            <section className="rounded-2xl border border-border/60 bg-card p-5 shadow-sm">
+                <h3 className="mb-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    General Information
+                </h3>
+                <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
+                    <Field label="Code" value={<span className="font-medium">{uom.code}</span>} />
+                    <Field label="Name" value={uom.name} />
+                    <Field label="Symbol" value={<span className="font-mono">{uom.display_name}</span>} />
+                    <Field
+                        label="Status"
+                        value={<StatusBadge status={uom.is_active ? 'ACTIVE' : 'INACTIVE'} />}
+                    />
+                    <Field
+                        label="Default"
+                        value={uom.is_default ? 'Yes — company default' : 'No'}
+                    />
+                    <Field label="Description" value={uom.description} />
+                </div>
+            </section>
+
+            {/* Usage */}
+            <section className="rounded-2xl border border-border/60 bg-card p-5 shadow-sm">
+                <h3 className="mb-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    Usage
+                </h3>
+                <div className="grid grid-cols-3 gap-4">
+                    <div>
+                        <p className="text-2xl font-bold tabular-nums">{usage.item_count}</p>
+                        <p className="text-xs text-muted-foreground">Items</p>
                     </div>
-                </section>
-            </div>
+                    <div>
+                        <p className="text-2xl font-bold tabular-nums">{usage.item_uom_count}</p>
+                        <p className="text-xs text-muted-foreground">Item-UOM setups</p>
+                    </div>
+                    <div>
+                        <p className="text-2xl font-bold tabular-nums">{usage.movement_count}</p>
+                        <p className="text-xs text-muted-foreground">Movement lines</p>
+                    </div>
+                </div>
+                {usage.in_use && (
+                    <p className="mt-4 rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
+                        This unit is referenced by transactions and cannot be
+                        deleted. Deactivate it to stop new usage.
+                    </p>
+                )}
+            </section>
+
+            {/* Items using this UOM */}
+            <section className="rounded-2xl border border-border/60 bg-card p-5 shadow-sm">
+                <h3 className="mb-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    Items Using This Unit ({usage.item_count})
+                </h3>
+                {items.length === 0 ? (
+                    <EmptyState
+                        icon={Package}
+                        compact
+                        title="No items use this unit yet"
+                    />
+                ) : (
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                            <thead>
+                                <tr className="border-b border-border/60 text-left text-xs text-muted-foreground">
+                                    <th className="py-2 pr-3 font-medium">Item</th>
+                                    <th className="py-2 font-medium">SKU</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {items.map((it) => (
+                                    <tr
+                                        key={it.id}
+                                        className="border-b border-border/40 last:border-0"
+                                    >
+                                        <td className="py-2 pr-3">{it.name}</td>
+                                        <td className="py-2 font-mono text-xs text-muted-foreground">
+                                            {it.sku || '—'}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </section>
+
+            {/* Audit */}
+            <section className="rounded-2xl border border-border/60 bg-card p-5 shadow-sm">
+                <h3 className="mb-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    Record
+                </h3>
+                <div className="grid grid-cols-2 gap-4">
+                    <Field label="Created" value={fmtDate(uom.created_at)} />
+                    <Field label="Last Updated" value={fmtDate(uom.updated_at)} />
+                </div>
+            </section>
         </div>
     );
 }

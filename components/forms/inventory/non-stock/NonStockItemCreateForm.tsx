@@ -366,7 +366,7 @@ export default function NonStockItemCreateForm() {
                                                 <AsyncSearchSelect
                                                     label="Base UOM"
                                                     placeholder="Select unit of measure..."
-                                                    apiUrl="/api/inventory/configurations/uom"
+                                                    apiUrl="/api/inventory/configurations/uom?status=active"
                                                     value={field.value}
                                                     selectedLabel={watch('uom')?.name ?? ''}
                                                     popupTitle="Base UOM"
