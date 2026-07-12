@@ -25,7 +25,7 @@ export const companyApi = {
         return body.data;
     },
 
-    async listUsers(page = 1, limit = 50): Promise<Paginated<CompanyUser>> {
+    async listUsers(page = 1, limit = 10): Promise<Paginated<CompanyUser>> {
         const url = new URL(API.setting.company.users, window.location.origin);
         url.searchParams.set('page', String(page));
         url.searchParams.set('limit', String(limit));

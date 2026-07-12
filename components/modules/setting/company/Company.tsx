@@ -8,7 +8,6 @@ import type { Company as TCompany, CompanyStatus } from '@/types/setting/company
 import {
     Building2,
     FileWarning,
-    Loader2Icon,
     Palette,
     ShieldCheck,
     Users,
@@ -39,6 +38,7 @@ export default function Company({
     currentPath,
     permission,
     currentPathActions,
+    initialData,
 }: ModuleProps) {
     useRegisterModule({
         actionModules: currentPathActions,
@@ -46,38 +46,17 @@ export default function Company({
         modulePath: currentPath.path,
     });
 
-    const [company, setCompany] = useState<TCompany | null>(null);
-    const [loading, setLoading] = useState(true);
+    const [company, setCompany] = useState<TCompany | null>(
+        (initialData as TCompany) || null,
+    );
     const [error, setError] = useState('');
     const [toast, setToast] = useState('');
-
-    useEffect(() => {
-        (async () => {
-            try {
-                setCompany(await companyApi.get());
-            } catch (e) {
-                setError(
-                    e instanceof Error ? e.message : 'Failed to load company',
-                );
-            } finally {
-                setLoading(false);
-            }
-        })();
-    }, []);
 
     useEffect(() => {
         if (!toast) return;
         const t = setTimeout(() => setToast(''), 3000);
         return () => clearTimeout(t);
     }, [toast]);
-
-    if (loading) {
-        return (
-            <div className="flex h-64 items-center justify-center">
-                <Loader2Icon className="animate-spin text-emerald-500" size={26} />
-            </div>
-        );
-    }
 
     if (error || !company) {
         return (

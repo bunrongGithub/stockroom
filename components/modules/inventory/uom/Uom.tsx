@@ -4,7 +4,6 @@ import { DataTable, type DataTableColumn } from '@/components/ui/DataTable';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
-import { LoadingState } from '@/components/ui/Spinner';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/Toast';
 import { useRegisterModule } from '@/hook/useModule';
@@ -20,7 +19,7 @@ import {
     Power,
     Trash2,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 type Confirm =
@@ -45,29 +44,21 @@ export default function InventoryUomListModule({
     const [items, setItems] = useState<InventoryUom[]>(
         (initialData as InventoryUom[] | null) ?? [],
     );
-    const [loading, setLoading] = useState(!initialData);
     const [confirm, setConfirm] = useState<Confirm>(null);
 
-    async function refresh() {
+    async function refreshUoms() {
         try {
             setItems(await uomApi.list({ sortBy: 'name' }));
         } catch (e) {
             toast.error(e instanceof Error ? e.message : 'Failed to load units');
-        } finally {
-            setLoading(false);
         }
     }
-
-    useEffect(() => {
-        refresh();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
 
     async function setDefault(row: InventoryUom) {
         try {
             await uomApi.setDefault(row.id);
             toast.success(`${row.code} is now the default unit.`);
-            await refresh();
+            await refreshUoms();
         } catch (e) {
             toast.error(e instanceof Error ? e.message : 'Could not set default');
         }
@@ -77,7 +68,7 @@ export default function InventoryUomListModule({
         try {
             await uomApi.setActive(row.id, active);
             toast.success(`${row.code} ${active ? 'activated' : 'deactivated'}.`);
-            await refresh();
+            await refreshUoms();
         } catch (e) {
             toast.error(e instanceof Error ? e.message : 'Could not update status');
         }
@@ -93,7 +84,7 @@ export default function InventoryUomListModule({
                 await uomApi.setActive(confirm.row.id, false);
                 toast.success(`${confirm.row.code} deactivated.`);
             }
-            await refresh();
+            await refreshUoms();
         } catch (e) {
             toast.error(e instanceof Error ? e.message : 'Action failed');
             throw e; // keep dialog open on failure
@@ -233,27 +224,23 @@ export default function InventoryUomListModule({
                 }
             />
 
-            {loading ? (
-                <LoadingState />
-            ) : (
-                <DataTable<InventoryUom>
-                    columns={columns}
-                    data={items}
-                    keyExtractor={(row) => row.id}
-                    mobileVariant="cards"
-                    minTableWidth="820px"
-                    searchFn={(row, q) =>
-                        row.code.toLowerCase().includes(q) ||
-                        row.name.toLowerCase().includes(q) ||
-                        row.display_name.toLowerCase().includes(q) ||
-                        (row.description ?? '').toLowerCase().includes(q)
-                    }
-                    searchPlaceholder="Search by code, name, or description..."
-                    emptyIcon={<Ruler className="size-8" />}
-                    emptyTitle="No units of measure"
-                    emptyDescription="Create a UOM like Piece (PCS) or Kilogram (KG) to get started."
-                />
-            )}
+            <DataTable<InventoryUom>
+                columns={columns}
+                data={items}
+                keyExtractor={(row) => row.id}
+                mobileVariant="cards"
+                minTableWidth="820px"
+                searchFn={(row, q) =>
+                    row.code.toLowerCase().includes(q) ||
+                    row.name.toLowerCase().includes(q) ||
+                    row.display_name.toLowerCase().includes(q) ||
+                    (row.description ?? '').toLowerCase().includes(q)
+                }
+                searchPlaceholder="Search by code, name, or description..."
+                emptyIcon={<Ruler className="size-8" />}
+                emptyTitle="No units of measure"
+                emptyDescription="Create a UOM like Piece (PCS) or Kilogram (KG) to get started."
+            />
 
             <ConfirmDialog
                 open={confirm !== null}

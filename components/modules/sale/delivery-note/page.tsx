@@ -5,7 +5,7 @@ import { useRegisterModule } from '@/hook/useModule';
 import type { ModuleProps } from '@/lib/registry';
 import { saleShipmentApi } from '@/lib/api/sale';
 import type { SalesShipment, SalesShipmentStatus } from '@/types/sales/order-management';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
     EyeIcon,
@@ -13,7 +13,6 @@ import {
     SendIcon,
     Ban,
     Trash2Icon,
-    Loader2Icon,
 } from 'lucide-react';
 
 function StatusBadge({ status }: { status: SalesShipmentStatus }) {
@@ -27,12 +26,13 @@ function StatusBadge({ status }: { status: SalesShipmentStatus }) {
     return <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-mono font-medium ${map[status]}`}>{status}</span>;
 }
 
-export default function SaleShipmentPage({ currentPath, permission, currentPathActions }: ModuleProps) {
+export default function SaleShipmentPage({ currentPath, permission, currentPathActions, initialData }: ModuleProps) {
     useRegisterModule({ actionModules: currentPathActions, permission, modulePath: currentPath.path });
 
     const router = useRouter();
-    const [shipments, setShipments] = useState<SalesShipment[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [shipments, setShipments] = useState<SalesShipment[]>(
+        (initialData as SalesShipment[]) ?? [],
+    );
     const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
     const [confirm, setConfirm] = useState<{ type: 'post' | 'void' | 'delete'; id: number; no: string } | null>(null);
     const [busy, setBusy] = useState(false);
@@ -42,20 +42,13 @@ export default function SaleShipmentPage({ currentPath, permission, currentPathA
         setTimeout(() => setToast(null), 4000);
     }
 
-    async function refresh() {
-        setLoading(true);
+    async function refreshShipments() {
         try {
             setShipments(await saleShipmentApi.list());
         } catch (e) {
             showToast(e instanceof Error ? e.message : 'Failed to load shipments', 'error');
-        } finally {
-            setLoading(false);
         }
     }
-
-    useEffect(() => {
-        refresh();
-    }, []);
 
     async function runAction() {
         if (!confirm) return;
@@ -68,7 +61,7 @@ export default function SaleShipmentPage({ currentPath, permission, currentPathA
                 confirm.type === 'post' ? 'Shipment posted — stock updated.' : confirm.type === 'void' ? 'Shipment voided.' : 'Shipment deleted.',
                 'success',
             );
-            await refresh();
+            await refreshShipments();
         } catch (e) {
             showToast(e instanceof Error ? e.message : `Cannot ${confirm.type} shipment`, 'error');
         } finally {
@@ -159,25 +152,21 @@ export default function SaleShipmentPage({ currentPath, permission, currentPathA
                 </div>
             </div>
 
-            {loading ? (
-                <div className="flex items-center justify-center h-64"><Loader2Icon className="animate-spin text-emerald-500" size={26} /></div>
-            ) : (
-                <DataTable<SalesShipment>
-                    columns={columns}
-                    data={shipments}
-                    keyExtractor={(row) => row.id}
-                    searchFn={(row, q) =>
-                        row.shipment_no.toLowerCase().includes(q) ||
-                        row.sales_order_no.toLowerCase().includes(q) ||
-                        (row.customer_name ?? '').toLowerCase().includes(q) ||
-                        row.status.toLowerCase().includes(q)
-                    }
-                    searchPlaceholder="Search by shipment no, order, or status..."
-                    pageSize={10}
-                    emptyTitle="No shipments"
-                    emptyDescription="Create a shipment from a sales order"
-                />
-            )}
+            <DataTable<SalesShipment>
+                columns={columns}
+                data={shipments}
+                keyExtractor={(row) => row.id}
+                searchFn={(row, q) =>
+                    row.shipment_no.toLowerCase().includes(q) ||
+                    row.sales_order_no.toLowerCase().includes(q) ||
+                    (row.customer_name ?? '').toLowerCase().includes(q) ||
+                    row.status.toLowerCase().includes(q)
+                }
+                searchPlaceholder="Search by shipment no, order, or status..."
+                pageSize={10}
+                emptyTitle="No shipments"
+                emptyDescription="Create a shipment from a sales order"
+            />
         </main>
     );
 }

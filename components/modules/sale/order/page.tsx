@@ -4,14 +4,13 @@ import { DataTable, type DataTableColumn } from '@/components/ui/DataTable';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
-import { LoadingState } from '@/components/ui/Spinner';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/Toast';
 import { useRegisterModule } from '@/hook/useModule';
 import type { ModuleProps } from '@/lib/registry';
 import { saleOrderApi } from '@/lib/api/sale';
 import type { SalesOrder, SalesOrderStatus } from '@/types/sales/order-management';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
     PlusIcon,
@@ -33,37 +32,30 @@ function fmt(n: number) {
     return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-export default function SaleOrderPage({ currentPath, permission, currentPathActions }: ModuleProps) {
+export default function SaleOrderPage({ currentPath, permission, currentPathActions, initialData }: ModuleProps) {
     useRegisterModule({ actionModules: currentPathActions, permission, modulePath: currentPath.path });
 
     const router = useRouter();
     const toast = useToast();
-    const [orders, setOrders] = useState<SalesOrder[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [orders, setOrders] = useState<SalesOrder[]>(
+        (initialData as SalesOrder[]) ?? [],
+    );
     const [confirmAction, setConfirmAction] = useState<{ type: 'cancel' | 'close'; id: number; no: string } | null>(null);
 
-    async function refresh() {
-        setLoading(true);
+    async function refreshOrders() {
         try {
             setOrders(await saleOrderApi.list());
         } catch (e) {
             toast.error(e instanceof Error ? e.message : 'Failed to load orders');
-        } finally {
-            setLoading(false);
         }
     }
-
-    useEffect(() => {
-        refresh();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
 
     async function runAction(type: 'cancel' | 'close', id: number) {
         try {
             if (type === 'cancel') await saleOrderApi.cancel(id);
             else await saleOrderApi.close(id);
             toast.success(`Sales order ${type === 'cancel' ? 'cancelled' : 'closed'}.`);
-            await refresh();
+            await refreshOrders();
         } catch (e) {
             toast.error(e instanceof Error ? e.message : `Cannot ${type} order`);
             throw e; // keep the confirm dialog open on failure
@@ -145,7 +137,7 @@ export default function SaleOrderPage({ currentPath, permission, currentPathActi
     ];
 
     return (
-        <div className="space-y-4">
+        <div className="space-y-4 font-mono">
             <PageHeader
                 title="Orders"
                 description="Manage customer orders and shipments"
@@ -158,18 +150,15 @@ export default function SaleOrderPage({ currentPath, permission, currentPathActi
                 }
             />
 
-            {loading ? (
-                <LoadingState />
-            ) : (
-                <DataTable<SalesOrder>
-                    columns={columns}
-                    data={orders}
-                    keyExtractor={(row) => row.id}
-                    mobileVariant="cards"
-                    minTableWidth="860px"
-                    searchFn={(row, q) =>
-                        row.order_no.toLowerCase().includes(q) ||
-                        row.customer_name.toLowerCase().includes(q) ||
+            <DataTable<SalesOrder>
+                columns={columns}
+                data={orders}
+                keyExtractor={(row) => row.id}
+                mobileVariant="cards"
+                minTableWidth="860px"
+                searchFn={(row, q) =>
+                    row.order_no.toLowerCase().includes(q) ||
+                    row.customer_name.toLowerCase().includes(q) ||
                         row.status.toLowerCase().includes(q)
                     }
                     searchPlaceholder="Search by order no, customer, or status..."
@@ -177,7 +166,6 @@ export default function SaleOrderPage({ currentPath, permission, currentPathActi
                     emptyTitle="No sales orders"
                     emptyDescription="Create your first sales order to get started"
                 />
-            )}
 
             <ConfirmDialog
                 open={confirmAction !== null}

@@ -30,7 +30,7 @@ function jsonInit(method: string, payload: unknown): RequestInit {
 export const stockAdjustmentApi = {
     async list(search = ''): Promise<StockAdjustment[]> {
         const url = new URL(API.inventory.adjustment.root, window.location.origin);
-        url.searchParams.set('limit', '100');
+        url.searchParams.set('limit', '10');
         if (search) url.searchParams.set('search', search);
         const body = await unwrap<{ data: StockAdjustment[] }>(
             await fetch(url.toString()),

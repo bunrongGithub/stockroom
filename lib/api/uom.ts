@@ -45,7 +45,7 @@ export type UomDetail = {
 export const uomApi = {
     async list(params: UomListParams = {}): Promise<InventoryUom[]> {
         const url = new URL(API.inventory.uom.root, window.location.origin);
-        url.searchParams.set('limit', String(params.limit ?? 200));
+        url.searchParams.set('limit', String(params.limit ?? 10));
         if (params.search) url.searchParams.set('search', params.search);
         if (params.status === 'active') url.searchParams.set('status', 'active');
         if (params.sortBy) url.searchParams.set('sortBy', params.sortBy);

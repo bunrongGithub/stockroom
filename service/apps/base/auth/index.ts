@@ -1,5 +1,5 @@
 import { createAuthClient, getServerClient } from '@/lib/supabase/server';
-import { signToken } from '@/lib/auth';
+import { signToken, highestRole } from '@/lib/auth';
 import { ApiError, UnauthorizedError } from '@/service/core/api-response';
 import type { LoginInput, SignupInput } from '@/service/schema/auth.schema';
 
@@ -25,14 +25,17 @@ export async function login(input: LoginInput): Promise<string> {
 
     const userId = authData.user.id;
 
-    // 2. Load the profile to get company_id
+    // 2. Load the profile to get company_id + status + super-user flag
     const { data: profile } = await supabase
         .from('profiles')
-        .select('company_id')
+        .select('company_id, status, is_super_user')
         .eq('id', userId)
         .single();
 
     const companyId = (profile as { company_id: number } | null)?.company_id ?? null;
+    const status = (profile as { status: string } | null)?.status ?? 'active';
+    const isSuperUser =
+        (profile as { is_super_user: boolean } | null)?.is_super_user === true;
 
     // A user without a company cannot use the app — every query is scoped by
     // company_id. Fail with a clear message instead of signing companyId:''
@@ -43,17 +46,35 @@ export async function login(input: LoginInput): Promise<string> {
         );
     }
 
-    // 3. Resolve the user's primary role (highest priority from user_role)
-    const { data: roleRow } = await supabase
+    // Deactivated accounts cannot access the company's resources.
+    if (status === 'inactive') {
+        throw new UnauthorizedError(
+            'Your account has been deactivated. Contact your administrator.',
+        );
+    }
+
+    // 3. Resolve the JWT role = the highest-privilege role the user holds in
+    //    this company. Module permissions OR-aggregate across ALL roles
+    //    (get_user_modules), but the JWT carries one role used for assertRole
+    //    gates + applyFilter data scoping, so it must be the strongest.
+    const { data: roleRows } = await supabase
         .from('user_role')
         .select('roles(name)')
         .eq('user_id', userId)
-        .eq('company_id', companyId)
-        .limit(1)
-        .single();
+        .eq('company_id', companyId);
 
-    const roleName =
-        (roleRow as { roles: { name: string } } | null)?.roles?.name ?? 'member';
+    const roleNames = (
+        (roleRows as { roles: { name: string } | null }[] | null) ?? []
+    )
+        .map((r) => r.roles?.name)
+        .filter((n): n is string => Boolean(n));
+
+    // A super user gets the top role regardless of their named role, so
+    // assertRole gates and applyFilter scoping treat them as super_admin
+    // (their custom role name may not be in ROLE_HIERARCHY).
+    const roleName = isSuperUser
+        ? 'super_admin'
+        : (highestRole(roleNames) ?? 'member');
 
     // 4. Track last login (fire-and-forget — login must not fail on this)
     supabase

@@ -43,7 +43,7 @@ export function jsonInit(method: string, payload: unknown): RequestInit {
 export const saleOrderApi = {
     async list(search = ''): Promise<SalesOrder[]> {
         const url = new URL(API.sale.order.root, window.location.origin);
-        url.searchParams.set('limit', '100');
+        url.searchParams.set('limit', '10');
         if (search) url.searchParams.set('search', search);
         const body = await unwrap<{ data: SalesOrder[] }>(
             await fetch(url.toString()),
@@ -95,7 +95,7 @@ export const saleOrderApi = {
 export const saleShipmentApi = {
     async list(search = ''): Promise<SalesShipment[]> {
         const url = new URL(API.sale.shipment.root, window.location.origin);
-        url.searchParams.set('limit', '100');
+        url.searchParams.set('limit', '10');
         if (search) url.searchParams.set('search', search);
         const body = await unwrap<{ data: SalesShipment[] }>(
             await fetch(url.toString()),

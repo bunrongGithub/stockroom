@@ -115,7 +115,7 @@ export const itemApi = {
             fetch(API.inventory.stockItem.detail(id)).then((r) =>
                 unwrap<{ data: ItemDetailResponse }>(r),
             ),
-            fetch(`${API.inventory.itemUom.root}?item_id=${id}&limit=100`)
+            fetch(`${API.inventory.itemUom.root}?item_id=${id}&limit=10`)
                 .then((r) => unwrap<{ data: ItemUomRow[] }>(r))
                 .catch(() => ({ data: [] as ItemUomRow[] })), // UOM list is best-effort
         ])

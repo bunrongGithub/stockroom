@@ -8,13 +8,12 @@ import type {
     StockAdjustment,
     StockAdjustmentStatus,
 } from '@/types/inventory/adjustment';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
     ArrowLeftRight,
     Ban,
     EyeIcon,
-    Loader2Icon,
     PencilIcon,
     PlusIcon,
     SendIcon,
@@ -40,6 +39,7 @@ export default function InventoryStockAdjModule({
     currentPath,
     permission,
     currentPathActions,
+    initialData,
 }: ModuleProps) {
     useRegisterModule({
         actionModules: currentPathActions,
@@ -48,8 +48,9 @@ export default function InventoryStockAdjModule({
     });
 
     const router = useRouter();
-    const [adjustments, setAdjustments] = useState<StockAdjustment[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [adjustments, setAdjustments] = useState<StockAdjustment[]>(
+        (initialData as StockAdjustment[]) ?? [],
+    );
     const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(
         null,
     );
@@ -65,8 +66,7 @@ export default function InventoryStockAdjModule({
         setTimeout(() => setToast(null), 4000);
     }
 
-    async function refresh() {
-        setLoading(true);
+    async function refreshAdjustments() {
         try {
             setAdjustments(await stockAdjustmentApi.list());
         } catch (e) {
@@ -74,14 +74,8 @@ export default function InventoryStockAdjModule({
                 e instanceof Error ? e.message : 'Failed to load adjustments',
                 'error',
             );
-        } finally {
-            setLoading(false);
         }
     }
-
-    useEffect(() => {
-        refresh();
-    }, []);
 
     async function runAction() {
         if (!confirm) return;
@@ -98,7 +92,7 @@ export default function InventoryStockAdjModule({
                       : 'Adjustment deleted.',
                 'success',
             );
-            await refresh();
+            await refreshAdjustments();
         } catch (e) {
             showToast(
                 e instanceof Error ? e.message : `Cannot ${confirm.type} adjustment`,
@@ -291,27 +285,21 @@ export default function InventoryStockAdjModule({
                 )}
             </div>
 
-            {loading ? (
-                <div className="flex items-center justify-center h-64">
-                    <Loader2Icon className="animate-spin text-emerald-500" size={26} />
-                </div>
-            ) : (
-                <DataTable<StockAdjustment>
-                    columns={columns}
-                    data={adjustments}
-                    keyExtractor={(row) => row.id}
-                    searchFn={(row, q) =>
-                        row.adjustment_no.toLowerCase().includes(q) ||
-                        (row.reference_no ?? '').toLowerCase().includes(q) ||
-                        row.reason_label.toLowerCase().includes(q) ||
-                        row.status.toLowerCase().includes(q)
-                    }
-                    searchPlaceholder="Search by adjustment no, reference, reason, or status..."
-                    pageSize={10}
-                    emptyTitle="No stock adjustments"
-                    emptyDescription="Record an adjustment to correct inventory discrepancies"
-                />
-            )}
+            <DataTable<StockAdjustment>
+                columns={columns}
+                data={adjustments}
+                keyExtractor={(row) => row.id}
+                searchFn={(row, q) =>
+                    row.adjustment_no.toLowerCase().includes(q) ||
+                    (row.reference_no ?? '').toLowerCase().includes(q) ||
+                    row.reason_label.toLowerCase().includes(q) ||
+                    row.status.toLowerCase().includes(q)
+                }
+                searchPlaceholder="Search by adjustment no, reference, reason, or status..."
+                pageSize={10}
+                emptyTitle="No stock adjustments"
+                emptyDescription="Record an adjustment to correct inventory discrepancies"
+            />
         </main>
     );
 }

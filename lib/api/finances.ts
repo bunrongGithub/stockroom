@@ -16,7 +16,7 @@ import {
 export const financesInvoiceApi = {
     async list(search = ''): Promise<SalesInvoice[]> {
         const url = new URL(API.finances.invoice.root, window.location.origin);
-        url.searchParams.set('limit', '100');
+        url.searchParams.set('limit', '10');
         if (search) url.searchParams.set('search', search);
         const body = await unwrap<{ data: SalesInvoice[] }>(
             await fetch(url.toString()),
@@ -109,7 +109,7 @@ export const financesInvoiceApi = {
 export const financesPaymentApi = {
     async list(search = ''): Promise<CustomerPayment[]> {
         const url = new URL(API.finances.payment.root, window.location.origin);
-        url.searchParams.set('limit', '100');
+        url.searchParams.set('limit', '10');
         if (search) url.searchParams.set('search', search);
         const body = await unwrap<{ data: CustomerPayment[] }>(
             await fetch(url.toString()),

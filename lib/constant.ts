@@ -104,7 +104,11 @@ export const API = {
         },
         role: resource(`${SETTING}/role`),
         rolePermissions: resource(`${SETTING}/role-permissions`),
-        users: `${SETTING}/users`,
+        users: {
+            ...resource(`${SETTING}/users`),
+            status: (id: Id) => `${SETTING}/users/${id}/status`,
+            avatar: (id: Id) => `${SETTING}/users/${id}/avatar`,
+        },
         company: {
             root: `${SETTING}/company`,
             users: `${SETTING}/company/users`,

@@ -5,12 +5,11 @@ import { useRegisterModule } from '@/hook/useModule';
 import type { ModuleProps } from '@/lib/registry';
 import { financesPaymentApi } from '@/lib/api/finances';
 import type { CustomerPayment, PaymentStatus } from '@/types/sales/payment';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Ban,
   EyeIcon,
-  Loader2Icon,
   PencilIcon,
   PlusIcon,
   SendIcon,
@@ -51,6 +50,7 @@ export default function SalePaymentPage({
   currentPath,
   permission,
   currentPathActions,
+  initialData,
 }: ModuleProps) {
   useRegisterModule({
     actionModules: currentPathActions,
@@ -59,8 +59,9 @@ export default function SalePaymentPage({
   });
 
   const router = useRouter();
-  const [payments, setPayments] = useState<CustomerPayment[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [payments, setPayments] = useState<CustomerPayment[]>(
+    (initialData as CustomerPayment[]) ?? [],
+  );
   const [toast, setToast] = useState<{
     msg: string;
     type: 'success' | 'error';
@@ -77,8 +78,7 @@ export default function SalePaymentPage({
     setTimeout(() => setToast(null), 4000);
   }
 
-  async function refresh() {
-    setLoading(true);
+  async function refreshPayments() {
     try {
       setPayments(await financesPaymentApi.list());
     } catch (e) {
@@ -86,14 +86,8 @@ export default function SalePaymentPage({
         e instanceof Error ? e.message : 'Failed to load payments',
         'error',
       );
-    } finally {
-      setLoading(false);
     }
   }
-
-  useEffect(() => {
-    refresh();
-  }, []);
 
   async function runAction() {
     if (!confirm) return;
@@ -111,7 +105,7 @@ export default function SalePaymentPage({
             : 'Payment deleted.',
         'success',
       );
-      await refresh();
+      await refreshPayments();
     } catch (e) {
       showToast(
         e instanceof Error ? e.message : `Cannot ${confirm.type} payment`,
@@ -301,27 +295,21 @@ export default function SalePaymentPage({
         )}
       </div>
 
-      {loading ? (
-        <div className="flex items-center justify-center h-64">
-          <Loader2Icon className="animate-spin text-emerald-500" size={26} />
-        </div>
-      ) : (
-        <DataTable<CustomerPayment>
-          columns={columns}
-          data={payments}
-          keyExtractor={(row) => row.id}
-          searchFn={(row, q) =>
-            row.payment_no.toLowerCase().includes(q) ||
-            row.customer_name.toLowerCase().includes(q) ||
-            (row.reference_no ?? '').toLowerCase().includes(q) ||
-            row.status.toLowerCase().includes(q)
-          }
-          searchPlaceholder="Search by payment no, customer, reference, or status..."
-          pageSize={10}
-          emptyTitle="No payments"
-          emptyDescription="Record a customer payment to settle invoices"
-        />
-      )}
+      <DataTable<CustomerPayment>
+        columns={columns}
+        data={payments}
+        keyExtractor={(row) => row.id}
+        searchFn={(row, q) =>
+          row.payment_no.toLowerCase().includes(q) ||
+          row.customer_name.toLowerCase().includes(q) ||
+          (row.reference_no ?? '').toLowerCase().includes(q) ||
+          row.status.toLowerCase().includes(q)
+        }
+        searchPlaceholder="Search by payment no, customer, reference, or status..."
+        pageSize={10}
+        emptyTitle="No payments"
+        emptyDescription="Record a customer payment to settle invoices"
+      />
     </main>
   );
 }

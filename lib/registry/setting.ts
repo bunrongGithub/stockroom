@@ -8,6 +8,18 @@ export const settingRegistry: RegistryEntry[] = [
         'User',
         () => import('@/components/modules/setting/user/page'),
     ],
+    [
+        'UserCreate',
+        () => import('@/components/modules/setting/user/actions/Create'),
+    ],
+    [
+        'UserView',
+        () => import('@/components/modules/setting/user/actions/View'),
+    ],
+    [
+        'UserUpdate',
+        () => import('@/components/modules/setting/user/actions/Update'),
+    ],
 
     // ── Role ──────────────────────────────────────────────────────────────────
     [

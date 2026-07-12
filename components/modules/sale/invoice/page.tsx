@@ -8,7 +8,7 @@ import type {
   SalesInvoice,
   SalesInvoiceStatus,
 } from '@/types/sales/order-management';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   EyeIcon,
@@ -16,7 +16,6 @@ import {
   SendIcon,
   Ban,
   Trash2Icon,
-  Loader2Icon,
 } from 'lucide-react';
 import PaymentStatusBadge from './PaymentStatusBadge';
 
@@ -46,6 +45,7 @@ export default function SaleInvoicePage({
   currentPath,
   permission,
   currentPathActions,
+  initialData,
 }: ModuleProps) {
   useRegisterModule({
     actionModules: currentPathActions,
@@ -54,8 +54,9 @@ export default function SaleInvoicePage({
   });
 
   const router = useRouter();
-  const [invoices, setInvoices] = useState<SalesInvoice[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [invoices, setInvoices] = useState<SalesInvoice[]>(
+    (initialData as SalesInvoice[]) ?? [],
+  );
   const [toast, setToast] = useState<{
     msg: string;
     type: 'success' | 'error';
@@ -72,8 +73,7 @@ export default function SaleInvoicePage({
     setTimeout(() => setToast(null), 4000);
   }
 
-  async function refresh() {
-    setLoading(true);
+  async function refreshInvoices() {
     try {
       setInvoices(await financesInvoiceApi.list());
     } catch (e) {
@@ -81,14 +81,8 @@ export default function SaleInvoicePage({
         e instanceof Error ? e.message : 'Failed to load invoices',
         'error',
       );
-    } finally {
-      setLoading(false);
     }
   }
-
-  useEffect(() => {
-    refresh();
-  }, []);
 
   async function runAction() {
     if (!confirm) return;
@@ -106,7 +100,7 @@ export default function SaleInvoicePage({
             : 'Invoice deleted.',
         'success',
       );
-      await refresh();
+      await refreshInvoices();
     } catch (e) {
       showToast(
         e instanceof Error ? e.message : `Cannot ${confirm.type} invoice`,
@@ -300,27 +294,21 @@ export default function SaleInvoicePage({
         </div>
       </div>
 
-      {loading ? (
-        <div className="flex items-center justify-center h-64">
-          <Loader2Icon className="animate-spin text-emerald-500" size={26} />
-        </div>
-      ) : (
-        <DataTable<SalesInvoice>
-          columns={columns}
-          data={invoices}
-          keyExtractor={(row) => row.id}
-          searchFn={(row, q) =>
-            row.invoice_no.toLowerCase().includes(q) ||
-            (row.customer_name ?? '').toLowerCase().includes(q) ||
-            row.shipment_no.toLowerCase().includes(q) ||
-            row.status.toLowerCase().includes(q)
-          }
-          searchPlaceholder="Search by invoice no, customer, shipment, or status..."
-          pageSize={10}
-          emptyTitle="No invoices"
-          emptyDescription="Create an invoice from a posted shipment"
-        />
-      )}
+      <DataTable<SalesInvoice>
+        columns={columns}
+        data={invoices}
+        keyExtractor={(row) => row.id}
+        searchFn={(row, q) =>
+          row.invoice_no.toLowerCase().includes(q) ||
+          (row.customer_name ?? '').toLowerCase().includes(q) ||
+          row.shipment_no.toLowerCase().includes(q) ||
+          row.status.toLowerCase().includes(q)
+        }
+        searchPlaceholder="Search by invoice no, customer, shipment, or status..."
+        pageSize={10}
+        emptyTitle="No invoices"
+        emptyDescription="Create an invoice from a posted shipment"
+      />
     </main>
   );
 }
