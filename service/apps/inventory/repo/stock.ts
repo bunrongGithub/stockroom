@@ -86,14 +86,19 @@ export class InventoryRepository extends BaseRepository {
         itemClass: 'stock' | 'non_stock' | 'service',
     ): Promise<PaginatedResult<InventoryItem>> {
         const isSuperUser = await this.isSupperUser(ctx);
-        const query = this.applyFilter(
-            this.db.from(TABLE).select(SELECT_COLS, { count: 'exact' }),
-            ctx,
-            isSuperUser,
-        )
+
+        const query = this.db
+            .from(TABLE)
+            .select(SELECT_COLS, { count: 'exact' })
             .eq('item_class', itemClass)
             .order('id', { ascending: false });
-        return this.paginate(query, params);
+
+        if (isSuperUser) return await this.paginate(query, params);
+
+        return await this.paginate(
+            this.applyCompanyFilter(query, Number(ctx.companyId)),
+            params,
+        );
     }
 
     async findOne(
