@@ -1,18 +1,17 @@
 'use client';
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useRegisterModule } from '@/hook/useModule';
-import type { ModuleProps } from '@/lib/registry';
-import { companyApi } from '@/lib/api/company';
+import { useApp } from '@/context/AppContext';
 import type { Company as TCompany, CompanyStatus } from '@/types/setting/company';
 import {
+    ArrowLeft,
     Building2,
-    FileWarning,
     Palette,
     ShieldCheck,
     Users,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import GeneralTab from './tabs/GeneralTab';
 import BrandingTab from './tabs/BrandingTab';
 import UsersTab from './tabs/UsersTab';
@@ -33,23 +32,17 @@ function StatusBadge({ status }: { status: CompanyStatus }) {
     );
 }
 
-// Registered as `Company` — the administration center for the tenant company.
-export default function Company({
-    currentPath,
-    permission,
-    currentPathActions,
-    initialData,
-}: ModuleProps) {
-    useRegisterModule({
-        actionModules: currentPathActions,
-        permission,
-        modulePath: currentPath.path,
-    });
-
-    const [company, setCompany] = useState<TCompany | null>(
-        (initialData as TCompany) || null,
-    );
-    const [error, setError] = useState('');
+// The tabbed company overview, shown by the /setting/company/[id]/view action.
+export default function CompanyDetail({
+    initial,
+    canUpdate,
+}: {
+    initial: TCompany;
+    canUpdate: boolean;
+}) {
+    const router = useRouter();
+    const { profile } = useApp();
+    const [company, setCompany] = useState<TCompany>(initial);
     const [toast, setToast] = useState('');
 
     useEffect(() => {
@@ -58,18 +51,9 @@ export default function Company({
         return () => clearTimeout(t);
     }, [toast]);
 
-    if (error || !company) {
-        return (
-            <div className="flex h-64 flex-col items-center justify-center gap-3">
-                <FileWarning className="text-muted-foreground" size={40} />
-                <p className="text-sm text-muted-foreground">
-                    {error || 'Company not found.'}
-                </p>
-            </div>
-        );
-    }
-
-    const canUpdate = !!permission?.can_update;
+    // Member management (assign role / remove user) still operates on the
+    // caller's own company only, so hide it when viewing another company.
+    const isOwnCompany = Number(profile?.companyId) === company.id;
 
     return (
         <div className="space-y-5 font-mono text-xs">
@@ -78,6 +62,14 @@ export default function Company({
                     {toast}
                 </div>
             )}
+
+            <button
+                type="button"
+                onClick={() => router.push('/setting/company')}
+                className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+            >
+                <ArrowLeft size={16} /> Back to Companies
+            </button>
 
             {/* Header */}
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -143,7 +135,11 @@ export default function Company({
                     />
                 </TabsContent>
                 <TabsContent value="users" className="w-full pt-3">
-                    <UsersTab canManage={canUpdate} onToast={setToast} />
+                    <UsersTab
+                        companyId={company.id}
+                        canManage={canUpdate && isOwnCompany}
+                        onToast={setToast}
+                    />
                 </TabsContent>
                 <TabsContent value="roles" className="w-full pt-3">
                     <RolesTab />

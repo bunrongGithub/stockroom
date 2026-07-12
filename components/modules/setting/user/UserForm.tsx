@@ -10,10 +10,14 @@ import { Switch } from '@/components/ui/switch';
 import { Spinner } from '@/components/ui/Spinner';
 import { Avatar } from '@/components/ui/Avatar';
 import { useToast } from '@/components/ui/Toast';
+import SelectDropdown from '@/components/ui/SelectDropdown';
+import { useApp } from '@/context/AppContext';
 import { API } from '@/lib/constant';
 import { usersApi } from '@/lib/api/users';
+import { companyApi } from '@/lib/api/company';
+import type { Company } from '@/types/setting/company';
 import type { CompanyUser } from '@/service/apps/base/user/repo/user.repo';
-import { ArrowLeft, Check, Upload } from 'lucide-react';
+import { ArrowLeft, Upload } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
@@ -28,6 +32,7 @@ export default function UserForm({
 }) {
     const router = useRouter();
     const toast = useToast();
+    const { profile } = useApp();
     const fileRef = useRef<HTMLInputElement>(null);
 
     const [fullName, setFullName] = useState(initial?.full_name ?? '');
@@ -37,36 +42,57 @@ export default function UserForm({
     const [isActive, setIsActive] = useState(
         initial ? initial.status === 'active' : true,
     );
-    const [roleIds, setRoleIds] = useState<Set<number>>(
-        new Set(initial?.roles.map((r) => r.id) ?? []),
+    const [companyId, setCompanyId] = useState<number | null>(
+        initial?.company_id ?? null,
+    );
+    const [roleId, setRoleId] = useState<number | null>(
+        initial?.roles[0]?.id ?? null,
     );
     const [avatarUrl, setAvatarUrl] = useState(initial?.avatar_url ?? '');
 
+    const [companies, setCompanies] = useState<Company[]>([]);
     const [roles, setRoles] = useState<RoleOption[]>([]);
     const [saving, setSaving] = useState(false);
     const [uploading, setUploading] = useState(false);
     const [error, setError] = useState('');
 
+    // Companies the caller may assign: super users get every company,
+    // everyone else a single-row list with their own.
     useEffect(() => {
         (async () => {
             try {
-                const res = await fetch(`${API.setting.role.root}?limit=1000`);
-                const body = await res.json();
-                setRoles((body.data ?? []) as RoleOption[]);
+                const res = await companyApi.list({ limit: 100 });
+                setCompanies(res.data ?? []);
             } catch {
-                /* roles list is best-effort */
+                /* company list is best-effort */
             }
         })();
     }, []);
 
-    function toggleRole(id: number) {
-        setRoleIds((prev) => {
-            const next = new Set(prev);
-            if (next.has(id)) next.delete(id);
-            else next.add(id);
-            return next;
-        });
-    }
+    // Until the user picks a company, default to the caller's own.
+    const effectiveCompanyId =
+        companyId ?? (Number(profile?.companyId) || null);
+
+    // Roles always belong to the selected company.
+    useEffect(() => {
+        if (!effectiveCompanyId) return;
+        (async () => {
+            try {
+                const res = await fetch(
+                    `${API.setting.role.root}?limit=1000&company_id=${effectiveCompanyId}`,
+                );
+                const body = await res.json();
+                const list = (body.data ?? []) as RoleOption[];
+                setRoles(list);
+                // Drop a selection that doesn't exist in the new company.
+                setRoleId((prev) =>
+                    prev && list.some((r) => r.id === prev) ? prev : null,
+                );
+            } catch {
+                /* roles list is best-effort */
+            }
+        })();
+    }, [effectiveCompanyId]);
 
     async function handleAvatar(e: React.ChangeEvent<HTMLInputElement>) {
         const file = e.target.files?.[0];
@@ -92,7 +118,8 @@ export default function UserForm({
             if (password.length < 8)
                 return setError('Password must be at least 8 characters');
         }
-        if (roleIds.size === 0) return setError('Assign at least one role');
+        if (!effectiveCompanyId) return setError('Select a company');
+        if (!roleId) return setError('Assign a role');
 
         setSaving(true);
         try {
@@ -103,7 +130,8 @@ export default function UserForm({
                     password,
                     phone: phone.trim() || undefined,
                     status: isActive ? 'active' : 'inactive',
-                    role_ids: [...roleIds],
+                    company_id: effectiveCompanyId,
+                    role_ids: [roleId],
                 });
                 toast.success(`User ${user.email} created.`);
                 router.push(`/setting/users/${user.id}/view`);
@@ -112,7 +140,8 @@ export default function UserForm({
                     full_name: fullName.trim(),
                     phone: phone.trim(),
                     status: isActive ? 'active' : 'inactive',
-                    role_ids: [...roleIds],
+                    company_id: effectiveCompanyId,
+                    role_ids: [roleId],
                 });
                 toast.success('User updated.');
                 router.push(`/setting/users/${initial!.id}/view`);
@@ -205,7 +234,7 @@ export default function UserForm({
                         />
                         {mode === 'edit' && (
                             <p className="mt-1 text-xs text-muted-foreground">
-                                Email can't be changed.
+                                Email can&apos;t be changed.
                             </p>
                         )}
                     </div>
@@ -233,42 +262,38 @@ export default function UserForm({
                     </div>
                 </div>
 
-                {/* Roles (multi-select) */}
-                <div>
-                    <FieldLabel required>Roles</FieldLabel>
-                    <div className="mt-1 grid gap-2 sm:grid-cols-2">
-                        {roles.map((r) => {
-                            const checked = roleIds.has(r.id);
-                            return (
-                                <button
-                                    type="button"
-                                    key={r.id}
-                                    onClick={() => toggleRole(r.id)}
-                                    className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-colors ${
-                                        checked
-                                            ? 'border-primary bg-primary/5 text-foreground'
-                                            : 'border-border/60 text-muted-foreground hover:bg-muted/40'
-                                    }`}
-                                >
-                                    <span
-                                        className={`flex size-4 shrink-0 items-center justify-center rounded border ${
-                                            checked
-                                                ? 'border-primary bg-primary text-primary-foreground'
-                                                : 'border-border'
-                                        }`}
-                                    >
-                                        {checked && <Check size={12} />}
-                                    </span>
-                                    {r.name}
-                                </button>
-                            );
-                        })}
+                {/* Company & Role */}
+                <div className="grid gap-4 sm:grid-cols-2">
+                    <SelectDropdown
+                        label="Company"
+                        required
+                        placeholder="Select a company..."
+                        options={companies.map((c) => ({
+                            value: c.id,
+                            label: c.name,
+                        }))}
+                        value={effectiveCompanyId}
+                        onChange={(v) => setCompanyId(Number(v))}
+                        disabled={companies.length <= 1}
+                    />
+                    <div>
+                        <SelectDropdown
+                            label="Role"
+                            required
+                            placeholder="Select a role..."
+                            options={roles.map((r) => ({
+                                value: r.id,
+                                label: r.name,
+                            }))}
+                            value={roleId}
+                            onChange={(v) => setRoleId(Number(v))}
+                        />
+                        {roles.length === 0 && (
+                            <p className="mt-1 text-xs text-muted-foreground">
+                                No roles found for this company.
+                            </p>
+                        )}
                     </div>
-                    {roles.length === 0 && (
-                        <p className="mt-1 text-xs text-muted-foreground">
-                            No roles found for this company.
-                        </p>
-                    )}
                 </div>
 
                 {/* Status */}
@@ -277,7 +302,7 @@ export default function UserForm({
                     <span className="text-sm">
                         <span className="font-medium">Active</span>
                         <span className="block text-xs text-muted-foreground">
-                            Inactive users can't log in.
+                            Inactive users can&apos;t log in.
                         </span>
                     </span>
                 </label>

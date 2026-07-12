@@ -9,6 +9,7 @@ import {
 import { NextRequest } from 'next/server';
 
 // GET /api/setting/company/users — paginated members of the caller's company.
+// `?id=` targets another company (super admin only, enforced in the repo).
 export async function GET(request: NextRequest) {
     const context = getRequestContext(request);
     try {
@@ -18,7 +19,8 @@ export async function GET(request: NextRequest) {
             100,
             Math.max(1, Number(searchParams.get('limit') ?? 10)),
         );
-        const data = await listCompanyUsers(context, { page, limit });
+        const overrideId = Number(searchParams.get('id')) || undefined;
+        const data = await listCompanyUsers(context, { page, limit }, overrideId);
         return new ApiResponseSuccess(data).toResponse();
     } catch (exception) {
         if (exception instanceof ApiError) return exception.toResponse();

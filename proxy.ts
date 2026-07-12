@@ -34,12 +34,15 @@ export async function proxy(req: NextRequest) {
         return NextResponse.redirect(loginUrl);
     }
 
-    // Inject tenant context headers so every API handler gets userId/companyId/role
+    // Inject tenant context headers so every API handler gets userId/companyId/role.
+    // HTTP header values must be Latin-1, but role names (and emails) can contain
+    // any Unicode (e.g. Khmer role names) — percent-encode here, decode in
+    // getRequestContext(). ASCII values pass through unchanged.
     const requestHeaders = new Headers(req.headers);
-    requestHeaders.set('x-user-id', session.userId);
-    requestHeaders.set('x-company-id', session.companyId);
-    requestHeaders.set('x-user-role', session.role);
-    requestHeaders.set('x-user-email', session.email);
+    requestHeaders.set('x-user-id', encodeURIComponent(session.userId));
+    requestHeaders.set('x-company-id', encodeURIComponent(session.companyId));
+    requestHeaders.set('x-user-role', encodeURIComponent(session.role));
+    requestHeaders.set('x-user-email', encodeURIComponent(session.email));
 
     return NextResponse.next({ request: { headers: requestHeaders } });
 }

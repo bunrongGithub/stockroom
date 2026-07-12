@@ -9,12 +9,18 @@ export async function GET(request: NextRequest) {
     const context = getRequestContext(request);
     const { searchParams } = request.nextUrl;
     const page = Math.max(1, Number(searchParams.get('page') ?? 1));
+    // Default stays 10 per page; dropdown callers may request more.
     const limit = Math.min(
-        10,
+        1000,
         Math.max(1, Number(searchParams.get('limit') ?? 10)),
     );
+    const companyId = Number(searchParams.get('company_id')) || undefined;
     try {
-        const data = await Service.findAll(context, { page, limit });
+        const data = await Service.findAll(
+            context,
+            { page, limit },
+            companyId,
+        );
         const response = new ApiResponseSuccess(data).toResponse();
         return response;
     } catch (exception) {

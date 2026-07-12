@@ -57,45 +57,60 @@ export class InventoryUomRepository extends BaseRepository {
         return InventoryUomRepository.instance;
     }
 
-    private scopeQuery<T>(query: T, ctx: RequestContext): T {
-        if (['super_admin', 'super_user'].includes(ctx.role ?? '')) return query;
-        return this.applyCompanyFilter(query, Number(ctx.companyId));
+    /**
+     * Row scope for the caller: `null` for super users (no company filter),
+     * otherwise the caller's company id. NOTE: deliberately not a
+     * query-wrapping async helper — an async function that returns a Supabase
+     * builder makes the promise adopt the thenable and execute the query
+     * immediately, breaking any further chaining.
+     */
+    private async companyScope(ctx: RequestContext): Promise<number | null> {
+        if (await this.isSupperUser(ctx)) return null;
+        return Number(ctx.companyId);
     }
 
     async findAll(
         ctx: RequestContext,
         params: PaginationParams & { activeOnly?: boolean },
     ): Promise<PaginatedResult<InventoryUom>> {
-        const { search, sortBy = 'name', sortOrder = 'asc', activeOnly } = params;
+        const {
+            search,
+            sortBy = 'name',
+            sortOrder = 'asc',
+            activeOnly,
+        } = params;
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        let query: any = this.scopeQuery(
-            this.db.from(VIEW).select('*', { count: 'exact' }),
-            ctx,
-        );
-
-        if (activeOnly) query = query.eq('is_active', true);
+        let baseQuery = this.db
+            .from(VIEW)
+            .select('*', { count: 'exact' })
+            .order(sortBy, { ascending: sortOrder === 'asc' });
+        if (activeOnly) baseQuery = baseQuery.eq('is_active', true);
 
         // Multi-column search across code / name / symbol / description.
         if (search?.trim()) {
             const q = search.trim().replace(/[%,]/g, '');
-            query = query.or(
+            baseQuery = baseQuery.or(
                 `code.ilike.%${q}%,name.ilike.%${q}%,display_name.ilike.%${q}%,description.ilike.%${q}%`,
             );
         }
 
-        query = query.order(sortBy, { ascending: sortOrder === 'asc' });
-
-        // Search already applied above — don't let paginate re-apply searchColumn.
-        return this.paginate(query, { ...params, search: undefined });
+        const scope = await this.companyScope(ctx);
+        if (scope !== null) {
+            baseQuery = this.applyCompanyFilter(baseQuery, scope);
+        }
+        return this.paginate(baseQuery, params);
     }
 
-    async findOne(ctx: RequestContext, id: number): Promise<InventoryUom | null> {
-        const { data, error } = await this.scopeQuery(
-            this.db.from(VIEW).select('*').eq('id', id),
-            ctx,
-        ).single();
+    async findOne(
+        ctx: RequestContext,
+        id: number,
+    ): Promise<InventoryUom | null> {
+        let query = this.db.from(VIEW).select('*').eq('id', id);
 
+        const scope = await this.companyScope(ctx);
+        if (scope !== null) query = this.applyCompanyFilter(query, scope);
+
+        const { data, error } = await query.single();
         if (error) {
             if (error.code === 'PGRST116') return null;
             throw new Error(error.message);
@@ -105,15 +120,18 @@ export class InventoryUomRepository extends BaseRepository {
 
     /** Reference counts across every table that FKs inventory_uom(id). */
     async getUsage(ctx: RequestContext, id: number): Promise<UomUsage> {
+        const scope = await this.companyScope(ctx);
+
         const countOf = async (
             table: string,
             build: (q: unknown) => unknown,
         ): Promise<number> => {
+            let query = this.db
+                .from(table)
+                .select('id', { count: 'exact', head: true });
+            if (scope !== null) query = this.applyCompanyFilter(query, scope);
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const { count } = (await build(
-                this.db.from(table).select('id', { count: 'exact', head: true }),
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            )) as any;
+            const { count } = (await build(query)) as any;
             return count ?? 0;
         };
 
@@ -144,13 +162,15 @@ export class InventoryUomRepository extends BaseRepository {
         id: number,
         limit = 50,
     ): Promise<UomItemRef[]> {
-        const { data, error } = await this.scopeQuery(
-            this.db
-                .from('inventory_item')
-                .select('id, name, sku')
-                .eq('uom_id', id),
-            ctx,
-        )
+        let query = this.db
+            .from('inventory_item')
+            .select('id, name, sku')
+            .eq('uom_id', id);
+
+        const scope = await this.companyScope(ctx);
+        if (scope !== null) query = this.applyCompanyFilter(query, scope);
+
+        const { data, error } = await query
             .order('name', { ascending: true })
             .limit(limit);
         if (error) throw new Error(error.message);
@@ -194,10 +214,12 @@ export class InventoryUomRepository extends BaseRepository {
         const { is_default, ...rest } = input;
 
         if (Object.keys(rest).length > 0) {
-            const { error } = await this.scopeQuery(
-                this.db.from(TABLE).update(rest).eq('id', id),
-                ctx,
-            );
+            let query = this.db.from(TABLE).update(rest).eq('id', id);
+
+            const scope = await this.companyScope(ctx);
+            if (scope !== null) query = this.applyCompanyFilter(query, scope);
+
+            const { error } = await query;
             if (error) {
                 if (isUniqueViolation(error)) {
                     throw new ConflictError(
@@ -217,26 +239,30 @@ export class InventoryUomRepository extends BaseRepository {
 
     /** Make one UOM the company default, clearing any previous default. */
     async setDefault(ctx: RequestContext, id: number): Promise<InventoryUom> {
-        const companyId = Number(ctx.companyId);
+        // findOne enforces the caller's scope (non-super users can only reach
+        // their own company's UOMs). Both statements below are then pinned to
+        // the TARGET UOM's company — never unscoped — so a super user acting
+        // on another company's UOM can't clear defaults across all tenants.
+        const target = await this.findOne(ctx, id);
+        if (!target) throw new Error('UOM not found');
+
         // Clear existing default(s) first to satisfy the partial-unique index.
-        const { error: clearErr } = await this.scopeQuery(
-            this.db
-                .from(TABLE)
-                .update({ is_default: false })
-                .eq('is_default', true)
-                .neq('id', id),
-            ctx,
-        );
+        const { error: clearErr } = await this.db
+            .from(TABLE)
+            .update({ is_default: false })
+            .eq('company_id', target.company_id)
+            .eq('is_default', true)
+            .neq('id', id);
         if (clearErr) throw new Error(clearErr.message);
 
-        const { data, error } = await this.scopeQuery(
-            this.db.from(TABLE).update({ is_default: true }).eq('id', id),
-            ctx,
-        )
+        const { data, error } = await this.db
+            .from(TABLE)
+            .update({ is_default: true })
+            .eq('id', id)
+            .eq('company_id', target.company_id)
             .select()
             .single();
         if (error) throw new Error(error.message);
-        void companyId;
         return data as InventoryUom;
     }
 
@@ -254,10 +280,12 @@ export class InventoryUomRepository extends BaseRepository {
             );
         }
 
-        const { error } = await this.scopeQuery(
-            this.db.from(TABLE).delete().eq('id', id),
-            ctx,
-        );
+        let query = this.db.from(TABLE).delete().eq('id', id);
+
+        const scope = await this.companyScope(ctx);
+        if (scope !== null) query = this.applyCompanyFilter(query, scope);
+
+        const { error } = await query;
         if (error) throw new Error(error.message);
     }
 }

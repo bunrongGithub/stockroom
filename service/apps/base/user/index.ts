@@ -24,7 +24,8 @@ export const companyUserService = {
      */
     async create(ctx: RequestContext, input: CreateUserInput) {
         const data = createUserSchema.parse(input);
-        const companyId = Number(ctx.companyId);
+        // Super users may create into any company; others get their own.
+        const companyId = await repo.resolveCompanyId(ctx, data.company_id);
         const supabase = getServerClient();
 
         const { data: created, error: authErr } =
@@ -67,7 +68,25 @@ export const companyUserService = {
 
     async update(ctx: RequestContext, id: string, input: UpdateUserInput) {
         const patch = updateUserSchema.parse(input);
-        const { role_ids, avatar_url, phone, ...rest } = patch;
+        const { role_ids, avatar_url, phone, company_id, ...rest } = patch;
+
+        // Reassigning the company replaces roles in the new company, so it
+        // runs first and consumes role_ids.
+        let rolesHandled = false;
+        if (company_id !== undefined) {
+            const current = await repo.getUser(ctx, id);
+            if (current.company_id !== company_id) {
+                if (!role_ids?.length) {
+                    throw new ApiError(
+                        'Assign at least one role in the new company',
+                        422,
+                        'ROLES_REQUIRED',
+                    );
+                }
+                await repo.moveToCompany(ctx, id, company_id, role_ids);
+                rolesHandled = true;
+            }
+        }
 
         if (
             rest.full_name !== undefined ||
@@ -81,7 +100,7 @@ export const companyUserService = {
                 ...(avatar_url ? { avatar_url } : {}),
             });
         }
-        if (role_ids) await repo.setRoles(ctx, id, role_ids);
+        if (role_ids && !rolesHandled) await repo.setRoles(ctx, id, role_ids);
         return repo.getUser(ctx, id);
     },
 

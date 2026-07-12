@@ -17,6 +17,22 @@ export const updateCompanySchema = z.object({
     status: z.enum(['active', 'inactive', 'suspended']).optional(),
 });
 
+export const createCompanySchema = z.object({
+    name: z.string().min(2, 'Company name is required').max(120).trim(),
+    registration_number: z.string().max(100).trim().optional().or(z.literal('')),
+    tax_number: z.string().max(100).trim().optional().or(z.literal('')),
+    phone: z.string().max(50).trim().optional().or(z.literal('')),
+    email: z
+        .string()
+        .email('Invalid email address')
+        .optional()
+        .or(z.literal('')),
+    website: z.string().max(255).trim().optional().or(z.literal('')),
+    address: z.string().max(1000).trim().optional().or(z.literal('')),
+    description: z.string().max(2000).trim().optional().or(z.literal('')),
+    status: z.enum(['active', 'inactive', 'suspended']).optional().default('active'),
+});
+
 export const assignRoleSchema = z.object({
     userId: z.string().uuid(),
     roleId: z.coerce.number().int().positive(),
@@ -27,5 +43,6 @@ export const removeUserSchema = z.object({
 });
 
 export type UpdateCompanyInput = z.infer<typeof updateCompanySchema>;
+export type CreateCompanyInput = z.infer<typeof createCompanySchema>;
 export type AssignRoleInput = z.infer<typeof assignRoleSchema>;
 export type RemoveUserInput = z.infer<typeof removeUserSchema>;

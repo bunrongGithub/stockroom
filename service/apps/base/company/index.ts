@@ -1,6 +1,7 @@
 import { ValidationError } from '@/service/core/api-response';
 import {
     assignRoleSchema,
+    createCompanySchema,
     removeUserSchema,
     updateCompanySchema,
 } from '@/service/schema/company.schema';
@@ -20,6 +21,24 @@ export async function getCompany(ctx: RequestContext, overrideId?: number) {
     return repo.findOwn(ctx, overrideId);
 }
 
+export async function listCompanies(
+    ctx: RequestContext,
+    params: PaginationParams,
+) {
+    return repo.findAll(ctx, params);
+}
+
+export async function createCompany(ctx: RequestContext, body: unknown) {
+    const parsed = createCompanySchema.safeParse(body);
+    if (!parsed.success) {
+        throw new ValidationError(
+            'Validation Errors',
+            z.flattenError(parsed.error).fieldErrors as Record<string, string[]>,
+        );
+    }
+    return repo.insertOne(ctx, parsed.data);
+}
+
 export async function updateCompany(
     ctx: RequestContext,
     body: unknown,
@@ -35,15 +54,20 @@ export async function updateCompany(
     return repo.updateOne(ctx, parsed.data, overrideId);
 }
 
-export async function setCompanyLogo(ctx: RequestContext, logoUrl: string) {
-    return repo.setLogo(ctx, logoUrl);
+export async function setCompanyLogo(
+    ctx: RequestContext,
+    logoUrl: string,
+    overrideId?: number,
+) {
+    return repo.setLogo(ctx, logoUrl, overrideId);
 }
 
 export async function listCompanyUsers(
     ctx: RequestContext,
     params: PaginationParams,
+    overrideId?: number,
 ) {
-    return repo.listUsers(ctx, params);
+    return repo.listUsers(ctx, params, overrideId);
 }
 
 export async function assignCompanyRole(ctx: RequestContext, body: unknown) {

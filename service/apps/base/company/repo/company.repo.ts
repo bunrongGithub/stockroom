@@ -18,12 +18,86 @@ import type {
 // so cross-company access is impossible regardless of what the client sends.
 export class CompanyRepository extends BaseRepository {
     private targetCompanyId(ctx: RequestContext, overrideId?: number): number {
-        if (overrideId && ctx.role === 'super_admin') return overrideId;
         const companyId = Number(ctx.companyId);
+        if (overrideId) {
+            if (ctx.role === 'super_admin' || overrideId === companyId) {
+                return overrideId;
+            }
+            throw new ForbiddenError(
+                'Only a super admin can access another company',
+            );
+        }
         if (!companyId || Number.isNaN(companyId)) {
             throw new ForbiddenError('Session has no valid company');
         }
         return companyId;
+    }
+
+    /**
+     * Paginated company list: super users see every company; everyone else
+     * gets a single-row list containing their own company.
+     */
+    async findAll(ctx: RequestContext, params: PaginationParams) {
+        let query = this.db
+            .from('company')
+            .select('*', { count: 'exact' })
+            .order('id', { ascending: true });
+
+        if (params.search?.trim()) {
+            const q = params.search.trim().replace(/[%,]/g, '');
+            query = query.or(`name.ilike.%${q}%,email.ilike.%${q}%`);
+        }
+
+        if (!(await this.isSupperUser(ctx))) {
+            query = query.eq('id', this.targetCompanyId(ctx));
+        }
+        return this.paginate(query, params);
+    }
+
+    /**
+     * Create a company through the create_company RPC, which also seeds the
+     * owner role (with full module permissions) and document sequences in
+     * one transaction. Super users only.
+     */
+    async insertOne(
+        ctx: RequestContext,
+        payload: Record<string, unknown> & { name: string },
+    ): Promise<Company> {
+        if (!(await this.isSupperUser(ctx))) {
+            throw new ForbiddenError('Only a super admin can create companies');
+        }
+
+        const { data: companyId, error } = await this.db.rpc('create_company', {
+            p_name: payload.name,
+            p_created_by: ctx.userId,
+            p_registration_number: (payload.registration_number as string) || null,
+            p_tax_number: (payload.tax_number as string) || null,
+            p_phone: (payload.phone as string) || null,
+            p_email: (payload.email as string) || null,
+            p_website: (payload.website as string) || null,
+            p_address: (payload.address as string) || null,
+            p_description: (payload.description as string) || null,
+            p_status: (payload.status as string) || 'active',
+        });
+
+        if (error) {
+            if (error.code === '23505') {
+                throw new ApiError(
+                    'This company name is already taken',
+                    409,
+                    'COMPANY_NAME_TAKEN',
+                );
+            }
+            throw new ApiError(error.message, 500, error.code);
+        }
+
+        const { data } = await this.db
+            .from('company')
+            .select('*')
+            .eq('id', companyId as number)
+            .single();
+        if (!data) throw new NotFoundError('Company not found after create');
+        return data as Company;
     }
 
     async findOwn(ctx: RequestContext, overrideId?: number): Promise<Company> {
@@ -73,8 +147,12 @@ export class CompanyRepository extends BaseRepository {
         return data as Company;
     }
 
-    async setLogo(ctx: RequestContext, logoUrl: string): Promise<void> {
-        const companyId = this.targetCompanyId(ctx);
+    async setLogo(
+        ctx: RequestContext,
+        logoUrl: string,
+        overrideId?: number,
+    ): Promise<void> {
+        const companyId = this.targetCompanyId(ctx, overrideId);
         const { error } = await this.db
             .from('company')
             .update({ logo_url: logoUrl })
@@ -84,8 +162,12 @@ export class CompanyRepository extends BaseRepository {
 
     // ── Users tab ────────────────────────────────────────────────────────────
 
-    async listUsers(ctx: RequestContext, params: PaginationParams) {
-        const companyId = this.targetCompanyId(ctx);
+    async listUsers(
+        ctx: RequestContext,
+        params: PaginationParams,
+        overrideId?: number,
+    ) {
+        const companyId = this.targetCompanyId(ctx, overrideId);
         const query = this.db
             .from('user_profiles_view')
             .select('*')

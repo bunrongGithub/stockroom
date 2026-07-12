@@ -56,6 +56,18 @@ export const settingRegistry: RegistryEntry[] = [
     // ── Company ───────────────────────────────────────────────────────────────
     [
         'Company',
-        () => import('@/components/modules/setting/company/Company'),
+        () => import('@/components/modules/setting/company/page'),
+    ],
+    [
+        'CompanyCreate',
+        () => import('@/components/modules/setting/company/actions/Create'),
+    ],
+    [
+        'CompanyView',
+        () => import('@/components/modules/setting/company/actions/View'),
+    ],
+    [
+        'CompanyUpdate',
+        () => import('@/components/modules/setting/company/actions/Update'),
     ],
 ];

@@ -13,6 +13,7 @@ import { usersApi } from '@/lib/api/users';
 import type { CompanyUser } from '@/service/apps/base/user/repo/user.repo';
 import { Plus, Users } from 'lucide-react';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { getUserColumns } from './columns';
 
@@ -32,6 +33,7 @@ export default function UserModule({
   const staticActions = pageAction?.actions.filter((a) => !a.dynamic) ?? [];
   const dynamicActions = pageAction?.actions.filter((a) => a.dynamic) ?? [];
 
+  const router = useRouter();
   const toast = useToast();
   const [users, setUsers] = useState<CompanyUser[]>(
     (initialData as CompanyUser[]) ?? [],
@@ -69,7 +71,7 @@ export default function UserModule({
           actions={
             staticActions.map((action) => (
               <span key={action.href}>
-                {ButtonActionStaticRender(action, true)}
+                {ButtonActionStaticRender(action)}
               </span>
             ))[0]
           }
@@ -96,6 +98,7 @@ export default function UserModule({
               <Button
                 size="sm"
                 className="gap-1.5 bg-emerald-600 hover:bg-emerald-500"
+                onClick={() => router.push('/setting/users/create')}
               >
                 <Plus size={14} /> Add User
               </Button>

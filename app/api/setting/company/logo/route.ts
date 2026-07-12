@@ -40,7 +40,11 @@ export async function POST(request: NextRequest) {
             throw new BadRequesstExceptionError('Logo must be 2 MB or smaller');
         }
 
-        const companyId = Number(context.companyId);
+        // `?id=` targets another company (super admin only — setCompanyLogo
+        // rejects the override for everyone else).
+        const overrideId =
+            Number(request.nextUrl.searchParams.get('id')) || undefined;
+        const companyId = overrideId ?? Number(context.companyId);
         const path = `company-${companyId}/logo-${Date.now()}.${ext}`;
         const buffer = Buffer.from(await file.arrayBuffer());
 
@@ -57,7 +61,7 @@ export async function POST(request: NextRequest) {
             .from('company-assets')
             .getPublicUrl(path);
 
-        await setCompanyLogo(context, publicUrl.publicUrl);
+        await setCompanyLogo(context, publicUrl.publicUrl, overrideId);
 
         return new ApiResponseSuccess(
             { data: { logo_url: publicUrl.publicUrl } },

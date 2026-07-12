@@ -50,7 +50,7 @@ export default function GeneralTab({
         setSaving(true);
         setError('');
         try {
-            const updated = await companyApi.update(form);
+            const updated = await companyApi.update(form, company.id);
             setEditing(false);
             onSaved(updated);
         } catch (e) {

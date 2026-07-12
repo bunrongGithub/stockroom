@@ -16,7 +16,11 @@ export class Role extends BaseRepository {
     constructor() {
         super();
     }
-    async findAll(context: RequestContext, params: PaginationParams) {
+    async findAll(
+        context: RequestContext,
+        params: PaginationParams,
+        companyId?: number,
+    ) {
         const baseQuery = this.db
             .from('roles')
             .select('id, name, description, created_at, company(id, name)')
@@ -25,7 +29,12 @@ export class Role extends BaseRepository {
         const isSuperUser = await this.isSupperUser(context);
 
         if (isSuperUser) {
-            return this.paginate(baseQuery, params);
+            // Super users may narrow to one company (e.g. role dropdowns
+            // scoped to the company selected on the user form).
+            const query = companyId
+                ? this.applyCompanyFilter(baseQuery, companyId)
+                : baseQuery;
+            return this.paginate(query, params);
         }
 
         const query = this.applyCompanyFilter(

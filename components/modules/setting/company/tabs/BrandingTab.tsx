@@ -25,7 +25,7 @@ export default function BrandingTab({
         setUploading(true);
         setError('');
         try {
-            const url = await companyApi.uploadLogo(file);
+            const url = await companyApi.uploadLogo(file, company.id);
             onLogoChanged(url);
             // Refresh the cached app-init payload so the sidebar picks up
             // the new logo without a re-login.

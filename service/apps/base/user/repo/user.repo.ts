@@ -52,6 +52,47 @@ export class CompanyUserRepository extends BaseRepository {
         return id;
     }
 
+    /**
+     * Company a NEW record should land in. `requested` is honored only for
+     * super users; everyone else is forced onto their own company.
+     */
+    async resolveCompanyId(
+        ctx: RequestContext,
+        requested?: number,
+    ): Promise<number> {
+        const own = this.companyId(ctx);
+        if (!requested || requested === own) return own;
+        if (await this.isSupperUser(ctx)) return requested;
+        throw new ForbiddenError(
+            'Only a super user can manage users of another company',
+        );
+    }
+
+    /**
+     * Company scope for operations on an EXISTING user: the caller's own
+     * company if the user belongs to it, or the user's actual company when
+     * the caller is a super user.
+     */
+    private async targetCompanyOf(
+        ctx: RequestContext,
+        userId: string,
+    ): Promise<number> {
+        const { data } = await this.db
+            .from('profiles')
+            .select('id, company_id')
+            .eq('id', userId)
+            .single();
+        if (!data) throw new NotFoundError('User not found');
+
+        const own = this.companyId(ctx);
+        const userCompany = Number(data.company_id);
+        if (userCompany === own) return own;
+        if (await this.isSupperUser(ctx)) return userCompany;
+        throw new BadRequesstExceptionError(
+            'User is not a member of this company',
+        );
+    }
+
     async listUsers(
         ctx: RequestContext,
         params: PaginationParams & { status?: string },
@@ -78,7 +119,9 @@ export class CompanyUserRepository extends BaseRepository {
     }
 
     async getUser(ctx: RequestContext, id: string): Promise<CompanyUser> {
-        const companyId = this.companyId(ctx);
+        // targetCompanyOf both authorizes the caller (own member, or any
+        // company for super users) and gives the scope for the view lookup.
+        const companyId = await this.targetCompanyOf(ctx, id);
         const { data, error } = await this.db
             .from(VIEW)
             .select('*')
@@ -87,20 +130,6 @@ export class CompanyUserRepository extends BaseRepository {
             .single();
         if (error || !data) throw new NotFoundError('User not found');
         return data as CompanyUser;
-    }
-
-    /** Assert the user is a member of the caller's company. */
-    private async assertMember(companyId: number, userId: string) {
-        const { data } = await this.db
-            .from('profiles')
-            .select('id, company_id')
-            .eq('id', userId)
-            .single();
-        if (!data || Number(data.company_id) !== companyId) {
-            throw new BadRequesstExceptionError(
-                'User is not a member of this company',
-            );
-        }
     }
 
     async updateProfile(
@@ -113,8 +142,7 @@ export class CompanyUserRepository extends BaseRepository {
             status?: 'active' | 'inactive';
         },
     ): Promise<CompanyUser> {
-        const companyId = this.companyId(ctx);
-        await this.assertMember(companyId, id);
+        const companyId = await this.targetCompanyOf(ctx, id);
 
         // Deactivating the last owner would lock the company out.
         if (patch.status === 'inactive') {
@@ -130,12 +158,8 @@ export class CompanyUserRepository extends BaseRepository {
         return this.getUser(ctx, id);
     }
 
-    /** Replace the user's roles within this company with `roleIds` (multi-role). */
-    async setRoles(ctx: RequestContext, id: string, roleIds: number[]) {
-        const companyId = this.companyId(ctx);
-        await this.assertMember(companyId, id);
-
-        // All roles must belong to this company.
+    /** Roles must all belong to `companyId`; returns them for owner checks. */
+    private async assertRolesInCompany(companyId: number, roleIds: number[]) {
         const { data: roles } = await this.db
             .from('roles')
             .select('id, name')
@@ -147,6 +171,13 @@ export class CompanyUserRepository extends BaseRepository {
                 'One or more roles do not belong to this company',
             );
         }
+        return found;
+    }
+
+    /** Replace the user's roles within this company with `roleIds` (multi-role). */
+    async setRoles(ctx: RequestContext, id: string, roleIds: number[]) {
+        const companyId = await this.targetCompanyOf(ctx, id);
+        const found = await this.assertRolesInCompany(companyId, roleIds);
 
         // If the user is an owner and the new set drops owner, ensure another
         // owner remains.
@@ -166,6 +197,67 @@ export class CompanyUserRepository extends BaseRepository {
             user_id: id,
             role_id,
             company_id: companyId,
+        }));
+        const { error: insErr } = await this.db.from('user_role').insert(rows);
+        if (insErr) throw new ApiError(insErr.message, 500, insErr.code);
+
+        return { success: true };
+    }
+
+    /**
+     * Move the user to another company (super users only): re-point the
+     * profile, drop memberships in the old company, and grant `roleIds` in
+     * the new one. The last owner of the old company cannot be moved out.
+     */
+    async moveToCompany(
+        ctx: RequestContext,
+        id: string,
+        newCompanyId: number,
+        roleIds: number[],
+    ) {
+        if (!(await this.isSupperUser(ctx))) {
+            throw new ForbiddenError(
+                'Only a super user can move a user to another company',
+            );
+        }
+
+        const { data: profile } = await this.db
+            .from('profiles')
+            .select('id, company_id')
+            .eq('id', id)
+            .single();
+        if (!profile) throw new NotFoundError('User not found');
+        const oldCompanyId = Number(profile.company_id);
+        if (oldCompanyId === newCompanyId) return { success: true };
+
+        const { data: company } = await this.db
+            .from('company')
+            .select('id')
+            .eq('id', newCompanyId)
+            .single();
+        if (!company) throw new NotFoundError('Target company not found');
+
+        await this.assertRolesInCompany(newCompanyId, roleIds);
+        if (oldCompanyId) {
+            await this.assertNotLastOwner(oldCompanyId, id, 'remove');
+        }
+
+        const { error: delErr } = await this.db
+            .from('user_role')
+            .delete()
+            .eq('user_id', id);
+        if (delErr) throw new ApiError(delErr.message, 500, delErr.code);
+
+        const { error: profErr } = await this.db
+            .from('profiles')
+            .update({ company_id: newCompanyId })
+            .eq('id', id);
+        if (profErr) throw new ApiError(profErr.message, 500, profErr.code);
+
+        const rows = roleIds.map((role_id) => ({
+            user_id: id,
+            role_id,
+            company_id: newCompanyId,
         }));
         const { error: insErr } = await this.db.from('user_role').insert(rows);
         if (insErr) throw new ApiError(insErr.message, 500, insErr.code);

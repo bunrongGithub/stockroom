@@ -38,6 +38,8 @@ export type CreateUserPayload = {
     password: string;
     phone?: string;
     status?: 'active' | 'inactive';
+    /** Target company; honored for super users, ignored for everyone else. */
+    company_id?: number;
     role_ids: number[];
 };
 
