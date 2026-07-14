@@ -6,7 +6,10 @@ import {
     type PaginationParams,
     type PaginatedResult,
 } from '@/service/core/pagination';
-import { BaseRepository } from '@/service/core/base-repository';
+import {
+    BaseRepository,
+    type QueryScope,
+} from '@/service/core/base-repository';
 import { ConflictError } from '@/service/core/api-response';
 import type { RequestContext } from '@/types/request-context';
 
@@ -46,6 +49,9 @@ function isUniqueViolation(e: any): boolean {
 }
 
 export class InventoryUomRepository extends BaseRepository {
+    /** UOMs belong to a company — every member of it sees them all. */
+    protected readonly scope: QueryScope = 'company';
+
     private static instance: InventoryUomRepository;
     private constructor() {
         super();
@@ -55,18 +61,6 @@ export class InventoryUomRepository extends BaseRepository {
             InventoryUomRepository.instance = new InventoryUomRepository();
         }
         return InventoryUomRepository.instance;
-    }
-
-    /**
-     * Row scope for the caller: `null` for super users (no company filter),
-     * otherwise the caller's company id. NOTE: deliberately not a
-     * query-wrapping async helper — an async function that returns a Supabase
-     * builder makes the promise adopt the thenable and execute the query
-     * immediately, breaking any further chaining.
-     */
-    private async companyScope(ctx: RequestContext): Promise<number | null> {
-        if (await this.isSupperUser(ctx)) return null;
-        return Number(ctx.companyId);
     }
 
     async findAll(
@@ -94,21 +88,23 @@ export class InventoryUomRepository extends BaseRepository {
             );
         }
 
-        const scope = await this.companyScope(ctx);
-        if (scope !== null) {
-            baseQuery = this.applyCompanyFilter(baseQuery, scope);
-        }
-        return this.paginate(baseQuery, params);
+        const query = this.applyScope(
+            baseQuery,
+            ctx,
+            await this.scopeOptions(ctx),
+        );
+        return this.paginate(query, params);
     }
 
     async findOne(
         ctx: RequestContext,
         id: number,
     ): Promise<InventoryUom | null> {
-        let query = this.db.from(VIEW).select('*').eq('id', id);
-
-        const scope = await this.companyScope(ctx);
-        if (scope !== null) query = this.applyCompanyFilter(query, scope);
+        const query = this.applyScope(
+            this.db.from(VIEW).select('*').eq('id', id),
+            ctx,
+            await this.scopeOptions(ctx),
+        );
 
         const { data, error } = await query.single();
         if (error) {
@@ -120,16 +116,17 @@ export class InventoryUomRepository extends BaseRepository {
 
     /** Reference counts across every table that FKs inventory_uom(id). */
     async getUsage(ctx: RequestContext, id: number): Promise<UomUsage> {
-        const scope = await this.companyScope(ctx);
+        const scopeOpts = await this.scopeOptions(ctx);
 
         const countOf = async (
             table: string,
             build: (q: unknown) => unknown,
         ): Promise<number> => {
-            let query = this.db
-                .from(table)
-                .select('id', { count: 'exact', head: true });
-            if (scope !== null) query = this.applyCompanyFilter(query, scope);
+            const query = this.applyScope(
+                this.db.from(table).select('id', { count: 'exact', head: true }),
+                ctx,
+                scopeOpts,
+            );
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { count } = (await build(query)) as any;
             return count ?? 0;
@@ -162,13 +159,11 @@ export class InventoryUomRepository extends BaseRepository {
         id: number,
         limit = 50,
     ): Promise<UomItemRef[]> {
-        let query = this.db
-            .from('inventory_item')
-            .select('id, name, sku')
-            .eq('uom_id', id);
-
-        const scope = await this.companyScope(ctx);
-        if (scope !== null) query = this.applyCompanyFilter(query, scope);
+        const query = this.applyScope(
+            this.db.from('inventory_item').select('id, name, sku').eq('uom_id', id),
+            ctx,
+            await this.scopeOptions(ctx),
+        );
 
         const { data, error } = await query
             .order('name', { ascending: true })
@@ -214,10 +209,11 @@ export class InventoryUomRepository extends BaseRepository {
         const { is_default, ...rest } = input;
 
         if (Object.keys(rest).length > 0) {
-            let query = this.db.from(TABLE).update(rest).eq('id', id);
-
-            const scope = await this.companyScope(ctx);
-            if (scope !== null) query = this.applyCompanyFilter(query, scope);
+            const query = this.applyScope(
+                this.db.from(TABLE).update(rest).eq('id', id),
+                ctx,
+                await this.scopeOptions(ctx),
+            );
 
             const { error } = await query;
             if (error) {
@@ -280,10 +276,11 @@ export class InventoryUomRepository extends BaseRepository {
             );
         }
 
-        let query = this.db.from(TABLE).delete().eq('id', id);
-
-        const scope = await this.companyScope(ctx);
-        if (scope !== null) query = this.applyCompanyFilter(query, scope);
+        const query = this.applyScope(
+            this.db.from(TABLE).delete().eq('id', id),
+            ctx,
+            await this.scopeOptions(ctx),
+        );
 
         const { error } = await query;
         if (error) throw new Error(error.message);

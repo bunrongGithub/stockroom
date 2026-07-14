@@ -8,7 +8,7 @@ import {
 } from '@/service/core/pagination';
 import { BaseRepository } from '@/service/core/base-repository';
 import type { RequestContext } from '@/types/request-context';
-import { generateSequenNumbering } from '@/lib/utils/sequenumbering';
+import { getNextDocumentNumber } from '@/service/core/document-number';
 
 export type Category = {
     id: number;
@@ -66,8 +66,8 @@ export class CategoryRepository extends BaseRepository {
         ctx: RequestContext,
         input: CreateCategoryInput,
     ): Promise<Category> {
-        const sequenNumbering = generateSequenNumbering('C');
-        const insertData = { ...input, reference_no: sequenNumbering };
+        const referenceNo = await getNextDocumentNumber(ctx, 'item_category', 'C');
+        const insertData = { ...input, reference_no: referenceNo };
         const { data, error } = await this.scopedDb(Number(ctx.companyId))
             .from(TABLE)
             .insert({ ...insertData, user_id: ctx.userId })

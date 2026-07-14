@@ -19,6 +19,11 @@ export type DocumentType =
     | 'inventory_receipt'
     | 'inventory_movement'
     | 'customer_payment'
+    // master data (reference numbers):
+    | 'stock_item'
+    | 'non_stock_item'
+    | 'item_category'
+    | 'item_uom'
     // future modules:
     | 'purchase_order'
     | 'purchase_invoice'

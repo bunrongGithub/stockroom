@@ -1,9 +1,7 @@
-import {
-    generateSequenNumbering,
-    generateSKU,
-} from '@/lib/utils/sequenumbering';
+import { generateSKU } from '@/lib/utils/sequenumbering';
 import { NotFoundError } from '@/service/core/api-response';
 import { BaseRepository } from '@/service/core/base-repository';
+import { getNextDocumentNumber } from '@/service/core/document-number';
 import {
     type PaginatedResult,
     type PaginationParams,
@@ -129,8 +127,16 @@ export class InventoryRepository extends BaseRepository {
             );
         }
 
-        const prefix = input.item_class === 'non_stock' ? 'NSTK' : 'STCK';
-        const referenceNo = generateSequenNumbering(prefix);
+        // Reference numbers come from the document-number framework (atomic,
+        // per company × doc_type counter) — never generated in the repo.
+        // Non-stock and service items share the stock counter's shape but keep
+        // their own sequence, so numbers stay contiguous per class.
+        const isNonStock = input.item_class === 'non_stock';
+        const referenceNo = await getNextDocumentNumber(
+            ctx,
+            isNonStock ? 'non_stock_item' : 'stock_item',
+            isNonStock ? 'NSTK' : 'STCK',
+        );
         const sku = input.sku ? input.sku : generateSKU('SKU');
 
         const { data, error } = await this.scopedDb(Number(ctx.companyId))
