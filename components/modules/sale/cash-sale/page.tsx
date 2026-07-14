@@ -332,7 +332,10 @@ export default function CashSaleModule({
                 </div>
             )}
 
-            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
+            {/* The counter splits into cart + checkout as soon as there is room
+                (≥1024px). Below that it is one column and the pay bar at the
+                bottom of the screen keeps checkout one tap away. */}
+            <div className="grid gap-4 pb-24 lg:grid-cols-[minmax(0,1fr)_340px] lg:pb-0 xl:grid-cols-[minmax(0,1fr)_380px]">
                 {/* ── Cart ─────────────────────────────────────────────── */}
                 <div className="space-y-4">
                     <div className="rounded-2xl border border-slate-200 bg-white p-4">
@@ -376,7 +379,7 @@ export default function CashSaleModule({
                                         </button>
                                     </div>
 
-                                    <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                                    <div className="mt-3 grid grid-cols-2 items-end gap-3 sm:grid-cols-[7rem_9rem_1fr]">
                                         <div className="space-y-1">
                                             <Label>Qty</Label>
                                             <Input
@@ -413,7 +416,7 @@ export default function CashSaleModule({
                                                 }
                                             />
                                         </div>
-                                        <div className="col-span-2 flex items-end justify-end">
+                                        <div className="col-span-2 flex items-end justify-end pb-1 sm:col-span-1">
                                             <span className="text-base font-semibold text-slate-800">
                                                 {money(
                                                     line.quantity *
@@ -446,7 +449,7 @@ export default function CashSaleModule({
                 </div>
 
                 {/* ── Checkout ─────────────────────────────────────────── */}
-                <aside className="space-y-4 xl:sticky xl:top-4 xl:self-start">
+                <aside className="space-y-4 lg:sticky lg:top-4 lg:self-start">
                     <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4">
                         <div className="flex items-center gap-2 text-slate-500">
                             <UserRound size={16} className="text-[#1a9e52]" />
@@ -743,10 +746,11 @@ export default function CashSaleModule({
                             </p>
                         )}
 
+                        {/* On narrow screens the pay bar below owns this. */}
                         <Button
                             onClick={complete}
                             disabled={!canComplete}
-                            className="h-14 w-full bg-emerald-600 text-base font-semibold hover:bg-emerald-500"
+                            className="hidden h-14 w-full bg-emerald-600 text-base font-semibold hover:bg-emerald-500 lg:flex"
                         >
                             {saving ? (
                                 <>
@@ -768,6 +772,41 @@ export default function CashSaleModule({
                         )}
                     </div>
                 </aside>
+            </div>
+
+            {/* Pay bar — phones and tablets, where the checkout card is far down
+                a long cart. The total and the pay button stay on screen so the
+                cashier never scrolls to take money. Sits under the nav drawer. */}
+            <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
+                <div className="flex items-center gap-3 pl-14 sm:pl-0">
+                    <div className="min-w-0">
+                        <p className="text-slate-500">
+                            {lines.length} item{lines.length === 1 ? '' : 's'}
+                            {method === 'CASH' && Number(tendered) > 0 && (
+                                <span className="ml-2">
+                                    change{' '}
+                                    <b className="text-slate-800">
+                                        {money(change)}
+                                    </b>
+                                </span>
+                            )}
+                        </p>
+                        <p className="truncate text-xl font-bold text-slate-900">
+                            {money(grandTotal)}
+                        </p>
+                    </div>
+                    <Button
+                        onClick={complete}
+                        disabled={!canComplete}
+                        className="ml-auto h-12 flex-1 bg-emerald-600 text-sm font-semibold hover:bg-emerald-500"
+                    >
+                        {saving ? (
+                            <Loader2 size={16} className="animate-spin" />
+                        ) : (
+                            'Complete Sale'
+                        )}
+                    </Button>
+                </div>
             </div>
         </div>
     );
