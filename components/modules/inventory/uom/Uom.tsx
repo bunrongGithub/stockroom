@@ -1,37 +1,27 @@
 'use client';
 
+import {
+    ButtonActionDynamicRender,
+    ButtonActionStaticRender,
+} from '@/components/ui/button-action';
 import { DataTable, type DataTableColumn } from '@/components/ui/DataTable';
-import { PageHeader } from '@/components/ui/PageHeader';
-import { StatusBadge } from '@/components/ui/StatusBadge';
-import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
-import { Button } from '@/components/ui/button';
-import { useToast } from '@/components/ui/Toast';
+import PopUpDeleteTransactionModal from '@/components/ui/PopUpDeleteModal';
+import { usePageActions } from '@/hook/usePageAction';
 import { useRegisterModule } from '@/hook/useModule';
 import type { ModuleProps } from '@/lib/registry';
+import type { TMeta } from '@/types/app';
 import type { InventoryUom } from '@/service/apps/inventory/repo/uom';
-import { uomApi } from '@/lib/api/uom';
-import {
-    Edit2,
-    Eye,
-    Plus,
-    Ruler,
-    Star,
-    Power,
-    Trash2,
-} from 'lucide-react';
+import { Ruler, Star } from 'lucide-react';
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 
-type Confirm =
-    | { kind: 'delete'; row: InventoryUom }
-    | { kind: 'deactivate'; row: InventoryUom }
-    | null;
+const DEFAULT_META: TMeta = { total: 0, page: 1, limit: 10, totalPages: 0 };
 
 export default function InventoryUomListModule({
     currentPath,
     permission,
     currentPathActions,
     initialData,
+    initialMeta,
 }: ModuleProps) {
     useRegisterModule({
         actionModules: currentPathActions,
@@ -39,83 +29,95 @@ export default function InventoryUomListModule({
         modulePath: currentPath.path,
     });
 
-    const router = useRouter();
-    const toast = useToast();
-    const [items, setItems] = useState<InventoryUom[]>(
-        (initialData as InventoryUom[] | null) ?? [],
+    const pageAction = usePageActions();
+    const staticActions = pageAction?.actions.filter((a) => !a.dynamic) ?? [];
+    const dynamicActions = pageAction?.actions.filter((a) => a.dynamic) ?? [];
+
+    const [tableData, setTableData] = useState<InventoryUom[]>(
+        (initialData as InventoryUom[]) ?? [],
     );
-    const [confirm, setConfirm] = useState<Confirm>(null);
+    const [tableMeta, setTableMeta] = useState<TMeta>(initialMeta ?? DEFAULT_META);
+    const [deletingId, setDeletingId] = useState<number | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [toast, setToast] = useState<{
+        msg: string;
+        type: 'success' | 'error';
+    } | null>(null);
 
-    async function refreshUoms() {
-        try {
-            setItems(await uomApi.list({ sortBy: 'name' }));
-        } catch (e) {
-            toast.error(e instanceof Error ? e.message : 'Failed to load units');
-        }
-    }
+    const apiBase = `/api${currentPath.path}`;
 
-    async function setDefault(row: InventoryUom) {
-        try {
-            await uomApi.setDefault(row.id);
-            toast.success(`${row.code} is now the default unit.`);
-            await refreshUoms();
-        } catch (e) {
-            toast.error(e instanceof Error ? e.message : 'Could not set default');
+    const fetchPage = async (page: number, limit: number) => {
+        const res = await fetch(`${apiBase}?page=${page}&limit=${limit}`);
+        if (res.ok) {
+            const json = await res.json();
+            setTableData(json.data ?? []);
+            setTableMeta(json.meta ?? DEFAULT_META);
         }
-    }
+    };
 
-    async function setActive(row: InventoryUom, active: boolean) {
+    const onConfirmDelete = async () => {
+        if (!deletingId) return;
         try {
-            await uomApi.setActive(row.id, active);
-            toast.success(`${row.code} ${active ? 'activated' : 'deactivated'}.`);
-            await refreshUoms();
+            setIsDeleting(true);
+            const res = await fetch(`${apiBase}/${deletingId}`, {
+                method: 'DELETE',
+            });
+            const json = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(json.error ?? 'Delete failed');
+            setToast({ msg: 'Unit deleted successfully', type: 'success' });
+            await fetchPage(tableMeta.page, tableMeta.limit);
         } catch (e) {
-            toast.error(e instanceof Error ? e.message : 'Could not update status');
+            setToast({
+                msg: e instanceof Error ? e.message : 'Failed to delete unit',
+                type: 'error',
+            });
+        } finally {
+            setIsDeleting(false);
+            setDeletingId(null);
+            setTimeout(() => setToast(null), 4000);
         }
-    }
-
-    async function runConfirm() {
-        if (!confirm) return;
-        try {
-            if (confirm.kind === 'delete') {
-                await uomApi.remove(confirm.row.id);
-                toast.success(`${confirm.row.code} deleted.`);
-            } else {
-                await uomApi.setActive(confirm.row.id, false);
-                toast.success(`${confirm.row.code} deactivated.`);
-            }
-            await refreshUoms();
-        } catch (e) {
-            toast.error(e instanceof Error ? e.message : 'Action failed');
-            throw e; // keep dialog open on failure
-        }
-    }
+    };
 
     const columns: DataTableColumn<InventoryUom>[] = [
         {
             key: 'code',
             header: 'Code',
-            primary: true,
             cell: (row) => (
-                <button
-                    onClick={() =>
-                        router.push(`/inventory/configurations/uom/${row.id}/view`)
-                    }
-                    className="inline-flex items-center gap-1.5 font-medium text-primary hover:underline"
-                >
-                    {row.code}
+                <span className="inline-flex items-center gap-1.5">
+                    <span className="rounded bg-gray-100 px-2.5 py-1 font-mono text-xs text-gray-600">
+                        {row.code}
+                    </span>
                     {row.is_default && (
-                        <Star className="size-3.5 fill-warning text-warning" />
+                        <Star
+                            size={12}
+                            className="fill-amber-400 text-amber-400"
+                            aria-label="Default unit"
+                        />
                     )}
-                </button>
+                </span>
             ),
         },
-        { key: 'name', header: 'Name', cell: (row) => row.name },
+        {
+            key: 'name',
+            header: 'Name',
+            cell: (row) => (
+                <div className="min-w-0">
+                    <div className="truncate font-mono text-xs text-gray-900">
+                        {row.name}
+                    </div>
+                    {row.description && (
+                        <div className="mt-0.5 truncate text-xs text-gray-500">
+                            {row.description}
+                        </div>
+                    )}
+                </div>
+            ),
+        },
         {
             key: 'display_name',
             header: 'Symbol',
             cell: (row) => (
-                <span className="font-mono text-xs text-muted-foreground">
+                <span className="font-mono text-xs text-gray-700">
                     {row.display_name}
                 </span>
             ),
@@ -124,141 +126,111 @@ export default function InventoryUomListModule({
             key: 'status',
             header: 'Status',
             cell: (row) => (
-                <StatusBadge status={row.is_active ? 'ACTIVE' : 'INACTIVE'} />
+                <span
+                    className={`inline-flex items-center rounded-md px-2 py-1 font-mono text-[10px] ${
+                        row.is_active
+                            ? 'bg-emerald-50 text-emerald-600'
+                            : 'bg-slate-100 text-slate-500'
+                    }`}
+                >
+                    {row.is_active ? 'Active' : 'Inactive'}
+                </span>
             ),
         },
         {
             key: 'usage',
             header: 'Usage',
-            align: 'right',
+            headerClassName: 'text-right',
+            cellClassName: 'text-right',
             cell: (row) => (
-                <span className="tabular-nums text-muted-foreground">
-                    {row.item_count ?? 0} item{(row.item_count ?? 0) === 1 ? '' : 's'}
+                <span className="font-mono text-xs text-gray-700">
+                    {row.item_count ?? 0} item
+                    {(row.item_count ?? 0) === 1 ? '' : 's'}
                 </span>
             ),
         },
-        {
-            key: 'actions',
-            header: 'Actions',
-            align: 'right',
-            cardFooter: true,
-            cell: (row) => (
-                <div className="flex flex-wrap items-center justify-end gap-1.5">
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
-                            router.push(
-                                `/inventory/configurations/uom/${row.id}/view`,
-                            )
-                        }
-                    >
-                        <Eye size={14} /> View
-                    </Button>
-                    {permission.can_update && (
-                        <>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() =>
-                                    router.push(
-                                        `/inventory/configurations/uom/${row.id}/update`,
-                                    )
-                                }
-                            >
-                                <Edit2 size={14} /> Edit
-                            </Button>
-                            {!row.is_default && row.is_active && (
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => setDefault(row)}
-                                >
-                                    <Star size={14} /> Set Default
-                                </Button>
-                            )}
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() =>
-                                    row.is_active
-                                        ? setConfirm({ kind: 'deactivate', row })
-                                        : setActive(row, true)
-                                }
-                            >
-                                <Power size={14} />{' '}
-                                {row.is_active ? 'Deactivate' : 'Activate'}
-                            </Button>
-                        </>
-                    )}
-                    {permission.can_delete && (
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            className="text-danger hover:text-danger"
-                            onClick={() => setConfirm({ kind: 'delete', row })}
-                        >
-                            <Trash2 size={14} /> Delete
-                        </Button>
-                    )}
-                </div>
-            ),
-        },
+        ...(dynamicActions.length > 0
+            ? [
+                  {
+                      key: 'actions',
+                      header: 'Actions',
+                      headerClassName: 'text-right',
+                      cellClassName: 'text-right',
+                      cell: (row: InventoryUom) =>
+                          ButtonActionDynamicRender(dynamicActions, row, () =>
+                              setDeletingId(row.id),
+                          ),
+                  } satisfies DataTableColumn<InventoryUom>,
+              ]
+            : []),
     ];
 
     return (
-        <div className="space-y-4">
-            <PageHeader
-                title="Units of Measure"
-                description="Master list of units used across inventory and transactions."
-                actions={
-                    permission.can_create && (
-                        <Button
-                            onClick={() =>
-                                router.push('/inventory/configurations/uom/create')
-                            }
-                        >
-                            <Plus size={16} /> New UOM
-                        </Button>
-                    )
-                }
+        <>
+            {toast && (
+                <div
+                    className={`fixed right-4 top-4 z-50 rounded-xl px-4 py-3 text-sm font-medium shadow-lg ${
+                        toast.type === 'success'
+                            ? 'bg-emerald-500 text-white'
+                            : 'bg-rose-500 text-white'
+                    }`}
+                >
+                    {toast.msg}
+                </div>
+            )}
+
+            <PopUpDeleteTransactionModal
+                open={!!deletingId}
+                loading={isDeleting}
+                onClose={() => setDeletingId(null)}
+                onConfirm={onConfirmDelete}
             />
 
-            <DataTable<InventoryUom>
-                columns={columns}
-                data={items}
-                keyExtractor={(row) => row.id}
-                mobileVariant="cards"
-                minTableWidth="820px"
-                searchFn={(row, q) =>
-                    row.code.toLowerCase().includes(q) ||
-                    row.name.toLowerCase().includes(q) ||
-                    row.display_name.toLowerCase().includes(q) ||
-                    (row.description ?? '').toLowerCase().includes(q)
-                }
-                searchPlaceholder="Search by code, name, or description..."
-                emptyIcon={<Ruler className="size-8" />}
-                emptyTitle="No units of measure"
-                emptyDescription="Create a UOM like Piece (PCS) or Kilogram (KG) to get started."
-            />
+            <div className="w-full min-w-0 space-y-5 font-mono">
+                <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
+                    <div>
+                        <h2 className="flex items-center gap-2 text-2xl text-slate-800">
+                            <Ruler className="text-[#1a9e52]" />
+                            Unit of Measure
+                        </h2>
+                        <p className="mt-1 text-slate-500">
+                            Manage the units used across inventory and transactions
+                        </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        {staticActions.map((action) => (
+                            <span key={action.key}>
+                                {ButtonActionStaticRender(action, false)}
+                            </span>
+                        ))}
+                    </div>
+                </div>
 
-            <ConfirmDialog
-                open={confirm !== null}
-                onOpenChange={(o) => !o && setConfirm(null)}
-                title={
-                    confirm?.kind === 'delete'
-                        ? `Delete ${confirm?.row.code}?`
-                        : `Deactivate ${confirm?.row.code}?`
-                }
-                description={
-                    confirm?.kind === 'delete'
-                        ? 'This permanently removes the unit. Units used by items or transactions cannot be deleted — deactivate them instead.'
-                        : 'Inactive units stay on historical records but cannot be chosen on new transactions.'
-                }
-                confirmLabel={confirm?.kind === 'delete' ? 'Delete' : 'Deactivate'}
-                tone="danger"
-                onConfirm={runConfirm}
-            />
-        </div>
+                <DataTable<InventoryUom>
+                    columns={columns}
+                    data={tableData}
+                    keyExtractor={(row) => row.id}
+                    searchFn={(row, q) =>
+                        row.code.toLowerCase().includes(q) ||
+                        row.name.toLowerCase().includes(q) ||
+                        row.display_name.toLowerCase().includes(q) ||
+                        (row.description ?? '').toLowerCase().includes(q)
+                    }
+                    searchPlaceholder="Search by code, name, or description..."
+                    pageSize={tableMeta.limit}
+                    pageSizeOptions={[10, 20, 50]}
+                    serverSide={{
+                        total: tableMeta.total,
+                        page: tableMeta.page,
+                        totalPages: tableMeta.totalPages,
+                        onPageChange: (p) => fetchPage(p, tableMeta.limit),
+                        onPageSizeChange: (limit) => fetchPage(1, limit),
+                    }}
+                    emptyIcon={<Ruler size={32} />}
+                    emptyTitle="No units of measure found"
+                    emptyDescription="Create a unit like Piece (PCS) or Kilogram (KG) to get started"
+                />
+            </div>
+        </>
     );
 }

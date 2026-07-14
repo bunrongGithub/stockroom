@@ -5,16 +5,16 @@ import {
     EditableTextarea,
     FieldLabel,
 } from '@/components/ui/FieldLabel';
-import { PageHeader } from '@/components/ui/PageHeader';
-import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
-import { Spinner } from '@/components/ui/Spinner';
 import { useToast } from '@/components/ui/Toast';
 import { uomApi } from '@/lib/api/uom';
 import type { InventoryUom } from '@/service/apps/inventory/repo/uom';
-import { ArrowLeft } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Loader2, Ruler, X } from 'lucide-react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+
+const LIST_URL = '/inventory/configurations/uom';
 
 export default function UomForm({
     mode,
@@ -59,7 +59,7 @@ export default function UomForm({
             toast.success(
                 `Unit ${saved.code} ${mode === 'create' ? 'created' : 'updated'}.`,
             );
-            router.push(`/inventory/configurations/uom/${saved.id}/view`);
+            router.push(`${LIST_URL}/${saved.id}/view`);
             router.refresh();
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to save');
@@ -69,119 +69,160 @@ export default function UomForm({
     }
 
     return (
-        <div className="mx-auto max-w-2xl space-y-4">
-            <button
-                type="button"
-                onClick={() => router.push('/inventory/configurations/uom')}
-                className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-            >
-                <ArrowLeft size={16} /> Back to Units of Measure
-            </button>
-
-            <PageHeader
-                title={mode === 'create' ? 'New Unit of Measure' : `Edit ${initial?.code}`}
-                description="Master unit used across inventory items and transactions."
-            />
+        <div className="space-y-4 font-mono text-xs">
+            <div>
+                <Link
+                    href={LIST_URL}
+                    className="inline-flex items-center gap-2 text-slate-500 transition-colors hover:text-slate-700"
+                >
+                    <ArrowLeft size={16} /> Back to Unit of Measure
+                </Link>
+                <h2 className="mt-3 flex items-center gap-2 text-2xl font-bold text-slate-800 md:text-3xl">
+                    <Ruler className="text-[#1a9e52]" />
+                    {mode === 'create'
+                        ? 'New Unit of Measure'
+                        : `Edit ${initial?.code}`}
+                </h2>
+            </div>
 
             {error && (
-                <div className="rounded-xl border border-danger/30 bg-danger-muted px-4 py-3 text-sm text-danger">
-                    {error}
+                <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+                    <AlertCircle size={18} className="mt-0.5 shrink-0 text-red-500" />
+                    <p className="text-red-700">{error}</p>
+                    <button
+                        type="button"
+                        onClick={() => setError('')}
+                        className="ml-auto shrink-0 text-red-400 hover:text-red-600"
+                    >
+                        <X size={16} />
+                    </button>
                 </div>
             )}
 
             <form
                 onSubmit={handleSubmit}
-                className="space-y-5 rounded-2xl border border-border/60 bg-card p-5 shadow-sm"
+                className="grid gap-6 xl:grid-cols-[350px_minmax(0,1fr)]"
             >
-                <div className="grid gap-4 sm:grid-cols-2">
-                    <div>
-                        <FieldLabel required>Code</FieldLabel>
-                        <EditableInput
-                            value={code}
-                            onChange={(e) => setCode(e.target.value.toUpperCase())}
-                            placeholder="e.g. PCS, KG, BOX"
-                            maxLength={20}
-                            autoFocus
-                        />
-                        <p className="mt-1 text-xs text-muted-foreground">
-                            Unique business code (auto-uppercased).
-                        </p>
-                    </div>
-                    <div>
-                        <FieldLabel required>Symbol</FieldLabel>
-                        <EditableInput
-                            value={displayName}
-                            onChange={(e) => setDisplayName(e.target.value)}
-                            placeholder="e.g. pcs, kg, box"
-                            maxLength={20}
-                        />
-                        <p className="mt-1 text-xs text-muted-foreground">
-                            Shown on documents (max 20 chars).
-                        </p>
-                    </div>
-                </div>
-
-                <div>
-                    <FieldLabel required>Name</FieldLabel>
-                    <EditableInput
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        placeholder="e.g. Pieces, Kilogram, Box"
-                    />
-                </div>
-
-                <div>
-                    <FieldLabel>Description</FieldLabel>
-                    <EditableTextarea
-                        value={description}
-                        onChange={(e) => setDescription(e.target.value)}
-                        placeholder="Optional notes about this unit"
-                        rows={3}
-                    />
-                </div>
-
-                <div className="flex flex-col gap-4 border-t border-border/40 pt-4 sm:flex-row sm:gap-8">
-                    <label className="flex items-center gap-3">
-                        <Switch
-                            checked={isActive}
-                            onCheckedChange={(v) => setIsActive(v)}
-                        />
-                        <span className="text-sm">
-                            <span className="font-medium">Active</span>
-                            <span className="block text-xs text-muted-foreground">
-                                Inactive units can't be used on new transactions.
+                {/* Sidebar */}
+                <aside className="space-y-4 self-start xl:sticky xl:top-6">
+                    <section className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
+                        <div className="flex items-center gap-2 border-b border-slate-50 bg-slate-50/80 px-4 py-2.5">
+                            <Ruler size={13} className="text-[#1a9e52]" />
+                            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                                Settings
                             </span>
-                        </span>
-                    </label>
-                    <label className="flex items-center gap-3">
-                        <Switch
-                            checked={isDefault}
-                            onCheckedChange={(v) => setIsDefault(v)}
-                        />
-                        <span className="text-sm">
-                            <span className="font-medium">Default unit</span>
-                            <span className="block text-xs text-muted-foreground">
-                                Auto-selected where appropriate (one per company).
-                            </span>
-                        </span>
-                    </label>
-                </div>
+                        </div>
+                        <div className="space-y-4 p-4">
+                            <label className="flex items-start gap-3">
+                                <Switch
+                                    checked={isActive}
+                                    onCheckedChange={setIsActive}
+                                />
+                                <span>
+                                    <span className="font-semibold text-slate-800">
+                                        Active
+                                    </span>
+                                    <span className="mt-0.5 block text-slate-400">
+                                        Inactive units can&apos;t be used on new
+                                        records.
+                                    </span>
+                                </span>
+                            </label>
+                            <label className="flex items-start gap-3">
+                                <Switch
+                                    checked={isDefault}
+                                    onCheckedChange={setIsDefault}
+                                />
+                                <span>
+                                    <span className="font-semibold text-slate-800">
+                                        Default unit
+                                    </span>
+                                    <span className="mt-0.5 block text-slate-400">
+                                        One per company.
+                                    </span>
+                                </span>
+                            </label>
+                        </div>
+                    </section>
 
-                <div className="flex flex-col-reverse gap-2 border-t border-border/40 pt-4 sm:flex-row sm:justify-end">
-                    <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() =>
-                            router.push('/inventory/configurations/uom')
-                        }
-                    >
-                        Cancel
-                    </Button>
-                    <Button type="submit" disabled={saving}>
-                        {saving && <Spinner size={15} className="text-current" />}
-                        {mode === 'create' ? 'Create UOM' : 'Save Changes'}
-                    </Button>
-                </div>
+                    <div className="flex flex-col-reverse gap-2">
+                        <Link
+                            href={LIST_URL}
+                            className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-center text-slate-600 transition-colors hover:bg-slate-50"
+                        >
+                            Cancel
+                        </Link>
+                        <button
+                            type="submit"
+                            disabled={saving}
+                            className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 font-semibold text-white transition-colors hover:bg-emerald-700 disabled:opacity-50"
+                        >
+                            {saving && (
+                                <Loader2 className="animate-spin" size={16} />
+                            )}
+                            {saving
+                                ? 'Saving...'
+                                : mode === 'create'
+                                  ? 'Save Unit'
+                                  : 'Save Changes'}
+                        </button>
+                    </div>
+                </aside>
+
+                {/* Main */}
+                <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+                    <h3 className="mb-4 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                        <Ruler size={13} className="text-[#1a9e52]" /> Unit
+                        Information
+                    </h3>
+
+                    <div className="grid gap-4 lg:grid-cols-2">
+                        <div>
+                            <FieldLabel required>Code</FieldLabel>
+                            <EditableInput
+                                value={code}
+                                onChange={(e) =>
+                                    setCode(e.target.value.toUpperCase())
+                                }
+                                placeholder="e.g. PCS, KG, BOX"
+                                maxLength={20}
+                                autoFocus
+                            />
+                            <p className="mt-1 text-slate-400">
+                                Unique business code (auto-uppercased).
+                            </p>
+                        </div>
+                        <div>
+                            <FieldLabel required>Symbol</FieldLabel>
+                            <EditableInput
+                                value={displayName}
+                                onChange={(e) => setDisplayName(e.target.value)}
+                                placeholder="e.g. pcs, kg, box"
+                                maxLength={20}
+                            />
+                            <p className="mt-1 text-slate-400">
+                                Shown on documents.
+                            </p>
+                        </div>
+                        <div className="lg:col-span-2">
+                            <FieldLabel required>Name</FieldLabel>
+                            <EditableInput
+                                value={name}
+                                onChange={(e) => setName(e.target.value)}
+                                placeholder="e.g. Pieces, Kilogram, Box"
+                            />
+                        </div>
+                        <div className="lg:col-span-2">
+                            <FieldLabel>Description</FieldLabel>
+                            <EditableTextarea
+                                value={description}
+                                onChange={(e) => setDescription(e.target.value)}
+                                placeholder="Optional notes about this unit"
+                                rows={3}
+                            />
+                        </div>
+                    </div>
+                </section>
             </form>
         </div>
     );

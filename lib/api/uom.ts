@@ -45,6 +45,8 @@ export type UomDetail = {
 export const uomApi = {
     async list(params: UomListParams = {}): Promise<InventoryUom[]> {
         const url = new URL(API.inventory.uom.root, window.location.origin);
+        // The list page paginates server-side; callers that want a full lookup
+        // list (pickers) get everything unless they ask for a page.
         url.searchParams.set('limit', String(params.limit ?? 10));
         if (params.search) url.searchParams.set('search', params.search);
         if (params.status === 'active') url.searchParams.set('status', 'active');

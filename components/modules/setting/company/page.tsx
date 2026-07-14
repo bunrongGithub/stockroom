@@ -9,16 +9,20 @@ import { useRegisterModule } from '@/hook/useModule';
 import { usePageActions } from '@/hook/usePageAction';
 import type { ModuleProps } from '@/lib/registry';
 import type { Company } from '@/types/setting/company';
+import type { TMeta } from '@/types/app';
 import { Building2, Plus } from 'lucide-react';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getCompanyColumns } from './columns';
+
+const DEFAULT_META: TMeta = { total: 0, page: 1, limit: 10, totalPages: 0 };
 
 export default function CompanyModule({
     currentPath,
     permission,
     currentPathActions,
     initialData,
+    initialMeta,
 }: ModuleProps) {
     useRegisterModule({
         actionModules: currentPathActions,
@@ -31,7 +35,22 @@ export default function CompanyModule({
     const dynamicActions = pageAction?.actions.filter((a) => a.dynamic) ?? [];
 
     const router = useRouter();
-    const [companies] = useState<Company[]>((initialData as Company[]) ?? []);
+    const [companies, setCompanies] = useState<Company[]>(
+        (initialData as Company[]) ?? [],
+    );
+    const [meta, setMeta] = useState<TMeta>(initialMeta ?? DEFAULT_META);
+
+    // Server-side pagination: only one page is held at a time.
+    const fetchPage = async (page: number, limit: number) => {
+        const res = await fetch(
+            `/api${currentPath.path}?page=${page}&limit=${limit}`,
+        );
+        if (res.ok) {
+            const json = await res.json();
+            setCompanies(json.data ?? []);
+            setMeta(json.meta ?? DEFAULT_META);
+        }
+    };
 
     return (
         <div className="space-y-4">
@@ -80,6 +99,15 @@ export default function CompanyModule({
                         row.status.toLowerCase().includes(q)
                     }
                     searchPlaceholder="Search by name, email, or status..."
+                    pageSize={meta.limit}
+                    pageSizeOptions={[10, 20, 50]}
+                    serverSide={{
+                        total: meta.total,
+                        page: meta.page,
+                        totalPages: meta.totalPages,
+                        onPageChange: (p) => fetchPage(p, meta.limit),
+                        onPageSizeChange: (limit) => fetchPage(1, limit),
+                    }}
                 />
             )}
         </div>

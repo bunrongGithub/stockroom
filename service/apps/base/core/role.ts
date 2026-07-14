@@ -21,9 +21,13 @@ export class Role extends BaseRepository {
         params: PaginationParams,
         companyId?: number,
     ) {
+        // `count: 'exact'` is required — without it Supabase returns count=null,
+        // so meta.total/totalPages come back 0 and the list can never paginate.
         const baseQuery = this.db
             .from('roles')
-            .select('id, name, description, created_at, company(id, name)')
+            .select('id, name, description, created_at, company(id, name)', {
+                count: 'exact',
+            })
             .order('id', { ascending: false });
 
         const isSuperUser = await this.isSupperUser(context);
