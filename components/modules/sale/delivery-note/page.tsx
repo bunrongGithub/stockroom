@@ -5,6 +5,7 @@ import { useRegisterModule } from '@/hook/useModule';
 import type { ModuleProps } from '@/lib/registry';
 import { saleShipmentApi } from '@/lib/api/sale';
 import type { SalesShipment, SalesShipmentStatus } from '@/types/sales/order-management';
+import type { TMeta } from '@/types/app';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
@@ -26,13 +27,16 @@ function StatusBadge({ status }: { status: SalesShipmentStatus }) {
     return <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-mono font-medium ${map[status]}`}>{status}</span>;
 }
 
-export default function SaleShipmentPage({ currentPath, permission, currentPathActions, initialData }: ModuleProps) {
+const DEFAULT_META: TMeta = { total: 0, page: 1, limit: 10, totalPages: 0 };
+
+export default function SaleShipmentPage({ currentPath, permission, currentPathActions, initialData, initialMeta }: ModuleProps) {
     useRegisterModule({ actionModules: currentPathActions, permission, modulePath: currentPath.path });
 
     const router = useRouter();
     const [shipments, setShipments] = useState<SalesShipment[]>(
         (initialData as SalesShipment[]) ?? [],
     );
+    const [meta, setMeta] = useState<TMeta>(initialMeta ?? DEFAULT_META);
     const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
     const [confirm, setConfirm] = useState<{ type: 'post' | 'void' | 'delete'; id: number; no: string } | null>(null);
     const [busy, setBusy] = useState(false);
@@ -42,12 +46,19 @@ export default function SaleShipmentPage({ currentPath, permission, currentPathA
         setTimeout(() => setToast(null), 4000);
     }
 
-    async function refreshShipments() {
+    // Server-side pagination: one page in memory, so paging re-queries.
+    async function fetchPage(page: number, limit: number) {
         try {
-            setShipments(await saleShipmentApi.list());
+            const res = await saleShipmentApi.listPage({ page, limit });
+            setShipments(res.data);
+            setMeta(res.meta ?? DEFAULT_META);
         } catch (e) {
             showToast(e instanceof Error ? e.message : 'Failed to load shipments', 'error');
         }
+    }
+
+    async function refreshShipments() {
+        await fetchPage(meta.page, meta.limit);
     }
 
     async function runAction() {
@@ -163,7 +174,15 @@ export default function SaleShipmentPage({ currentPath, permission, currentPathA
                     row.status.toLowerCase().includes(q)
                 }
                 searchPlaceholder="Search by shipment no, order, or status..."
-                pageSize={10}
+                pageSize={meta.limit}
+                pageSizeOptions={[10, 20, 50]}
+                serverSide={{
+                    total: meta.total,
+                    page: meta.page,
+                    totalPages: meta.totalPages,
+                    onPageChange: (p) => fetchPage(p, meta.limit),
+                    onPageSizeChange: (limit) => fetchPage(1, limit),
+                }}
                 emptyTitle="No shipments"
                 emptyDescription="Create a shipment from a sales order"
             />

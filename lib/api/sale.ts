@@ -40,15 +40,29 @@ export function jsonInit(method: string, payload: unknown): RequestInit {
 
 // ─── Sales Order ─────────────────────────────────────────────────────────────
 
+/** Query for a server-paginated list. The server owns page/limit/search. */
+export type ListParams = { page?: number; limit?: number; search?: string };
+
+function listUrl(base: string, params: ListParams): string {
+    const url = new URL(base, window.location.origin);
+    url.searchParams.set('page', String(params.page ?? 1));
+    url.searchParams.set('limit', String(params.limit ?? 10));
+    if (params.search) url.searchParams.set('search', params.search);
+    return url.toString();
+}
+
 export const saleOrderApi = {
-    async list(search = ''): Promise<SalesOrder[]> {
-        const url = new URL(API.sale.order.root, window.location.origin);
-        url.searchParams.set('limit', '10');
-        if (search) url.searchParams.set('search', search);
-        const body = await unwrap<{ data: SalesOrder[] }>(
-            await fetch(url.toString()),
+    /** One page WITH its meta — the list needs `total` to paginate at all. */
+    async listPage(params: ListParams = {}): Promise<Paginated<SalesOrder>> {
+        const body = await unwrap<Paginated<SalesOrder>>(
+            await fetch(listUrl(API.sale.order.root, params)),
         );
-        return body.data ?? [];
+        return { data: body.data ?? [], meta: body.meta };
+    },
+
+    async list(search = ''): Promise<SalesOrder[]> {
+        const { data } = await this.listPage({ search, limit: 10 });
+        return data;
     },
     async get(id: number | string): Promise<SalesOrder> {
         const body = await unwrap<{ data: SalesOrder }>(
@@ -93,18 +107,32 @@ export const saleOrderApi = {
 // ─── Sales Shipment ──────────────────────────────────────────────────────────
 
 export const saleShipmentApi = {
+    async listPage(params: ListParams = {}): Promise<Paginated<SalesShipment>> {
+        const body = await unwrap<Paginated<SalesShipment>>(
+            await fetch(listUrl(API.sale.shipment.root, params)),
+        );
+        return { data: body.data ?? [], meta: body.meta };
+    },
+
     async list(search = ''): Promise<SalesShipment[]> {
+        const { data } = await this.listPage({ search, limit: 10 });
+        return data;
+    },
+
+    /**
+     * Shipments of one order — filtered by the SERVER. It used to pull the 10
+     * most recent shipments company-wide and filter them in the browser, so an
+     * order's shipments vanished from its detail page as soon as ten newer
+     * shipments existed anywhere.
+     */
+    async byOrder(orderId: number): Promise<SalesShipment[]> {
         const url = new URL(API.sale.shipment.root, window.location.origin);
-        url.searchParams.set('limit', '10');
-        if (search) url.searchParams.set('search', search);
+        url.searchParams.set('sales_order_id', String(orderId));
+        url.searchParams.set('limit', '100');
         const body = await unwrap<{ data: SalesShipment[] }>(
             await fetch(url.toString()),
         );
         return body.data ?? [];
-    },
-    async byOrder(orderId: number): Promise<SalesShipment[]> {
-        const all = await this.list();
-        return all.filter((s) => s.sales_order_id === orderId);
     },
     async get(id: number | string): Promise<SalesShipment> {
         const body = await unwrap<{ data: SalesShipment }>(

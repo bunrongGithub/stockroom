@@ -8,6 +8,8 @@ import { WarehouseRepository } from '@/service/apps/inventory/repo/warehouse';
 import { ReceiptRepository } from '@/service/apps/inventory/repo/receipt';
 import { ModuleRepository } from '@/service/apps/setting/repo/module';
 import { Role } from '@/service/apps/base/core/role';
+import { SalesOrderRepository } from '@/service/apps/sale/repo/order';
+import { SalesShipmentRepository } from '@/service/apps/sale/repo/shipment';
 
 // ─── Server-side initial-data registry ──────────────────────────────────────
 // Maps a module path (the `modules.path` pattern) to the repository call that
@@ -118,6 +120,31 @@ const dataRegistry = new Map<string, DataLoader>([
                 Number(pathParams.id),
             ),
         }),
+    ],
+
+    // ── Sale ────────────────────────────────────────────────────────────────
+    // Without these the catch-all falls back to an HTTP loopback on
+    // `apiUrl(path)`, which 404s for Delivery (module path ≠ API path) and
+    // silently renders an empty list.
+    [
+        '/sale/order',
+        (ctx, { page, limit, search }) =>
+            SalesOrderRepository.getInstance().findAll(ctx, {
+                page,
+                limit,
+                search,
+                // Counter sales live on the Cash Sale list, not the order pipeline.
+                sourceChannel: 'sales_order',
+            }),
+    ],
+    [
+        '/sale/delivery-note',
+        (ctx, { page, limit, search }) =>
+            SalesShipmentRepository.getInstance().findAll(ctx, {
+                page,
+                limit,
+                search,
+            }),
     ],
 
     // ── Setting ─────────────────────────────────────────────────────────────

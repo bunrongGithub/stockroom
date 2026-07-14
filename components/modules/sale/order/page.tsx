@@ -10,6 +10,7 @@ import { useRegisterModule } from '@/hook/useModule';
 import type { ModuleProps } from '@/lib/registry';
 import { saleOrderApi } from '@/lib/api/sale';
 import type { SalesOrder, SalesOrderStatus } from '@/types/sales/order-management';
+import type { TMeta } from '@/types/app';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
@@ -32,7 +33,9 @@ function fmt(n: number) {
     return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-export default function SaleOrderPage({ currentPath, permission, currentPathActions, initialData }: ModuleProps) {
+const DEFAULT_META: TMeta = { total: 0, page: 1, limit: 10, totalPages: 0 };
+
+export default function SaleOrderPage({ currentPath, permission, currentPathActions, initialData, initialMeta }: ModuleProps) {
     useRegisterModule({ actionModules: currentPathActions, permission, modulePath: currentPath.path });
 
     const router = useRouter();
@@ -40,14 +43,24 @@ export default function SaleOrderPage({ currentPath, permission, currentPathActi
     const [orders, setOrders] = useState<SalesOrder[]>(
         (initialData as SalesOrder[]) ?? [],
     );
+    const [meta, setMeta] = useState<TMeta>(initialMeta ?? DEFAULT_META);
     const [confirmAction, setConfirmAction] = useState<{ type: 'cancel' | 'close'; id: number; no: string } | null>(null);
 
-    async function refreshOrders() {
+    // Server-side pagination: the list only ever holds ONE page, so a page (or
+    // page-size) change has to re-query rather than slice what is in memory.
+    async function fetchPage(page: number, limit: number) {
         try {
-            setOrders(await saleOrderApi.list());
+            const res = await saleOrderApi.listPage({ page, limit });
+            setOrders(res.data);
+            setMeta(res.meta ?? DEFAULT_META);
         } catch (e) {
             toast.error(e instanceof Error ? e.message : 'Failed to load orders');
         }
+    }
+
+    /** Re-read the current page so totals and statuses stay truthful. */
+    async function refreshOrders() {
+        await fetchPage(meta.page, meta.limit);
     }
 
     async function runAction(type: 'cancel' | 'close', id: number) {
@@ -162,7 +175,15 @@ export default function SaleOrderPage({ currentPath, permission, currentPathActi
                         row.status.toLowerCase().includes(q)
                     }
                     searchPlaceholder="Search by order no, customer, or status..."
-                    pageSize={10}
+                    pageSize={meta.limit}
+                    pageSizeOptions={[10, 20, 50]}
+                    serverSide={{
+                        total: meta.total,
+                        page: meta.page,
+                        totalPages: meta.totalPages,
+                        onPageChange: (p) => fetchPage(p, meta.limit),
+                        onPageSizeChange: (limit) => fetchPage(1, limit),
+                    }}
                     emptyTitle="No sales orders"
                     emptyDescription="Create your first sales order to get started"
                 />

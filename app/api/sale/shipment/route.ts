@@ -11,11 +11,13 @@ export async function GET(req: NextRequest) {
     try {
         const ctx = getRequestContext(req);
         const sp = req.nextUrl.searchParams;
+        const salesOrderId = Number(sp.get('sales_order_id')) || undefined;
         const result = await service.findAll(ctx, {
             page: Number(sp.get('page') || 1),
             limit: Number(sp.get('limit') || 10),
             search: sp.get('search') ?? undefined,
             searchColumn: 'shipment_no',
+            salesOrderId,
         });
         return new ApiResponseSuccess(result, 'Success').toResponse();
     } catch (error) {

@@ -114,7 +114,7 @@ export class SalesShipmentRepository extends BaseRepository {
 
     async findAll(
         ctx: RequestContext,
-        params: PaginationParams,
+        params: PaginationParams & { salesOrderId?: number },
     ): Promise<PaginatedResult<SalesShipment>> {
         const isSuperUser = await this.isSupperUser(ctx);
         let query = this.applyFilter(
@@ -122,6 +122,10 @@ export class SalesShipmentRepository extends BaseRepository {
             ctx,
             isSuperUser,
         ).order('id', { ascending: false });
+        // An order's own shipments (its detail page) — filtered server-side.
+        if (params.salesOrderId) {
+            query = query.eq('sales_order_id', params.salesOrderId);
+        }
         // Search matches the system number OR the user reference number.
         if (params.search) {
             query = query.or(
