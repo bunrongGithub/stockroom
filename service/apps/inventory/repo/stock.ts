@@ -80,16 +80,23 @@ export class InventoryRepository extends BaseRepository {
 
     async findAllByClass(
         ctx: RequestContext,
-        params: PaginationParams,
+        params: PaginationParams & { sellableOnly?: boolean },
         itemClass: 'stock' | 'non_stock' | 'service',
     ): Promise<PaginatedResult<InventoryItem>> {
         const isSuperUser = await this.isSupperUser(ctx);
 
-        const query = this.db
+        let query = this.db
             .from(TABLE)
             .select(SELECT_COLS, { count: 'exact' })
             .eq('item_class', itemClass)
             .order('id', { ascending: false });
+
+        // `is_sellable` means "can be sold through any sales channel" (Sales
+        // Order, Cash Sale, POS…). Sales pickers ask for sellable items only;
+        // the item-master list still shows everything.
+        if (params.sellableOnly) {
+            query = query.eq('is_sellable', true);
+        }
 
         if (isSuperUser) return await this.paginate(query, params);
 

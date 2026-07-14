@@ -1,0 +1,141 @@
+'use client';
+
+import { API } from '@/lib/constant';
+
+/**
+ * Client for the Cash Sale workflow. The server is the authority on prices,
+ * stock and serials — `validate` previews a cart, `complete` performs the whole
+ * order → shipment → invoice → payment chain in one call.
+ */
+
+export type CashSaleLinePayload = {
+    item_id: number;
+    item_uom_id?: number | null;
+    description?: string | null;
+    quantity: number;
+    unit_price?: number;
+    discount?: number;
+    tax?: number;
+    location_id?: number | null;
+    serial_numbers?: string[];
+};
+
+export type CashSalePayload = {
+    idempotency_key?: string;
+    customer?: {
+        customer_id?: number | null;
+        name?: string;
+        phone?: string | null;
+    };
+    warehouse_id?: number;
+    location_id?: number;
+    items: CashSaleLinePayload[];
+    payment_method: 'CASH' | 'CARD' | 'BANK_TRANSFER' | 'CHEQUE' | 'KHQR';
+    payment_reference_no?: string | null;
+    currency?: string;
+    notes?: string | null;
+};
+
+export type CashSaleResult = {
+    order: { id: number; order_no: string; grand_total: number };
+    shipment: { id: number; shipment_no: string };
+    invoice: { id: number; invoice_no: string; grand_total: number };
+    payment: { id: number; payment_no: string; amount: number };
+};
+
+export type SalesSettings = {
+    default_sales_warehouse_id: number | null;
+    default_sales_warehouse_name: string | null;
+    default_sales_location_id: number | null;
+    default_sales_location_name: string | null;
+};
+
+export type Customer = {
+    id: number;
+    name: string;
+    phone: string | null;
+    email: string | null;
+};
+
+async function unwrap<T>(res: Response): Promise<T> {
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+        const err = body?.error;
+        const message =
+            typeof err === 'string'
+                ? err
+                : err && typeof err === 'object'
+                  ? Object.values(err as Record<string, string[]>)
+                        .flat()
+                        .join(', ')
+                  : 'Request failed';
+        throw new Error(message);
+    }
+    return body as T;
+}
+
+function post(url: string, payload: unknown): Promise<Response> {
+    return fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    });
+}
+
+export const cashSaleApi = {
+    async settings(): Promise<SalesSettings> {
+        const body = await unwrap<{ data: SalesSettings }>(
+            await fetch(API.sale.setting),
+        );
+        return body.data;
+    },
+
+    async updateSettings(patch: {
+        default_sales_warehouse_id?: number | null;
+        default_sales_location_id?: number | null;
+    }): Promise<SalesSettings> {
+        const body = await unwrap<{ data: SalesSettings }>(
+            await fetch(API.sale.setting, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(patch),
+            }),
+        );
+        return body.data;
+    },
+
+    async searchCustomers(search: string): Promise<Customer[]> {
+        const url = new URL(API.sale.customer.root, window.location.origin);
+        url.searchParams.set('limit', '10');
+        if (search) url.searchParams.set('search', search);
+        const body = await unwrap<{ data: Customer[] }>(
+            await fetch(url.toString()),
+        );
+        return body.data ?? [];
+    },
+
+    async createCustomer(payload: {
+        name: string;
+        phone?: string | null;
+    }): Promise<Customer> {
+        const body = await unwrap<{ data: Customer }>(
+            await post(API.sale.customer.root, payload),
+        );
+        return body.data;
+    },
+
+    /** Price the cart against live stock/prices without writing anything. */
+    async validate(payload: CashSalePayload): Promise<{ grand_total: number }> {
+        const body = await unwrap<{ data: { grand_total: number } }>(
+            await post(API.sale.cashSale.validate, payload),
+        );
+        return body.data;
+    },
+
+    async complete(payload: CashSalePayload): Promise<CashSaleResult> {
+        const body = await unwrap<{ data: CashSaleResult }>(
+            await post(API.sale.cashSale.root, payload),
+        );
+        return body.data;
+    },
+};

@@ -142,6 +142,12 @@ export const API = {
             post: (id: Id) => `/api/sale/shipment/${id}/post`,
             void: (id: Id) => `/api/sale/shipment/${id}/void`,
         },
+        cashSale: {
+            root: '/api/sale/cash-sale',
+            validate: '/api/sale/cash-sale/validate',
+        },
+        customer: resource('/api/sale/customer'),
+        setting: '/api/sale/configurations/setting',
     },
 
     stockTransfer: {

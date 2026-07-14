@@ -91,6 +91,15 @@ function mapShipment(r: any): SalesShipment {
     };
 }
 
+/**
+ * The repository's input, which is slightly wider than the HTTP schema: an
+ * in-process caller (Cash Sale) ships to walk-in customers who have no phone.
+ */
+export type CreateSalesShipmentRepoInput = Omit<
+    CreateSalesShipmentInput,
+    'customer_phone'
+> & { customer_phone?: string | null };
+
 // ─── Repository ─────────────────────────────────────────────────────────────
 
 export class SalesShipmentRepository extends BaseRepository {
@@ -143,7 +152,7 @@ export class SalesShipmentRepository extends BaseRepository {
 
     async insertOne(
         ctx: RequestContext,
-        input: CreateSalesShipmentInput,
+        input: CreateSalesShipmentRepoInput,
     ): Promise<SalesShipment> {
         const companyId = Number(ctx.companyId);
         const order = await this.loadShippableOrder(ctx, input.sales_order_id);
@@ -376,36 +385,129 @@ export class SalesShipmentRepository extends BaseRepository {
             items: movementItems,
         });
 
-        // 2. Accrue shipped quantities + recompute order status.
-        await orderService.incrementShipped(
-            ctx,
-            shipment.items.map((l) => ({
-                sales_order_item_id: l.sales_order_item_id,
-                qty: l.shipment_qty,
-            })),
-        );
-        await orderService.recomputeStatus(ctx, shipment.sales_order_id);
-
-        // 3. Mark the resolved serials sold (guarded update + history).
-        for (const plan of serialPlan) {
-            await serialRepo.markSoldByIds(
+        // Past this point stock has physically left the warehouse, so every
+        // remaining step must either complete or be undone — a serial that was
+        // taken by a concurrent sale (409) must not strand the deducted stock.
+        try {
+            // 2. Accrue shipped quantities + recompute order status.
+            await orderService.incrementShipped(
                 ctx,
-                plan.serialIds,
-                plan.lineId,
-                shipment.warehouse_id,
-                plan.locationId,
+                shipment.items.map((l) => ({
+                    sales_order_item_id: l.sales_order_item_id,
+                    qty: l.shipment_qty,
+                })),
             );
+            await orderService.recomputeStatus(ctx, shipment.sales_order_id);
+
+            // 3. Mark the resolved serials sold (guarded update + history).
+            for (const plan of serialPlan) {
+                await serialRepo.markSoldByIds(
+                    ctx,
+                    plan.serialIds,
+                    plan.lineId,
+                    shipment.warehouse_id,
+                    plan.locationId,
+                );
+            }
+
+            // 4. Mark posted.
+            const { error } = await this.db
+                .from(HEADER_TABLE)
+                .update({ status: 'POSTED' })
+                .eq('id', id)
+                .eq('company_id', companyId);
+            if (error) throw new ApiError(error.message, 500);
+        } catch (err) {
+            await this.undoPosting(ctx, shipment);
+            throw err;
         }
 
-        // 3. Mark posted.
+        return (await this.findOne(ctx, id))!;
+    }
+
+    /**
+     * Undo a POSTED shipment: serials go back to `available`, the stock movement
+     * is mirrored back IN, the order's shipped quantities are re-derived and the
+     * shipment returns to DRAFT.
+     *
+     * This is what makes the sales chain compensable — a Cash Sale that fails at
+     * invoicing or payment unwinds to zero instead of stranding stock. An
+     * invoiced shipment is refused: cancel/delete its invoices first (that is
+     * what the orchestrator's compensation order does).
+     */
+    async reversePosting(ctx: RequestContext, id: number): Promise<SalesShipment> {
+        const shipment = await this.findOne(ctx, id);
+        if (!shipment) throw new NotFoundError('Shipment not found');
+        if (shipment.status !== 'POSTED') {
+            throw new ApiError(
+                `Only a POSTED shipment can be reversed (this one is ${shipment.status}). Cancel its invoices first.`,
+                400,
+                'INVALID_STATUS',
+            );
+        }
+        await this.undoPosting(ctx, shipment);
+        return (await this.findOne(ctx, id))!;
+    }
+
+    /**
+     * The reversal itself, shared by `reversePosting` and `postOne`'s failure
+     * path. Every step is derived from current state (which serials are actually
+     * sold, which movement is actually posted), so it is safe to run against a
+     * partially-applied posting.
+     */
+    private async undoPosting(
+        ctx: RequestContext,
+        shipment: SalesShipment,
+    ): Promise<void> {
+        const companyId = Number(ctx.companyId);
+        const serialRepo = InventorySerialRepository.getInstance();
+        const movementRepo = MovementRepository.getInstance();
+
+        // 1. Un-sell serials (guarded: only rows still `sold` for these lines).
+        const lineIds = shipment.items.map((l) => l.id);
+        const sold = await serialRepo.findSoldBySaleItemIds(ctx, lineIds);
+        if (sold.length) {
+            const byLocation = new Map<string, typeof sold>();
+            for (const s of sold) {
+                const key = `${s.warehouse_id}:${s.location_id}`;
+                byLocation.set(key, [...(byLocation.get(key) ?? []), s]);
+            }
+            for (const group of byLocation.values()) {
+                await serialRepo.markReturnedByIds(
+                    ctx,
+                    group.map((s) => s.id),
+                    shipment.id,
+                    group[0].warehouse_id,
+                    group[0].location_id,
+                );
+            }
+        }
+
+        // 2. Put the stock back through the movement engine (mirror movement).
+        const movement = await movementRepo.findBySource(
+            ctx,
+            'sale_shipment',
+            shipment.id,
+        );
+        if (movement) {
+            await movementRepo.reverseMovement(ctx, movement.id, {
+                movement_type: 'SALE_RETURN',
+                remarks: `Reversal of shipment ${shipment.shipment_no}`,
+            });
+        }
+
+        // 3. Back to DRAFT, then re-derive the order from the shipments that
+        //    remain posted (this one no longer counts).
         const { error } = await this.db
             .from(HEADER_TABLE)
-            .update({ status: 'POSTED' })
-            .eq('id', id)
+            .update({ status: 'DRAFT' })
+            .eq('id', shipment.id)
             .eq('company_id', companyId);
         if (error) throw new ApiError(error.message, 500);
 
-        return (await this.findOne(ctx, id))!;
+        const orderService = SalesOrderRepository.getInstance();
+        await orderService.recomputeShippedQty(ctx, shipment.sales_order_id);
+        await orderService.recomputeStatus(ctx, shipment.sales_order_id);
     }
 
     /** Void a DRAFT shipment (POSTED cannot be voided — reverse via a return). */

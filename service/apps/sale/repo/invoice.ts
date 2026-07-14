@@ -494,6 +494,37 @@ export class SalesInvoiceRepository extends BaseRepository {
         );
     }
 
+    /**
+     * Remove a CANCELLED invoice. This is a COMPENSATION primitive, not an
+     * accounting operation: it exists so a sale that failed on its way to being
+     * paid (Cash Sale) leaves nothing behind — no invoice, and therefore no FK
+     * holding its order and shipment in place. A cancelled invoice that a human
+     * cancelled deliberately is never routed here; only the orchestrator that
+     * created it moments earlier calls it.
+     */
+    async deleteCancelled(ctx: RequestContext, id: number): Promise<void> {
+        const existing = await this.findOne(ctx, id);
+        if (!existing) return;
+        if (existing.status !== 'CANCELLED') {
+            throw new ApiError(
+                'Only a CANCELLED invoice can be removed',
+                400,
+                'INVALID_STATUS',
+            );
+        }
+        const { error } = await this.db
+            .from(HEADER_TABLE)
+            .delete()
+            .eq('id', id)
+            .eq('company_id', Number(ctx.companyId));
+        if (error) throw new ApiError(error.message, 500);
+
+        await SalesShipmentRepository.getInstance().recomputeInvoiceStatus(
+            ctx,
+            existing.shipment_id,
+        );
+    }
+
     async postOne(ctx: RequestContext, id: number): Promise<SalesInvoice> {
         const existing = await this.findOne(ctx, id);
         if (!existing) throw new NotFoundError('Invoice not found');

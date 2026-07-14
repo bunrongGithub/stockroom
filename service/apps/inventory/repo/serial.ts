@@ -335,6 +335,79 @@ export class InventorySerialRepository extends BaseRepository {
         );
     }
 
+    /**
+     * Put sold serials back into stock: `sold` → `available`, the sale link is
+     * cleared and the move is appended to the history. Guarded on the current
+     * status so a serial that has moved on since (returned, scrapped) is never
+     * silently resurrected.
+     *
+     * Inverse of markSoldByIds — used when a posted shipment is reversed (a
+     * failed Cash Sale today, a Sales Return next).
+     */
+    async markReturnedByIds(
+        ctx: RequestContext,
+        serialIds: number[],
+        transactionId: number | null,
+        warehouseId: number,
+        locationId: number,
+        transactionType = 'sale_reversal',
+    ): Promise<void> {
+        if (!serialIds.length) return;
+
+        const { data, error } = await this.db
+            .from(SERIAL_TABLE)
+            .update({ status: 'available', sale_item_id: null })
+            .in('id', serialIds)
+            .eq('company_id', Number(ctx.companyId))
+            .eq('status', 'sold')
+            .select('id');
+
+        if (error) throw new ApiError(error.message, 400, 'SERIAL_ERROR');
+
+        if ((data?.length ?? 0) !== serialIds.length) {
+            throw new ApiError(
+                'One or more serials are no longer in a sold state and cannot be returned to stock.',
+                409,
+                'SERIAL_NOT_SOLD',
+            );
+        }
+
+        await this.appendHistory(
+            (data ?? []).map((row) => ({
+                serial_id: row.id,
+                transaction_type: transactionType,
+                transaction_id: transactionId,
+                warehouse_id: warehouseId,
+                location_id: locationId,
+                status: 'available' as const,
+            })),
+        );
+    }
+
+    /** Serials sold through the given shipment lines (id + location, for reversal). */
+    async findSoldBySaleItemIds(
+        ctx: RequestContext,
+        saleItemIds: number[],
+    ): Promise<
+        { id: number; sale_item_id: number; warehouse_id: number; location_id: number }[]
+    > {
+        if (!saleItemIds.length) return [];
+        const { data, error } = await this.db
+            .from(SERIAL_TABLE)
+            .select('id, sale_item_id, warehouse_id, location_id')
+            .eq('company_id', Number(ctx.companyId))
+            .eq('status', 'sold')
+            .in('sale_item_id', saleItemIds);
+
+        if (error) throw new ApiError(error.message, 500, 'SERIAL_ERROR');
+        return (data ?? []) as {
+            id: number;
+            sale_item_id: number;
+            warehouse_id: number;
+            location_id: number;
+        }[];
+    }
+
     /** Serials for the Item Detail tab, with resolved names + document refs. */
     async findByItem(ctx: RequestContext, itemId: number) {
         const { data, error } = await this.db

@@ -19,6 +19,8 @@ export async function GET(req: NextRequest) {
             limit,
             search,
             searchColumn: 'name',
+            // Sales pickers (Cash Sale, Sales Order) ask for sellable items only.
+            sellableOnly: searchParams.get('sellable') === 'true',
         }, 'stock');
 
         return NextResponse.json(result, { status: 200 });

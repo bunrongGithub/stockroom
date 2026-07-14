@@ -8,7 +8,7 @@ import { COMPANY, toCompanyProfile, type CompanyProfile } from '@/lib/company';
 import type { SalesInvoice } from '@/types/sales/order-management';
 import InvoiceDocument from '../InvoiceDocument';
 import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import {
   ArrowLeftIcon,
   FileWarning,
@@ -32,7 +32,11 @@ export default function SaleInvoicePrint({
 
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const id = Array.isArray(params.slug) ? (params.slug.at(-2) ?? '') : '';
+  // Cash Sale opens this page with ?autoprint=1 so the receipt comes out of the
+  // printer without the cashier clicking anything.
+  const autoPrint = searchParams.get('autoprint') === '1';
 
   const [invoice, setInvoice] = useState<SalesInvoice | null>(null);
   const [company, setCompany] = useState<CompanyProfile>(COMPANY);
@@ -57,6 +61,13 @@ export default function SaleInvoicePrint({
       }
     })();
   }, [id]);
+
+  // Print once the document is actually on screen, not while it is loading.
+  useEffect(() => {
+    if (!autoPrint || loading || !invoice) return;
+    const t = setTimeout(() => window.print(), 300);
+    return () => clearTimeout(t);
+  }, [autoPrint, loading, invoice]);
 
   if (loading) {
     return (

@@ -2,11 +2,13 @@ import { z } from 'zod';
 
 // ─── Customer Payment ───────────────────────────────────────────────────────
 
+// Must stay in step with chk_customer_payment_method on customer_payment.
 export const paymentMethodEnum = z.enum([
     'CASH',
     'BANK_TRANSFER',
     'CARD',
     'CHEQUE',
+    'KHQR',
     'OTHER',
 ]);
 

@@ -1,12 +1,13 @@
-import { NextRequest, NextResponse } from 'next/server';
 import { getRequestContext } from '@/lib/request-context';
-import { SalesOrderRepository } from '@/service/apps/sale/repo/order';
-import { createSalesOrderSchema } from '@/service/schema/sale-order.schema';
+import { CustomerRepository } from '@/service/apps/base/customer';
 import { ApiError, ApiResponseSuccess } from '@/service/core/api-response';
+import { createCustomerSchema } from '@/service/schema/customer.schema';
+import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
-export const service = SalesOrderRepository.getInstance();
+const service = CustomerRepository.getInstance();
 
+/** Counter lookup: one search box, matched against name OR phone. */
 export async function GET(req: NextRequest) {
     try {
         const ctx = getRequestContext(req);
@@ -15,10 +16,6 @@ export async function GET(req: NextRequest) {
             page: Number(sp.get('page') || 1),
             limit: Number(sp.get('limit') || 10),
             search: sp.get('search') ?? undefined,
-            searchColumn: 'order_no',
-            // Counter sales are sales orders too, but they belong on the Cash
-            // Sale list — this is the order pipeline the sales desk works.
-            sourceChannel: 'sales_order',
         });
         return new ApiResponseSuccess(result, 'Success').toResponse();
     } catch (error) {
@@ -32,8 +29,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
     try {
         const ctx = getRequestContext(req);
-        const body = await req.json();
-        const parsed = createSalesOrderSchema.safeParse(body);
+        const parsed = createCustomerSchema.safeParse(await req.json());
         if (!parsed.success) {
             return NextResponse.json(
                 { error: z.flattenError(parsed.error).fieldErrors },

@@ -211,6 +211,109 @@ export class MovementRepository extends BaseRepository {
         return header as InventoryMovement;
     }
 
+    /** The POSTED movement recorded by a business document, if any. */
+    async findBySource(
+        ctx: RequestContext,
+        sourceDocumentType: string,
+        sourceDocumentId: number,
+    ): Promise<InventoryMovement | null> {
+        const { data, error } = await this.db
+            .from(MOVEMENT_TABLE)
+            .select('*')
+            .eq('company_id', Number(ctx.companyId))
+            .eq('source_document_type', sourceDocumentType)
+            .eq('source_document_id', sourceDocumentId)
+            .eq('status', 'POSTED')
+            .order('id', { ascending: false })
+            .maybeSingle();
+
+        if (error) throw new ApiError(error.message, 500);
+        return (data as InventoryMovement) ?? null;
+    }
+
+    /**
+     * Undo a POSTED movement by recording its mirror image: every line is
+     * replayed through `createMovement()` with the direction flipped, so stock
+     * balances are still only ever written by the single writer. The original is
+     * marked VOID, which makes reversal idempotent (a VOID movement cannot be
+     * reversed twice) and keeps both entries in the ledger for audit.
+     *
+     * This is the compensation primitive behind an unwound Cash Sale, and the
+     * foundation a Sales Return will build on.
+     */
+    async reverseMovement(
+        ctx: RequestContext,
+        movementId: number,
+        options: {
+            movement_type?: InventoryTxnMovementType;
+            remarks?: string | null;
+        } = {},
+    ): Promise<InventoryMovement> {
+        const companyId = Number(ctx.companyId);
+
+        const { data: original, error: headErr } = await this.db
+            .from(MOVEMENT_TABLE)
+            .select('*')
+            .eq('id', movementId)
+            .eq('company_id', companyId)
+            .maybeSingle();
+        if (headErr) throw new ApiError(headErr.message, 500);
+        if (!original) throw new ApiError('Movement not found', 404);
+        if (original.status !== 'POSTED') {
+            throw new ApiError(
+                `Only POSTED movements can be reversed (this one is ${original.status})`,
+                400,
+                'INVALID_STATUS',
+            );
+        }
+
+        const { data: lines, error: lineErr } = await this.db
+            .from(MOVEMENT_ITEM_TABLE)
+            .select('*')
+            .eq('movement_id', movementId)
+            .eq('company_id', companyId);
+        if (lineErr) throw new ApiError(lineErr.message, 500);
+        if (!lines?.length) {
+            throw new ApiError('Movement has no lines to reverse', 400);
+        }
+
+        const reversal = await this.createMovement(ctx, {
+            movement_type: options.movement_type ?? original.movement_type,
+            movement_date: new Date().toISOString().slice(0, 10),
+            source_module: original.source_module,
+            source_document_type: original.source_document_type,
+            source_document_id: original.source_document_id,
+            remarks:
+                options.remarks ?? `Reversal of ${original.reference_no}`,
+            items: lines.map((l) => ({
+                item_id: l.item_id,
+                warehouse_id: l.warehouse_id,
+                location_id: l.location_id,
+                entered_qty: Number(l.entered_qty),
+                entered_uom_id: l.entered_uom_id,
+                base_qty: Number(l.base_qty),
+                base_uom_id: l.base_uom_id,
+                movement_direction:
+                    l.movement_direction === 'IN'
+                        ? ('OUT' as const)
+                        : ('IN' as const),
+                unit_cost: l.unit_cost,
+                lot_number: l.lot_number,
+                purchased_date: l.purchased_date,
+            })),
+        });
+
+        // Only void the original once its mirror has actually landed.
+        const { error: voidErr } = await this.db
+            .from(MOVEMENT_TABLE)
+            .update({ status: 'VOID' })
+            .eq('id', movementId)
+            .eq('company_id', companyId);
+        if (voidErr) throw new ApiError(voidErr.message, 500);
+
+        return reversal;
+    }
+
     /**
      * Full stock ledger for one item, oldest → newest, with a running balance.
      * Rows are returned newest-first for display.

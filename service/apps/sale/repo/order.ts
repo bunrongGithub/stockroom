@@ -133,6 +133,23 @@ function mapOrder(r: any): SalesOrder {
     };
 }
 
+/**
+ * What the repository accepts, as opposed to what the HTTP schema accepts. The
+ * zod schema is the API contract for the Sales Order form (which requires a
+ * customer phone); an in-process caller — the Cash Sale orchestrator — sells to
+ * walk-in customers with no phone, and stamps the channel/customer/idempotency
+ * fields the form has no notion of.
+ */
+export type CreateSalesOrderRepoInput = Omit<
+    CreateSalesOrderInput,
+    'customer_phone'
+> & {
+    customer_phone?: string | null;
+    customer_id?: number | null;
+    source_channel?: 'sales_order' | 'cash_sale';
+    idempotency_key?: string | null;
+};
+
 // ─── Repository ─────────────────────────────────────────────────────────────
 
 export class SalesOrderRepository extends BaseRepository {
@@ -147,7 +164,9 @@ export class SalesOrderRepository extends BaseRepository {
 
     async findAll(
         ctx: RequestContext,
-        params: PaginationParams,
+        params: PaginationParams & {
+            sourceChannel?: 'sales_order' | 'cash_sale';
+        },
     ): Promise<PaginatedResult<SalesOrder>> {
         const isSuperUser = await this.isSupperUser(ctx);
         let query = this.applyFilter(
@@ -155,6 +174,11 @@ export class SalesOrderRepository extends BaseRepository {
             ctx,
             isSuperUser,
         ).order('id', { ascending: false });
+        // Counter sales are real sales orders, but they belong on the Cash Sale
+        // list, not in the order pipeline the sales desk works through.
+        if (params.sourceChannel) {
+            query = query.eq('source_channel', params.sourceChannel);
+        }
         // Search matches the system number OR the user reference number.
         if (params.search) {
             query = query.or(
@@ -180,9 +204,24 @@ export class SalesOrderRepository extends BaseRepository {
         return data ? mapOrder(data) : null;
     }
 
+    /** The order a previous request already created for this key, if any. */
+    async findByIdempotencyKey(
+        ctx: RequestContext,
+        key: string,
+    ): Promise<SalesOrder | null> {
+        const { data, error } = await this.db
+            .from(HEADER_TABLE)
+            .select(SELECT_DETAIL)
+            .eq('company_id', Number(ctx.companyId))
+            .eq('idempotency_key', key)
+            .maybeSingle();
+        if (error) throw new ApiError(error.message, 500);
+        return data ? mapOrder(data) : null;
+    }
+
     async insertOne(
         ctx: RequestContext,
-        input: CreateSalesOrderInput,
+        input: CreateSalesOrderRepoInput,
     ): Promise<SalesOrder> {
         const companyId = Number(ctx.companyId);
         const order_no = await getNextDocumentNumber(ctx, 'sales_order', 'SO');
@@ -197,6 +236,9 @@ export class SalesOrderRepository extends BaseRepository {
                 reference_no: input.reference_no ?? null,
                 customer_name: input.customer_name,
                 customer_phone: input.customer_phone ?? null,
+                customer_id: input.customer_id ?? null,
+                source_channel: input.source_channel ?? 'sales_order',
+                idempotency_key: input.idempotency_key ?? null,
                 order_date: input.order_date,
                 expected_delivery_date: input.expected_delivery_date ?? null,
                 warehouse_id: input.warehouse_id,
@@ -452,6 +494,60 @@ export class SalesOrderRepository extends BaseRepository {
                 .eq('id', e.sales_order_item_id)
                 .eq('company_id', companyId);
             if (upErr) throw new ApiError(upErr.message, 500);
+        }
+    }
+
+    /**
+     * Re-derive `shipped_qty` on every order line from the shipments that
+     * actually moved stock (a shipment counts once it is POSTED and keeps
+     * counting while it is being invoiced). Because it recomputes rather than
+     * accumulates, it is safe to call after a partially-applied increment or
+     * after a posted shipment has been reversed — the lines always end up
+     * agreeing with the shipment table.
+     */
+    async recomputeShippedQty(
+        ctx: RequestContext,
+        orderId: number,
+    ): Promise<void> {
+        const companyId = Number(ctx.companyId);
+        const SHIPPED_STATES = ['POSTED', 'PARTIALLY_INVOICED', 'INVOICED'];
+
+        const { data: lines, error: lineErr } = await this.db
+            .from(LINE_TABLE)
+            .select('id')
+            .eq('order_id', orderId)
+            .eq('company_id', companyId);
+        if (lineErr) throw new ApiError(lineErr.message, 500);
+
+        const { data: shipped, error: shipErr } = await this.db
+            .from('sales_shipment_items')
+            .select(
+                'sales_order_item_id, shipment_qty, shipment:sales_shipment!inner(id, sales_order_id, status)',
+            )
+            .eq('company_id', companyId)
+            .eq('shipment.sales_order_id', orderId)
+            .in('shipment.status', SHIPPED_STATES);
+        if (shipErr) throw new ApiError(shipErr.message, 500);
+
+        const byLine = new Map<number, number>();
+        for (const row of shipped ?? []) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const r = row as any;
+            if (r.sales_order_item_id == null) continue;
+            byLine.set(
+                r.sales_order_item_id,
+                (byLine.get(r.sales_order_item_id) ?? 0) +
+                    Number(r.shipment_qty),
+            );
+        }
+
+        for (const line of lines ?? []) {
+            const { error } = await this.db
+                .from(LINE_TABLE)
+                .update({ shipped_qty: byLine.get(line.id) ?? 0 })
+                .eq('id', line.id)
+                .eq('company_id', companyId);
+            if (error) throw new ApiError(error.message, 500);
         }
     }
 
