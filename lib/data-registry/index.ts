@@ -1,5 +1,7 @@
 import type { RequestContext } from '@/types/request-context';
 import type { PaginatedResult } from '@/service/core/pagination';
+import { parseListQuery } from '@/service/core/query/parse.ts';
+import type { QueryObject } from '@/service/core/query/types.ts';
 
 import { CategoryRepository } from '@/service/apps/inventory/repo/category';
 import { InventoryRepository } from '@/service/apps/inventory/repo/stock';
@@ -29,6 +31,24 @@ export interface LoaderArgs {
     search?: string;
     /** Values captured from dynamic path segments, e.g. { id: '32' }. */
     pathParams: Record<string, string>;
+    /**
+     * The full URL search params, for loaders on the Query Framework — sort,
+     * filter[...], include etc. ride here so a bookmarked URL restores the
+     * complete list state on the server render.
+     */
+    searchParams?: Record<string, string | string[] | undefined>;
+}
+
+/** Build the framework QueryObject from loader args (wire-format parse). */
+function toWireQuery(args: LoaderArgs): QueryObject {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(args.searchParams ?? {})) {
+        if (typeof value === 'string') params.set(key, value);
+    }
+    params.set('page', String(args.page));
+    params.set('limit', String(args.limit));
+    if (args.search) params.set('search', args.search);
+    return parseListQuery(params);
 }
 
 export interface LoaderResult {
@@ -57,10 +77,10 @@ const dataRegistry = new Map<string, DataLoader>([
     ],
     [
         '/inventory/configurations/stock-item',
-        (ctx, { page, limit, search }) =>
-            InventoryRepository.getInstance().findAllByClass(
+        (ctx, args) =>
+            InventoryRepository.getInstance().findAllByClassV2(
                 ctx,
-                { page, limit, search, searchColumn: 'name' },
+                toWireQuery(args),
                 'stock',
             ),
     ],
@@ -75,13 +95,11 @@ const dataRegistry = new Map<string, DataLoader>([
     ],
     [
         '/inventory/configurations/uom',
-        (ctx, { page, limit, search }) =>
-            InventoryUomRepository.getInstance().findAll(ctx, {
-                page,
-                limit,
-                search,
-                searchColumn: 'name',
-            }),
+        (ctx, args) =>
+            InventoryUomRepository.getInstance().findAllV2(
+                ctx,
+                toWireQuery(args),
+            ),
     ],
     [
         '/inventory/configurations/warehouse',
@@ -97,25 +115,18 @@ const dataRegistry = new Map<string, DataLoader>([
     // ── Inventory · transactions ────────────────────────────────────────────
     [
         '/inventory/receipts',
-        (ctx, { page, limit, search }) =>
-            ReceiptRepository.getInstance().findAll(ctx, {
-                page,
-                limit,
-                search,
-                searchColumn: 'reference_no',
-            }),
+        (ctx, args) =>
+            ReceiptRepository.getInstance().findAllV2(ctx, toWireQuery(args)),
     ],
     [
         // Module path ≠ API path (/api/inventory/adjustment), so the loopback
         // fallback would 404 — it must load through this in-process loader.
         '/inventory/stock_adjust',
-        (ctx, { page, limit, search }) =>
-            StockAdjustmentRepository.getInstance().findAll(ctx, {
-                page,
-                limit,
-                search,
-                searchColumn: 'adjustment_no',
-            }),
+        (ctx, args) =>
+            StockAdjustmentRepository.getInstance().findAllV2(
+                ctx,
+                toWireQuery(args),
+            ),
     ],
     [
         '/inventory/receipts/:id/view',
@@ -142,34 +153,28 @@ const dataRegistry = new Map<string, DataLoader>([
     // silently renders an empty list.
     [
         '/sale/order',
-        (ctx, { page, limit, search }) =>
-            SalesOrderRepository.getInstance().findAll(ctx, {
-                page,
-                limit,
-                search,
-                // Counter sales live on the Cash Sale list, not the order pipeline.
-                sourceChannel: 'sales_order',
-            }),
+        // Counter sales live on the Cash Sale list, not the order pipeline.
+        (ctx, args) =>
+            SalesOrderRepository.getInstance().findAllV2(
+                ctx,
+                toWireQuery(args),
+                'sales_order',
+            ),
     ],
     [
         '/sale/delivery-note',
-        (ctx, { page, limit, search }) =>
-            SalesShipmentRepository.getInstance().findAll(ctx, {
-                page,
-                limit,
-                search,
-            }),
+        (ctx, args) =>
+            SalesShipmentRepository.getInstance().findAllV2(
+                ctx,
+                toWireQuery(args),
+            ),
     ],
     [
         // History list — module path ≠ API path (/api/sale/cash-sale), so it
         // must load through this loader rather than the HTTP loopback.
         '/sale/cash-sale/history',
-        (ctx, { page, limit, search }) =>
-            CashSaleService.getInstance().listSales(ctx, {
-                page,
-                limit,
-                search,
-            }),
+        (ctx, args) =>
+            CashSaleService.getInstance().listSalesV2(ctx, toWireQuery(args)),
     ],
 
     // ── Setting ─────────────────────────────────────────────────────────────

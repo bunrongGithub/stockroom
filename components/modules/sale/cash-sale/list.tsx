@@ -4,20 +4,18 @@ import { DataTable, type DataTableColumn } from '@/components/ui/DataTable';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Button } from '@/components/ui/button';
 import { useRegisterModule } from '@/hook/useModule';
-import { cashSaleApi, type CashSaleListRow } from '@/lib/api/cash-sale';
+import { useTableQuery } from '@/hook/useTableQuery';
+import { type CashSaleListRow } from '@/lib/api/cash-sale';
+import { API } from '@/lib/constant';
 import type { ModuleProps } from '@/lib/registry';
-import type { TMeta } from '@/types/app';
 import { EyeIcon, PrinterIcon, ShoppingCart } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
 
 /**
  * Cash Sale history — completed counter sales, browsable and reprintable. Each
  * row is a real sales order on the cash_sale channel joined to its invoice;
  * Reprint opens that invoice's print view.
  */
-
-const DEFAULT_META: TMeta = { total: 0, page: 1, limit: 10, totalPages: 0 };
 
 const PAYMENT_BADGE: Record<string, string> = {
     PAID: 'bg-emerald-100 text-emerald-800',
@@ -46,23 +44,21 @@ export default function SaleCashSaleList({
     });
 
     const router = useRouter();
-    const [rows, setRows] = useState<CashSaleListRow[]>(
-        (initialData as CashSaleListRow[]) ?? [],
-    );
-    const [meta, setMeta] = useState<TMeta>(initialMeta ?? DEFAULT_META);
 
-    // Server-side pagination: one page in memory, so paging re-queries.
-    async function fetchPage(page: number, limit: number) {
-        const res = await cashSaleApi.listPage({ page, limit });
-        setRows(res.data);
-        setMeta(res.meta ?? DEFAULT_META);
-    }
+    // Query Framework: search/sort/filter/pagination run server-side and the
+    // full list state lives in the URL.
+    const table = useTableQuery<CashSaleListRow>({
+        endpoint: API.sale.cashSale.root,
+        initialData: initialData as CashSaleListRow[] | undefined,
+        initialMeta,
+    });
 
     const columns: DataTableColumn<CashSaleListRow>[] = [
         {
             key: 'order_no',
             header: 'Sale No',
             primary: true,
+            sortable: true,
             cell: (row) => (
                 <button
                     onClick={() => router.push(`/sale/order/${row.id}/view`)}
@@ -75,6 +71,7 @@ export default function SaleCashSaleList({
         {
             key: 'order_date',
             header: 'Date',
+            sortable: true,
             cell: (row) => (
                 <span className="font-mono text-xs tabular-nums">
                     {row.order_date}
@@ -103,6 +100,7 @@ export default function SaleCashSaleList({
             key: 'grand_total',
             header: 'Total',
             align: 'right',
+            sortable: true,
             cell: (row) => (
                 <span className="font-mono text-xs font-semibold tabular-nums">
                     {row.currency} {money(row.grand_total)}
@@ -175,25 +173,17 @@ export default function SaleCashSaleList({
 
             <DataTable<CashSaleListRow>
                 columns={columns}
-                data={rows}
+                data={table.data}
                 keyExtractor={(row) => row.id}
                 mobileVariant="cards"
                 minTableWidth="760px"
-                searchFn={(row, q) =>
-                    row.order_no.toLowerCase().includes(q) ||
-                    (row.invoice_no ?? '').toLowerCase().includes(q) ||
-                    row.customer_name.toLowerCase().includes(q)
-                }
-                searchPlaceholder="Search by sale no, invoice, or customer..."
-                pageSize={meta.limit}
+                searchPlaceholder="Search by sale no, reference, or customer..."
                 pageSizeOptions={[10, 20, 50]}
-                serverSide={{
-                    total: meta.total,
-                    page: meta.page,
-                    totalPages: meta.totalPages,
-                    onPageChange: (p) => fetchPage(p, meta.limit),
-                    onPageSizeChange: (limit) => fetchPage(1, limit),
-                }}
+                serverQuery={table.binding}
+                filterDefs={[
+                    { key: 'order_date', label: 'Sale Date', type: 'date-range' },
+                ]}
+                enableColumnVisibility
                 emptyTitle="No cash sales yet"
                 emptyDescription="Completed counter sales will appear here"
             />

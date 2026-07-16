@@ -1,4 +1,6 @@
 import { BaseRepository } from '@/service/core/base-repository';
+import type { QueryConfig } from '@/service/core/query/config.ts';
+import type { QueryObject } from '@/service/core/query/types.ts';
 import type {
     PaginationParams,
     PaginatedResult,
@@ -155,6 +157,57 @@ export type CreateSalesOrderRepoInput = Omit<
 
 export class SalesOrderRepository extends BaseRepository {
     private static instance: SalesOrderRepository;
+
+    /**
+     * Query Framework registry. No `selectableFields`: list rows run through
+     * mapOrder(), which needs complete rows — a client projection would
+     * break it, so `fields=` is rejected on this repository.
+     */
+    protected readonly queryConfig: QueryConfig = {
+        table: HEADER_TABLE,
+        searchable: ['order_no', 'reference_no', 'customer_name', 'customer_phone'],
+        sortable: [
+            'order_no',
+            'customer_name',
+            'order_date',
+            'status',
+            'grand_total',
+            'created_at',
+        ],
+        filterable: {
+            status: {
+                type: 'enum',
+                values: ['open', 'partial_shipment', 'closed', 'cancelled'],
+            },
+            warehouse_id: { type: 'foreign-key' },
+            customer_id: { type: 'foreign-key' },
+            order_date: { type: 'date' },
+            created_at: { type: 'date' },
+            grand_total: { type: 'number' },
+        },
+        relations: {
+            warehouse: { table: 'warehouse', columns: ['id', 'name'], always: true },
+        },
+        defaultSort: [{ field: 'id', direction: 'desc' }],
+    };
+
+    /**
+     * Standardized list path. The source channel is pinned server-side:
+     * counter (cash) sales are real sales orders but belong on the Cash Sale
+     * list, and a client filter must never mix the two pipelines.
+     */
+    async findAllV2(
+        ctx: RequestContext,
+        query: QueryObject,
+        sourceChannel: 'sales_order' | 'cash_sale',
+    ): Promise<PaginatedResult<SalesOrder>> {
+        return this.findAllQuery<SalesOrder>(ctx, query, {
+            forced: [
+                { column: 'source_channel', operator: 'eq', value: sourceChannel },
+            ],
+            map: mapOrder,
+        });
+    }
 
     static getInstance(): SalesOrderRepository {
         if (!SalesOrderRepository.instance) {

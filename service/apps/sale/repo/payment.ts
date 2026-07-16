@@ -1,4 +1,6 @@
 import { BaseRepository } from '@/service/core/base-repository';
+import type { QueryConfig } from '@/service/core/query/config.ts';
+import type { QueryObject } from '@/service/core/query/types.ts';
 import type {
     PaginationParams,
     PaginatedResult,
@@ -61,6 +63,42 @@ function mapPayment(r: any, allocations: PaymentAllocation[] = []): CustomerPaym
 export class CustomerPaymentRepository extends BaseRepository {
     private static instance: CustomerPaymentRepository;
     private allocationRepo = AllocationRepository.getInstance();
+
+    /**
+     * Query Framework registry. No `selectableFields`: list rows run through
+     * mapPayment(), which needs complete rows.
+     */
+    protected readonly queryConfig: QueryConfig = {
+        table: TABLE,
+        searchable: ['payment_no', 'reference_no', 'customer_name'],
+        sortable: [
+            'payment_no',
+            'customer_name',
+            'payment_date',
+            'payment_method',
+            'amount',
+            'status',
+            'created_at',
+        ],
+        filterable: {
+            status: { type: 'enum', values: ['DRAFT', 'POSTED', 'CANCELLED'] },
+            payment_method: { type: 'text', operators: ['eq', 'in'] },
+            payment_date: { type: 'date' },
+            created_at: { type: 'date' },
+            amount: { type: 'number' },
+        },
+        defaultSort: [{ field: 'id', direction: 'desc' }],
+    };
+
+    /** Standardized list path (Query Framework). */
+    async findAllV2(
+        ctx: RequestContext,
+        query: QueryObject,
+    ): Promise<PaginatedResult<CustomerPayment>> {
+        return this.findAllQuery<CustomerPayment>(ctx, query, {
+            map: (r) => mapPayment(r),
+        });
+    }
 
     static getInstance(): CustomerPaymentRepository {
         if (!CustomerPaymentRepository.instance) {

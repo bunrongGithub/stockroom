@@ -1,15 +1,30 @@
 'use client';
 import { ButtonActionStaticRender } from '@/components/ui/button-action';
-import { DataTable } from '@/components/ui/DataTable';
+import { DataTable, type DataTableFilterDef } from '@/components/ui/DataTable';
 import PopUpDeleteTransactionModal from '@/components/ui/PopUpDeleteModal';
 import { usePageActions } from '@/hook/usePageAction';
+import type { ServerQueryBinding } from '@/hook/useTableQuery';
 import { ReceiptTxnType } from '@/service/apps/inventory/repo/receipt';
-import { TMeta } from '@/types/app';
+import type { Action } from '@/types';
 import { ReceiptIcon } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { getReceiptTxnColumns } from './columns';
 
-const Header = ({ staticActions }: { staticActions: any }) => (
+const FILTER_DEFS: DataTableFilterDef[] = [
+  {
+    key: 'status',
+    label: 'Status',
+    type: 'select',
+    options: [
+      { value: 'DRAFT', label: 'Draft' },
+      { value: 'POSTED', label: 'Posted' },
+      { value: 'VOID', label: 'Void' },
+    ],
+  },
+  { key: 'transaction_date', label: 'Transaction Date', type: 'date-range' },
+];
+
+const Header = ({ staticActions }: { staticActions: Action }) => (
   <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
     <div>
       <h2 className="flex items-center gap-2 text-2xl text-slate-800">
@@ -28,30 +43,28 @@ const Header = ({ staticActions }: { staticActions: any }) => (
 
 function Receipt({
   receipts,
-  meta,
+  serverQuery,
+  onRefresh,
 }: {
   receipts: ReceiptTxnType[];
-  meta: TMeta;
+  serverQuery: ServerQueryBinding;
+  onRefresh: () => Promise<void>;
 }) {
   const pageAction = usePageActions();
   const staticActions = pageAction?.actions.filter((a) => !a.dynamic) ?? [];
   const dynamicActions = pageAction?.actions.filter((a) => a.dynamic) ?? [];
 
-  const apiBase = pageAction?.actions.find(
-    (item) => item.label.toLocaleLowerCase() === 'create',
-  )?.key!;
+  const apiBase =
+    pageAction?.actions.find(
+      (item) => item.label.toLocaleLowerCase() === 'create',
+    )?.key ?? '/api/inventory/receipts';
 
-  const [data, setData] = useState<ReceiptTxnType[]>(receipts ?? []);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [toast, setToast] = useState<{
     msg: string;
     type: 'success' | 'error';
   } | null>(null);
-
-  useEffect(() => {
-    setData(receipts ?? []);
-  }, [receipts]);
 
   const showToast = (msg: string, type: 'success' | 'error') => {
     setToast({ msg, type });
@@ -64,7 +77,7 @@ function Receipt({
     try {
       const res = await fetch(`${apiBase}/${deletingId}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Delete failed');
-      setData((prev) => prev.filter((r) => r.id !== deletingId));
+      await onRefresh();
       showToast('Receipt deleted', 'success');
     } catch {
       showToast('Delete failed', 'error');
@@ -101,8 +114,13 @@ function Receipt({
           dynamicActions,
           onDelete: (id: number) => setDeletingId(id),
         })}
-        data={data}
+        data={receipts}
         keyExtractor={(row) => row.id ?? 0}
+        searchPlaceholder="Search by reference or source reference..."
+        pageSizeOptions={[10, 20, 50]}
+        serverQuery={serverQuery}
+        filterDefs={FILTER_DEFS}
+        enableColumnVisibility
       />
     </main>
   );

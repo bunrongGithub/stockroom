@@ -61,6 +61,7 @@ export default async function Page({ params, searchParams }: Props) {
               ? _searchParams.search
               : undefined,
           pathParams: extractPathParams(path.path, currentPathUrl),
+          searchParams: _searchParams,
         });
         _responseInitailPageData = response.data;
         _responsePageMeta = response.meta ?? null;

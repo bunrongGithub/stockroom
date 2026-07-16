@@ -24,6 +24,10 @@ export interface PaginatedResponse<T> {
     };
 }
 
+/** Query Framework params forwarded verbatim on the initial server-side load. */
+const FORWARDED_PARAMS = ['sort', 'fields', 'include', 'status_scope'] as const;
+const FILTER_PARAM_PATTERN = /^filter\[[A-Za-z0-9_]+\]$/;
+
 export async function fetchPaginatedData<T>(
     endpoint: string,
     searchParams: Record<string, string | string[] | undefined>,
@@ -37,6 +41,17 @@ export async function fetchPaginatedData<T>(
         limit: String(limit),
         ...(search && { search: String(search) }),
     });
+
+    // Forward the rest of the standardized wire format (sort, filter[...],
+    // fields, include) so a bookmarked/reloaded URL restores the full list
+    // state, not just page/limit/search.
+    for (const [key, value] of Object.entries(searchParams)) {
+        if (typeof value !== 'string' || !value) continue;
+        const forwarded =
+            (FORWARDED_PARAMS as readonly string[]).includes(key) ||
+            FILTER_PARAM_PATTERN.test(key);
+        if (forwarded) queryParams.set(key, value);
+    }
 
     const url = `${endpoint}?${queryParams.toString()}`;
     const response = await serverFetch(url);

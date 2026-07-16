@@ -10,6 +10,8 @@ import {
     BaseRepository,
     type QueryScope,
 } from '@/service/core/base-repository';
+import type { QueryConfig } from '@/service/core/query/config.ts';
+import type { QueryObject } from '@/service/core/query/types.ts';
 import { ConflictError } from '@/service/core/api-response';
 import type { RequestContext } from '@/types/request-context';
 
@@ -51,6 +53,35 @@ function isUniqueViolation(e: any): boolean {
 export class InventoryUomRepository extends BaseRepository {
     /** UOMs belong to a company — every member of it sees them all. */
     protected readonly scope: QueryScope = 'company';
+
+    /** Query Framework registry — the list reads the usage VIEW, so item_count is sortable. */
+    protected readonly queryConfig: QueryConfig = {
+        table: VIEW,
+        searchable: ['code', 'name', 'display_name', 'description'],
+        sortable: [
+            'code',
+            'name',
+            'display_name',
+            'is_active',
+            'is_default',
+            'created_at',
+            'item_count',
+        ],
+        filterable: {
+            is_active: { type: 'boolean' },
+            is_default: { type: 'boolean' },
+            created_at: { type: 'date' },
+        },
+        defaultSort: [{ field: 'name', direction: 'asc' }],
+    };
+
+    /** Standardized list path (Query Framework). */
+    async findAllV2(
+        ctx: RequestContext,
+        query: QueryObject,
+    ): Promise<PaginatedResult<InventoryUom>> {
+        return this.findAllQuery<InventoryUom>(ctx, query);
+    }
 
     private static instance: InventoryUomRepository;
     private constructor() {

@@ -2,10 +2,11 @@
 
 import { DataTable, type DataTableColumn } from '@/components/ui/DataTable';
 import { useRegisterModule } from '@/hook/useModule';
+import { useTableQuery } from '@/hook/useTableQuery';
 import type { ModuleProps } from '@/lib/registry';
 import { financesPaymentApi } from '@/lib/api/finances';
+import { API } from '@/lib/constant';
 import type { CustomerPayment, PaymentStatus } from '@/types/sales/payment';
-import type { TMeta } from '@/types/app';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
@@ -48,8 +49,6 @@ function fmt(n: number) {
   });
 }
 
-const DEFAULT_META: TMeta = { total: 0, page: 1, limit: 10, totalPages: 0 };
-
 export default function SalePaymentPage({
   currentPath,
   permission,
@@ -64,10 +63,6 @@ export default function SalePaymentPage({
   });
 
   const router = useRouter();
-  const [payments, setPayments] = useState<CustomerPayment[]>(
-    (initialData as CustomerPayment[]) ?? [],
-  );
-  const [meta, setMeta] = useState<TMeta>(initialMeta ?? DEFAULT_META);
   const [toast, setToast] = useState<{
     msg: string;
     type: 'success' | 'error';
@@ -84,22 +79,16 @@ export default function SalePaymentPage({
     setTimeout(() => setToast(null), 4000);
   }
 
-  // Server-side pagination: one page in memory, so paging re-queries.
-  async function fetchPage(page: number, limit: number) {
-    try {
-      const res = await financesPaymentApi.listPage({ page, limit });
-      setPayments(res.data);
-      setMeta(res.meta ?? DEFAULT_META);
-    } catch (e) {
-      showToast(
-        e instanceof Error ? e.message : 'Failed to load payments',
-        'error',
-      );
-    }
-  }
+  // Query Framework: search/sort/filter/pagination run server-side and the
+  // full list state lives in the URL.
+  const table = useTableQuery<CustomerPayment>({
+    endpoint: API.finances.payment.root,
+    initialData: initialData as CustomerPayment[] | undefined,
+    initialMeta,
+  });
 
   async function refreshPayments() {
-    await fetchPage(meta.page, meta.limit);
+    await table.refresh();
   }
 
   async function runAction() {
@@ -134,6 +123,7 @@ export default function SalePaymentPage({
     {
       key: 'payment_no',
       header: 'Payment No',
+      sortable: true,
       cell: (row) => (
         <button
           onClick={() => router.push(`/finances/payment/${row.id}/view`)}
@@ -146,6 +136,8 @@ export default function SalePaymentPage({
     {
       key: 'customer',
       header: 'Customer',
+      sortable: true,
+      sortKey: 'customer_name',
       cell: (row) => (
         <span className="font-mono text-xs">{row.customer_name}</span>
       ),
@@ -153,6 +145,7 @@ export default function SalePaymentPage({
     {
       key: 'payment_date',
       header: 'Date',
+      sortable: true,
       cell: (row) => (
         <span className="font-mono text-xs">{row.payment_date}</span>
       ),
@@ -169,6 +162,7 @@ export default function SalePaymentPage({
     {
       key: 'amount',
       header: 'Amount',
+      sortable: true,
       cell: (row) => (
         <span className="font-mono text-xs font-semibold">
           {row.currency} {fmt(row.amount)}
@@ -310,24 +304,34 @@ export default function SalePaymentPage({
 
       <DataTable<CustomerPayment>
         columns={columns}
-        data={payments}
+        data={table.data}
         keyExtractor={(row) => row.id}
-        searchFn={(row, q) =>
-          row.payment_no.toLowerCase().includes(q) ||
-          row.customer_name.toLowerCase().includes(q) ||
-          (row.reference_no ?? '').toLowerCase().includes(q) ||
-          row.status.toLowerCase().includes(q)
-        }
-        searchPlaceholder="Search by payment no, customer, reference, or status..."
-        pageSize={meta.limit}
+        searchPlaceholder="Search by payment no, reference, or customer..."
         pageSizeOptions={[10, 20, 50]}
-        serverSide={{
-          total: meta.total,
-          page: meta.page,
-          totalPages: meta.totalPages,
-          onPageChange: (p) => fetchPage(p, meta.limit),
-          onPageSizeChange: (limit) => fetchPage(1, limit),
-        }}
+        serverQuery={table.binding}
+        filterDefs={[
+          {
+            key: 'status',
+            label: 'Status',
+            type: 'select',
+            options: [
+              { value: 'DRAFT', label: 'Draft' },
+              { value: 'POSTED', label: 'Posted' },
+              { value: 'CANCELLED', label: 'Cancelled' },
+            ],
+          },
+          {
+            key: 'payment_method',
+            label: 'Method',
+            type: 'select',
+            options: Object.entries(METHOD_LABEL).map(([value, label]) => ({
+              value,
+              label,
+            })),
+          },
+          { key: 'payment_date', label: 'Payment Date', type: 'date-range' },
+        ]}
+        enableColumnVisibility
         emptyTitle="No payments"
         emptyDescription="Record a customer payment to settle invoices"
       />

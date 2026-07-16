@@ -1,6 +1,7 @@
 import { getRequestContext } from '@/lib/request-context';
 import { CashSaleService } from '@/service/apps/sale/cash-sale';
 import { ApiError, ApiResponseSuccess } from '@/service/core/api-response';
+import { parseListParams } from '@/service/core/query/http.ts';
 import { cashSaleSchema } from '@/service/schema/cash-sale.schema';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -11,12 +12,7 @@ const service = CashSaleService.getInstance();
 export async function GET(req: NextRequest) {
     try {
         const ctx = getRequestContext(req);
-        const sp = req.nextUrl.searchParams;
-        const result = await service.listSales(ctx, {
-            page: Number(sp.get('page') || 1),
-            limit: Number(sp.get('limit') || 10),
-            search: sp.get('search') ?? undefined,
-        });
+        const result = await service.listSalesV2(ctx, parseListParams(req));
         return new ApiResponseSuccess(result, 'Success').toResponse();
     } catch (error) {
         if (error instanceof ApiError) return error.toResponse();

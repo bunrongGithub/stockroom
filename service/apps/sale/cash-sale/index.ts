@@ -16,6 +16,7 @@ import type {
     PaginatedResult,
     PaginationParams,
 } from '@/service/core/pagination';
+import type { QueryObject } from '@/service/core/query/types.ts';
 import { deriveInvoicePayment } from '../payment-summary';
 import { documentTotals } from '../pricing';
 import { SalesInvoiceRepository } from '../repo/invoice';
@@ -141,6 +142,26 @@ export class CashSaleService extends BaseRepository {
             ...params,
             sourceChannel: 'cash_sale',
         });
+        return this.joinInvoices(ctx, page);
+    }
+
+    /**
+     * Standardized list path (Query Framework): same history list, but with
+     * server-side sort/filter/date-range via the sales order queryConfig.
+     */
+    async listSalesV2(
+        ctx: RequestContext,
+        query: QueryObject,
+    ): Promise<PaginatedResult<CashSaleListRow>> {
+        const page = await this.orders.findAllV2(ctx, query, 'cash_sale');
+        return this.joinInvoices(ctx, page);
+    }
+
+    /** Join each order page to its invoice (one batched query, no N+1). */
+    private async joinInvoices(
+        ctx: RequestContext,
+        page: PaginatedResult<SalesOrder>,
+    ): Promise<PaginatedResult<CashSaleListRow>> {
         if (!page.data.length) {
             return { ...page, data: [] };
         }

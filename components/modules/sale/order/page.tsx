@@ -7,10 +7,11 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/Toast';
 import { useRegisterModule } from '@/hook/useModule';
+import { useTableQuery } from '@/hook/useTableQuery';
 import type { ModuleProps } from '@/lib/registry';
 import { saleOrderApi } from '@/lib/api/sale';
+import { API } from '@/lib/constant';
 import type { SalesOrder, SalesOrderStatus } from '@/types/sales/order-management';
-import type { TMeta } from '@/types/app';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
@@ -33,34 +34,24 @@ function fmt(n: number) {
     return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-const DEFAULT_META: TMeta = { total: 0, page: 1, limit: 10, totalPages: 0 };
-
 export default function SaleOrderPage({ currentPath, permission, currentPathActions, initialData, initialMeta }: ModuleProps) {
     useRegisterModule({ actionModules: currentPathActions, permission, modulePath: currentPath.path });
 
     const router = useRouter();
     const toast = useToast();
-    const [orders, setOrders] = useState<SalesOrder[]>(
-        (initialData as SalesOrder[]) ?? [],
-    );
-    const [meta, setMeta] = useState<TMeta>(initialMeta ?? DEFAULT_META);
     const [confirmAction, setConfirmAction] = useState<{ type: 'cancel' | 'close'; id: number; no: string } | null>(null);
 
-    // Server-side pagination: the list only ever holds ONE page, so a page (or
-    // page-size) change has to re-query rather than slice what is in memory.
-    async function fetchPage(page: number, limit: number) {
-        try {
-            const res = await saleOrderApi.listPage({ page, limit });
-            setOrders(res.data);
-            setMeta(res.meta ?? DEFAULT_META);
-        } catch (e) {
-            toast.error(e instanceof Error ? e.message : 'Failed to load orders');
-        }
-    }
+    // Query Framework: search/sort/filter/pagination run server-side and the
+    // full list state lives in the URL.
+    const table = useTableQuery<SalesOrder>({
+        endpoint: API.sale.order.root,
+        initialData: initialData as SalesOrder[] | undefined,
+        initialMeta,
+    });
 
     /** Re-read the current page so totals and statuses stay truthful. */
     async function refreshOrders() {
-        await fetchPage(meta.page, meta.limit);
+        await table.refresh();
     }
 
     async function runAction(type: 'cancel' | 'close', id: number) {
@@ -80,6 +71,7 @@ export default function SaleOrderPage({ currentPath, permission, currentPathActi
             key: 'order_no',
             header: 'Order No',
             primary: true,
+            sortable: true,
             cell: (row) => (
                 <button
                     onClick={() => router.push(`/sale/order/${row.id}/view`)}
@@ -89,13 +81,14 @@ export default function SaleOrderPage({ currentPath, permission, currentPathActi
                 </button>
             ),
         },
-        { key: 'customer', header: 'Customer', cell: (row) => row.customer_name },
-        { key: 'order_date', header: 'Order Date', cell: (row) => <span className="tabular-nums">{row.order_date}</span> },
+        { key: 'customer', header: 'Customer', sortable: true, sortKey: 'customer_name', cell: (row) => row.customer_name },
+        { key: 'order_date', header: 'Order Date', sortable: true, cell: (row) => <span className="tabular-nums">{row.order_date}</span> },
         { key: 'expected_delivery', header: 'Expected Delivery', cell: (row) => <span className="tabular-nums">{row.expected_delivery_date ?? '—'}</span> },
         {
             key: 'grand_total',
             header: 'Grand Total',
             align: 'right',
+            sortable: true,
             cell: (row) => <span className="font-medium tabular-nums">{row.currency} {fmt(row.grand_total)}</span>,
         },
         {
@@ -165,28 +158,32 @@ export default function SaleOrderPage({ currentPath, permission, currentPathActi
 
             <DataTable<SalesOrder>
                 columns={columns}
-                data={orders}
+                data={table.data}
                 keyExtractor={(row) => row.id}
                 mobileVariant="cards"
                 minTableWidth="860px"
-                searchFn={(row, q) =>
-                    row.order_no.toLowerCase().includes(q) ||
-                    row.customer_name.toLowerCase().includes(q) ||
-                        row.status.toLowerCase().includes(q)
-                    }
-                    searchPlaceholder="Search by order no, customer, or status..."
-                    pageSize={meta.limit}
-                    pageSizeOptions={[10, 20, 50]}
-                    serverSide={{
-                        total: meta.total,
-                        page: meta.page,
-                        totalPages: meta.totalPages,
-                        onPageChange: (p) => fetchPage(p, meta.limit),
-                        onPageSizeChange: (limit) => fetchPage(1, limit),
-                    }}
-                    emptyTitle="No sales orders"
-                    emptyDescription="Create your first sales order to get started"
-                />
+                searchPlaceholder="Search by order no, reference, or customer..."
+                pageSizeOptions={[10, 20, 50]}
+                serverQuery={table.binding}
+                filterDefs={[
+                    {
+                        key: 'status',
+                        label: 'Status',
+                        type: 'select',
+                        options: Object.entries(STATUS_LABEL).map(
+                            ([value, label]) => ({ value, label }),
+                        ),
+                    },
+                    {
+                        key: 'order_date',
+                        label: 'Order Date',
+                        type: 'date-range',
+                    },
+                ]}
+                enableColumnVisibility
+                emptyTitle="No sales orders"
+                emptyDescription="Create your first sales order to get started"
+            />
 
             <ConfirmDialog
                 open={confirmAction !== null}

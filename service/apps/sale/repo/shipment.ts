@@ -5,6 +5,8 @@ import { InventorySerialRepository } from '@/service/apps/inventory/repo/serial'
 import { validateSerialSelection } from '@/service/apps/inventory/repo/serial-validation';
 import { ApiError, NotFoundError } from '@/service/core/api-response';
 import { BaseRepository } from '@/service/core/base-repository';
+import type { QueryConfig } from '@/service/core/query/config.ts';
+import type { QueryObject } from '@/service/core/query/types.ts';
 import type {
     PaginatedResult,
     PaginationParams,
@@ -105,6 +107,62 @@ export type CreateSalesShipmentRepoInput = Omit<
 
 export class SalesShipmentRepository extends BaseRepository {
     private static instance: SalesShipmentRepository;
+
+    /**
+     * Query Framework registry. No `selectableFields`: list rows run through
+     * mapShipment(), which needs complete rows.
+     */
+    protected readonly queryConfig: QueryConfig = {
+        table: HEADER_TABLE,
+        searchable: [
+            'shipment_no',
+            'reference_no',
+            'customer_name',
+            'customer_phone',
+        ],
+        sortable: [
+            'shipment_no',
+            'customer_name',
+            'delivery_date',
+            'status',
+            'created_at',
+        ],
+        filterable: {
+            status: {
+                type: 'enum',
+                values: [
+                    'DRAFT',
+                    'POSTED',
+                    'VOID',
+                    'INVOICED',
+                    'PARTIALLY_INVOICED',
+                ],
+            },
+            warehouse_id: { type: 'foreign-key' },
+            sales_order_id: { type: 'foreign-key' },
+            delivery_date: { type: 'date' },
+            created_at: { type: 'date' },
+        },
+        relations: {
+            sales_order: {
+                table: 'sales_order',
+                columns: ['id', 'order_no'],
+                always: true,
+            },
+            warehouse: { table: 'warehouse', columns: ['id', 'name'], always: true },
+        },
+        defaultSort: [{ field: 'id', direction: 'desc' }],
+    };
+
+    /** Standardized list path (Query Framework). */
+    async findAllV2(
+        ctx: RequestContext,
+        query: QueryObject,
+    ): Promise<PaginatedResult<SalesShipment>> {
+        return this.findAllQuery<SalesShipment>(ctx, query, {
+            map: mapShipment,
+        });
+    }
 
     static getInstance(): SalesShipmentRepository {
         if (!SalesShipmentRepository.instance) {

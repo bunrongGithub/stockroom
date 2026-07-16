@@ -1,6 +1,7 @@
 import { getRequestContext } from '@/lib/request-context';
 import { CustomerRepository } from '@/service/apps/base/customer';
 import { ApiError, ApiResponseSuccess } from '@/service/core/api-response';
+import { parseListParams, withDefaultFilters } from '@/service/core/query/http.ts';
 import { createCustomerSchema } from '@/service/schema/customer.schema';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -11,12 +12,17 @@ const service = CustomerRepository.getInstance();
 export async function GET(req: NextRequest) {
     try {
         const ctx = getRequestContext(req);
-        const sp = req.nextUrl.searchParams;
-        const result = await service.findAll(ctx, {
-            page: Number(sp.get('page') || 1),
-            limit: Number(sp.get('limit') || 10),
-            search: sp.get('search') ?? undefined,
-        });
+        // Counter pickers only ever offer active customers — default to
+        // active-only unless the caller filters is_active explicitly
+        // (legacy ?active=false keeps returning everyone).
+        let query = parseListParams(req);
+        if (req.nextUrl.searchParams.get('active') !== 'false') {
+            query = withDefaultFilters(query, [
+                { field: 'is_active', operator: 'eq', value: 'true' },
+            ]);
+        }
+
+        const result = await service.findAllV2(ctx, query);
         return new ApiResponseSuccess(result, 'Success').toResponse();
     } catch (error) {
         if (error instanceof ApiError) return error.toResponse();

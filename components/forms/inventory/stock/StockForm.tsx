@@ -4,9 +4,13 @@ import {
   ButtonActionDynamicRender,
   ButtonActionStaticRender,
 } from '@/components/ui/button-action';
-import { DataTable, type DataTableColumn } from '@/components/ui/DataTable';
+import {
+  DataTable,
+  type DataTableColumn,
+  type DataTableFilterDef,
+} from '@/components/ui/DataTable';
 import { usePageActions } from '@/hook/usePageAction';
-import type { TMeta } from '@/types/app';
+import type { ServerQueryBinding } from '@/hook/useTableQuery';
 import type { InventoryItemProps } from '@/types/inventory/item';
 import { Package, Percent, RotateCcw, ShieldCheck, Tags } from 'lucide-react';
 import { JSX } from 'react';
@@ -63,17 +67,27 @@ function PropertyBadges({ item }: { item: InventoryItemProps }) {
   return <div className="mt-1 flex items-center gap-1">{badges}</div>;
 }
 
+const FILTER_DEFS: DataTableFilterDef[] = [
+  {
+    key: 'category_name',
+    label: 'Category',
+    type: 'text',
+    placeholder: 'Filter by category…',
+  },
+  { key: 'is_sellable', label: 'Sellable', type: 'boolean' },
+  { key: 'track_serial', label: 'Serialized', type: 'boolean' },
+  { key: 'created_at', label: 'Created', type: 'date-range' },
+];
+
 export type StockFormProps = {
   items: Array<InventoryItemProps>;
-  meta: TMeta;
-  onFetchPageAction: (page: number, limit: number) => void;
+  serverQuery: ServerQueryBinding;
   onDeleteAction: (id: number) => void;
 };
 
 export default function StockForm({
   items,
-  meta,
-  onFetchPageAction,
+  serverQuery,
   onDeleteAction,
 }: StockFormProps) {
   const pageAction = usePageActions();
@@ -84,6 +98,7 @@ export default function StockForm({
     {
       key: 'reference_no',
       header: 'Reference',
+      sortable: true,
       cell: (row) => (
         <span className="rounded bg-gray-100 px-2.5 py-1 font-mono text-xs text-gray-600">
           {row.reference_no || '—'}
@@ -93,6 +108,7 @@ export default function StockForm({
     {
       key: 'name',
       header: 'Item Name',
+      sortable: true,
       cellClassName: 'whitespace-normal max-w-xs',
       cell: (row) => (
         <div className="flex items-start gap-2">
@@ -122,6 +138,7 @@ export default function StockForm({
     {
       key: 'price',
       header: 'Pricing',
+      sortable: true,
       cell: (row) => (
         <div className="font-mono text-xs">
           <span className="text-gray-900">
@@ -180,22 +197,11 @@ export default function StockForm({
         columns={columns}
         data={items}
         keyExtractor={(row) => row.id ?? 0}
-        searchFn={(row, q) =>
-          row.name.toLowerCase().includes(q) ||
-          (row.reference_no ?? '').toLowerCase().includes(q) ||
-          (row.category?.name ?? '').toLowerCase().includes(q) ||
-          (row.brand ?? '').toLowerCase().includes(q)
-        }
-        searchPlaceholder="Search by name, SKU, category..."
-        pageSize={meta.limit}
+        searchPlaceholder="Search by name, SKU, reference..."
         pageSizeOptions={[10, 20, 50]}
-        serverSide={{
-          total: meta.total,
-          page: meta.page,
-          totalPages: meta.totalPages,
-          onPageChange: (p) => onFetchPageAction(p, meta.limit),
-          onPageSizeChange: (limit) => onFetchPageAction(1, limit),
-        }}
+        serverQuery={serverQuery}
+        filterDefs={FILTER_DEFS}
+        enableColumnVisibility
         emptyIcon={<Package size={32} />}
         emptyTitle="No stock items found"
         emptyDescription="No items match your search criteria"

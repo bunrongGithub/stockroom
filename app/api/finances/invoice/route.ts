@@ -3,6 +3,7 @@ import { getRequestContext } from '@/lib/request-context';
 import { SalesInvoiceRepository } from '@/service/apps/sale/repo/invoice';
 import { createSalesInvoiceSchema } from '@/service/schema/sale-invoice.schema';
 import { ApiError, ApiResponseSuccess } from '@/service/core/api-response';
+import { parseListParams } from '@/service/core/query/http.ts';
 import { z } from 'zod';
 
 export const service = SalesInvoiceRepository.getInstance();
@@ -12,19 +13,15 @@ export async function GET(req: NextRequest) {
         const ctx = getRequestContext(req);
         const sp = req.nextUrl.searchParams;
 
-        // Invoices for a specific shipment (shipment detail "Invoices" tab).
+        // Legacy: invoices for a specific shipment (shipment detail
+        // "Invoices" tab) keep their unpaginated response shape.
         const shipmentId = Number(sp.get('shipment_id'));
         if (shipmentId) {
             const data = await service.findByShipment(ctx, shipmentId);
             return new ApiResponseSuccess({ data }, 'Success').toResponse();
         }
 
-        const result = await service.findAll(ctx, {
-            page: Number(sp.get('page') || 1),
-            limit: Number(sp.get('limit') || 10),
-            search: sp.get('search') ?? undefined,
-            searchColumn: 'invoice_no',
-        });
+        const result = await service.findAllV2(ctx, parseListParams(req));
         return new ApiResponseSuccess(result, 'Success').toResponse();
     } catch (error) {
         if (error instanceof ApiError) return error.toResponse();

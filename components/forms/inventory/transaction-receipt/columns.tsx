@@ -178,6 +178,7 @@ export function getReceiptTxnColumns({
     {
       key: 'reference_no',
       header: 'Reference',
+      sortable: true,
       cell: (row) => (
         <span className="rounded bg-gray-100 px-2.5 py-1 font-mono text-xs text-gray-600">
           {row.reference_no || '—'}
@@ -202,11 +203,13 @@ export function getReceiptTxnColumns({
     {
       key: 'transaction_date',
       header: 'Transaction Date',
+      sortable: true,
       cell: (row) => row.transaction_date,
     },
     {
       key: 'status',
       header: 'Status',
+      sortable: true,
       cell: (row) => <StatusBadge status={row.status} />,
     },
     ...(dynamicActions.length > 0

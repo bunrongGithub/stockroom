@@ -1,10 +1,21 @@
 import { cache } from 'react';
-import { PaginationMixin } from './pagination';
+import { PaginationMixin, type PaginatedResult } from './pagination';
 import { getServerClient, createScopedClient } from '@/lib/supabase/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { RequestContext } from '@/types/request-context';
-import { ApiError, ForbiddenError } from './api-response';
+import { ApiError, ForbiddenError, ValidationError } from './api-response';
 import { resolveAuditUsers, type AuditUser } from './audit';
+import type { QueryConfig } from './query/config.ts';
+import { QueryValidationError } from './query/errors.ts';
+import { applyPlan, type PlanQuery } from './query/apply.ts';
+import { buildQueryPlan } from './query/plan.ts';
+import type { QueryObject, QueryPlan } from './query/types.ts';
+import {
+    forcedToValidated,
+    validateQuery,
+    type ForcedCondition,
+    type ValidatedQuery,
+} from './query/validate.ts';
 
 /** A row carrying the raw audit foreign keys, before enrichment. */
 type AuditRow = { created_by?: string | null; updated_by?: string | null };
@@ -281,6 +292,179 @@ export abstract class BaseRepository extends BaseQueryFilter {
         row: T,
     ): Promise<WithAuditUsers<T>> {
         return (await this.enrichAudit([row]))[0];
+    }
+
+    // ── Core Query Framework ────────────────────────────────────────────────
+    // The standardized list path. A repository opts in by declaring
+    // `queryConfig`; routes parse the wire format with `parseListParams()`
+    // and hand the whole QueryObject to `findAllQuery()`. Search, filtering,
+    // sorting, pagination, relation embeds, and tenant scoping all run
+    // through one validated pipeline — no per-repo query logic.
+
+    /**
+     * Field registry for the Query Framework: which columns are searchable,
+     * sortable, filterable (and how), and which relations may be embedded.
+     * Anything a client sends that is not registered here is rejected (400).
+     */
+    protected readonly queryConfig?: QueryConfig;
+
+    private resolveQueryConfig(config?: QueryConfig): QueryConfig {
+        const resolved = config ?? this.queryConfig;
+        if (!resolved) {
+            throw new ApiError(
+                'Repository does not declare a queryConfig',
+                500,
+                'QUERY_CONFIG_MISSING',
+            );
+        }
+        return resolved;
+    }
+
+    private validateOrThrow(
+        query: QueryObject,
+        config: QueryConfig,
+        forced?: ForcedCondition[],
+    ): ValidatedQuery {
+        try {
+            const validated = validateQuery(query, config);
+            return forced?.length
+                ? {
+                      ...validated,
+                      filters: [
+                          ...forced.map(forcedToValidated),
+                          ...validated.filters,
+                      ],
+                  }
+                : validated;
+        } catch (error) {
+            if (error instanceof QueryValidationError) {
+                throw new ValidationError(error.message, error.details);
+            }
+            throw error;
+        }
+    }
+
+    /**
+     * Build the scoped, filtered, searched, and sorted query WITHOUT
+     * executing it. This is the shared foundation for listing, export
+     * (paginate: false), and aggregation — export must never re-implement
+     * the listing filters.
+     */
+    protected async buildListQuery(
+        ctx: RequestContext,
+        query: QueryObject,
+        options: {
+            config?: QueryConfig;
+            /** Server-pinned conditions the client cannot override. */
+            forced?: ForcedCondition[];
+            count?: 'exact' | null;
+            paginate?: boolean;
+            head?: boolean;
+        } = {},
+    ): Promise<{ builder: PlanQuery; plan: QueryPlan; validated: ValidatedQuery }> {
+        const config = this.resolveQueryConfig(options.config);
+        const validated = this.validateOrThrow(query, config, options.forced);
+        const plan = buildQueryPlan(validated, config, {
+            paginate: options.paginate ?? true,
+        });
+
+        const base = this.db.from(config.table).select(plan.select, {
+            ...(options.count === null ? {} : { count: options.count ?? 'exact' }),
+            ...(options.head ? { head: true } : {}),
+        });
+        const built = applyPlan(base as unknown as PlanQuery, plan);
+        const scoped = this.applyScope(built, ctx, await this.scopeOptions(ctx));
+
+        return { builder: scoped, plan, validated };
+    }
+
+    /**
+     * The standardized list query: one QueryObject in, `{ data, meta }` out.
+     * Meta keeps the app-wide shape { total, page, limit, totalPages }.
+     */
+    protected async findAllQuery<T = Record<string, unknown>>(
+        ctx: RequestContext,
+        query: QueryObject,
+        options: {
+            config?: QueryConfig;
+            forced?: ForcedCondition[];
+            map?: (row: Record<string, unknown>) => T;
+        } = {},
+    ): Promise<PaginatedResult<T>> {
+        const { builder, validated } = await this.buildListQuery(ctx, query, {
+            config: options.config,
+            forced: options.forced,
+            count: 'exact',
+        });
+
+        const { data, error, count } = await (builder as unknown as PromiseLike<{
+            data: Record<string, unknown>[] | null;
+            error: { message: string; code?: string } | null;
+            count: number | null;
+        }>);
+        if (error) throw new ApiError(error.message, 500, error.code);
+
+        const rows = data ?? [];
+        const total = count ?? 0;
+        // Call the mapper with the row ONLY — never Array.map's (row, index)
+        // signature, which would leak the index into mappers that take an
+        // optional second parameter.
+        const mapper = options.map;
+        return {
+            data: (mapper ? rows.map((row) => mapper(row)) : rows) as T[],
+            meta: {
+                total,
+                page: validated.page,
+                limit: validated.limit,
+                totalPages: Math.ceil(total / validated.limit),
+            },
+        };
+    }
+
+    /**
+     * Aggregates over the exact same filtered query as the listing —
+     * dashboard widgets reuse list filters instead of bespoke queries.
+     * Only 'count' is implemented in this pass; sum/avg/min/max are wired
+     * when the first dashboard widget needs them (PostgREST aggregate
+     * select syntax `alias:column.sum()`).
+     */
+    protected async aggregate(
+        ctx: RequestContext,
+        query: QueryObject,
+        specs: {
+            fn: 'count' | 'sum' | 'avg' | 'min' | 'max';
+            field?: string;
+            alias?: string;
+        }[],
+        options: { config?: QueryConfig; forced?: ForcedCondition[] } = {},
+    ): Promise<Record<string, number>> {
+        const unsupported = specs.find((spec) => spec.fn !== 'count');
+        if (unsupported) {
+            throw new ApiError(
+                `Aggregate '${unsupported.fn}' is not implemented yet`,
+                501,
+                'NOT_IMPLEMENTED',
+            );
+        }
+
+        const { builder } = await this.buildListQuery(ctx, query, {
+            config: options.config,
+            forced: options.forced,
+            count: 'exact',
+            paginate: false,
+            head: true,
+        });
+        const { error, count } = await (builder as unknown as PromiseLike<{
+            error: { message: string; code?: string } | null;
+            count: number | null;
+        }>);
+        if (error) throw new ApiError(error.message, 500, error.code);
+
+        const result: Record<string, number> = {};
+        for (const spec of specs) {
+            result[spec.alias ?? 'count'] = count ?? 0;
+        }
+        return result;
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

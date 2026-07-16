@@ -10,6 +10,8 @@ import type {
     CreateInventoryInput,
     UpdateInventoryInput,
 } from '@/service/schema/inventory.schema';
+import type { QueryConfig } from '@/service/core/query/config.ts';
+import type { QueryObject } from '@/service/core/query/types.ts';
 import type { RequestContext } from '@/types/request-context';
 import type { AuditMeta } from '@/types/audit';
 import { ItemUomRepository } from './item-uom';
@@ -54,6 +56,67 @@ const SELECT_COLS =
 
 export class InventoryRepository extends BaseRepository {
     private static instance: InventoryRepository;
+
+    /**
+     * Query Framework registry. Relations mirror SELECT_COLS; `category_name`
+     * demonstrates joined-entity filtering (embedded with !inner only while
+     * the filter is active, so uncategorized items still list otherwise).
+     */
+    protected readonly queryConfig: QueryConfig = {
+        table: TABLE,
+        searchable: ['name', 'sku', 'reference_no', 'description'],
+        sortable: ['name', 'sku', 'reference_no', 'price', 'cost', 'created_at', 'updated_at'],
+        filterable: {
+            is_sellable: { type: 'boolean' },
+            is_variant: { type: 'boolean' },
+            track_serial: { type: 'boolean' },
+            price: { type: 'number' },
+            cost: { type: 'number' },
+            category_id: { type: 'foreign-key' },
+            uom_id: { type: 'foreign-key' },
+            created_at: { type: 'date' },
+            updated_at: { type: 'date' },
+            category_name: { type: 'text', relation: 'category', column: 'name' },
+        },
+        relations: {
+            category: {
+                table: 'inventory_item_category',
+                columns: ['id', 'name', 'reference_no'],
+                always: true,
+            },
+            company: { table: 'company', columns: ['id', 'name'], always: true },
+            uom: {
+                table: 'inventory_uom',
+                columns: ['id', 'name', 'display_name'],
+                always: true,
+            },
+            default_warehouse: {
+                table: 'warehouse',
+                columns: ['id', 'name'],
+                always: true,
+            },
+            default_location: {
+                table: 'warehouse_location',
+                columns: ['id', 'name'],
+                always: true,
+            },
+        },
+        defaultSort: [{ field: 'id', direction: 'desc' }],
+    };
+
+    /**
+     * Standardized list path for one item class. The class is pinned
+     * server-side (`forced`) so a client filter can never widen it.
+     */
+    async findAllByClassV2(
+        ctx: RequestContext,
+        query: QueryObject,
+        itemClass: 'stock' | 'non_stock' | 'service',
+    ): Promise<PaginatedResult<InventoryItem>> {
+        return this.findAllQuery<InventoryItem>(ctx, query, {
+            forced: [{ column: 'item_class', operator: 'eq', value: itemClass }],
+        });
+    }
 
     private constructor() {
         super();

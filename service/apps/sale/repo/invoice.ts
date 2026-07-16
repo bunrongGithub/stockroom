@@ -1,4 +1,6 @@
 import { BaseRepository } from '@/service/core/base-repository';
+import type { QueryConfig } from '@/service/core/query/config.ts';
+import type { QueryObject } from '@/service/core/query/types.ts';
 import type {
     PaginationParams,
     PaginatedResult,
@@ -127,6 +129,54 @@ type InvoiceLineDraft = {
 
 export class SalesInvoiceRepository extends BaseRepository {
     private static instance: SalesInvoiceRepository;
+
+    /**
+     * Query Framework registry. No `selectableFields`: list rows run through
+     * mapInvoice(), which needs complete rows.
+     */
+    protected readonly queryConfig: QueryConfig = {
+        table: HEADER_TABLE,
+        searchable: ['invoice_no', 'reference_no', 'customer_name'],
+        sortable: [
+            'invoice_no',
+            'customer_name',
+            'invoice_date',
+            'status',
+            'grand_total',
+            'created_at',
+        ],
+        filterable: {
+            status: { type: 'enum', values: ['DRAFT', 'POSTED', 'CANCELLED'] },
+            invoice_date: { type: 'date' },
+            created_at: { type: 'date' },
+            grand_total: { type: 'number' },
+            sales_order_id: { type: 'foreign-key' },
+            shipment_id: { type: 'foreign-key' },
+        },
+        relations: {
+            shipment: {
+                table: 'sales_shipment',
+                columns: ['id', 'shipment_no'],
+                always: true,
+            },
+            sales_order: {
+                table: 'sales_order',
+                columns: ['id', 'order_no'],
+                always: true,
+            },
+        },
+        defaultSort: [{ field: 'id', direction: 'desc' }],
+    };
+
+    /** Standardized list path (Query Framework). */
+    async findAllV2(
+        ctx: RequestContext,
+        query: QueryObject,
+    ): Promise<PaginatedResult<SalesInvoice>> {
+        return this.findAllQuery<SalesInvoice>(ctx, query, {
+            map: mapInvoice,
+        });
+    }
 
     static getInstance(): SalesInvoiceRepository {
         if (!SalesInvoiceRepository.instance) {

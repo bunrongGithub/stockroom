@@ -3,6 +3,7 @@ import { getRequestContext } from '@/lib/request-context';
 import { StockAdjustmentRepository } from '@/service/apps/inventory/repo/adjustment';
 import { createStockAdjustmentSchema } from '@/service/schema/adjustment.schema';
 import { ApiError, ApiResponseSuccess } from '@/service/core/api-response';
+import { parseListParams } from '@/service/core/query/http.ts';
 import { z } from 'zod';
 
 const service = StockAdjustmentRepository.getInstance();
@@ -10,13 +11,7 @@ const service = StockAdjustmentRepository.getInstance();
 export async function GET(req: NextRequest) {
     try {
         const ctx = getRequestContext(req);
-        const sp = req.nextUrl.searchParams;
-        const result = await service.findAll(ctx, {
-            page: Number(sp.get('page') || 1),
-            limit: Number(sp.get('limit') || 10),
-            search: sp.get('search') ?? undefined,
-            searchColumn: 'adjustment_no',
-        });
+        const result = await service.findAllV2(ctx, parseListParams(req));
         return new ApiResponseSuccess(result, 'Success').toResponse();
     } catch (error) {
         if (error instanceof ApiError) return error.toResponse();

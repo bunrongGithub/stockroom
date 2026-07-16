@@ -1,5 +1,7 @@
 import { ApiError, ConflictError, NotFoundError } from '@/service/core/api-response';
 import { BaseRepository } from '@/service/core/base-repository';
+import type { QueryConfig } from '@/service/core/query/config.ts';
+import type { QueryObject } from '@/service/core/query/types.ts';
 import type {
     PaginatedResult,
     PaginationParams,
@@ -20,6 +22,26 @@ const TABLE = 'customer' as const;
  */
 export class CustomerRepository extends BaseRepository {
     private static instance: CustomerRepository;
+
+    /** Query Framework registry. */
+    protected readonly queryConfig: QueryConfig = {
+        table: TABLE,
+        searchable: ['name', 'phone', 'email'],
+        sortable: ['name', 'phone', 'created_at'],
+        filterable: {
+            is_active: { type: 'boolean' },
+            created_at: { type: 'date' },
+        },
+        defaultSort: [{ field: 'name', direction: 'asc' }],
+    };
+
+    /** Standardized list path (Query Framework). */
+    async findAllV2(
+        ctx: RequestContext,
+        query: QueryObject,
+    ): Promise<PaginatedResult<Customer>> {
+        return this.findAllQuery<Customer>(ctx, query);
+    }
 
     static getInstance(): CustomerRepository {
         if (!CustomerRepository.instance) {

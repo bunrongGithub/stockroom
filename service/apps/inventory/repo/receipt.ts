@@ -5,6 +5,8 @@ import {
     NotFoundError,
 } from '@/service/core/api-response';
 import { BaseRepository } from '@/service/core/base-repository';
+import type { QueryConfig } from '@/service/core/query/config.ts';
+import type { QueryObject } from '@/service/core/query/types.ts';
 import type {
     PaginatedResult,
     PaginationParams,
@@ -183,6 +185,50 @@ export class ReceiptItemRepository extends BaseRepository {
 
 export class ReceiptRepository extends BaseRepository {
     private static instance: ReceiptRepository;
+
+    /** Query Framework registry. */
+    protected readonly queryConfig: QueryConfig = {
+        table: HEADER_TABLE,
+        searchable: ['reference_no', 'source_reference_no'],
+        sortable: [
+            'reference_no',
+            'received_date',
+            'transaction_date',
+            'status',
+            'created_at',
+        ],
+        filterable: {
+            status: { type: 'enum', values: ['DRAFT', 'POSTED', 'VOID'] },
+            received_date: { type: 'date' },
+            transaction_date: { type: 'date' },
+            created_at: { type: 'date' },
+        },
+        relations: {
+            company: { table: 'company', columns: ['id', 'name'], always: true },
+        },
+        defaultSort: [{ field: 'id', direction: 'desc' }],
+    };
+
+    /** Standardized list path (Query Framework). */
+    async findAllV2(
+        ctx: RequestContext,
+        query: QueryObject,
+    ): Promise<PaginatedResult<ReceiptTxnType>> {
+        const result = await this.findAllQuery<
+            ReceiptTxnType & { created_by?: string | null }
+        >(ctx, query);
+        // Resolve created_by → creator profile for the list's "Created By"
+        // column in ONE batched query (no N+1).
+        const enriched = await this.enrichAudit(result.data);
+        return {
+            ...result,
+            data: enriched.map((row) => ({
+                ...row,
+                created_by: row.created_by_user,
+                actions: computeReceiptActions(row.status),
+            })),
+        };
+    }
 
     static getInstance(): ReceiptRepository {
         if (!ReceiptRepository.instance) {

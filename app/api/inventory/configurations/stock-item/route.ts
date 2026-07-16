@@ -1,6 +1,8 @@
 import { createInventorySchema } from '@/service/schema/inventory.schema';
 import { NextRequest, NextResponse } from 'next/server';
 import { getRequestContext } from '@/lib/request-context';
+import { ApiError, ApiResponseSuccess } from '@/service/core/api-response';
+import { parseListParams, withDefaultFilters } from '@/service/core/query/http.ts';
 import { z } from 'zod';
 import { InventoryRepository } from '@/service/apps/inventory/repo/stock';
 
@@ -8,23 +10,20 @@ export const Service = InventoryRepository.getInstance();
 export async function GET(req: NextRequest) {
     try {
         const ctx = getRequestContext(req);
-        const searchParams = req.nextUrl.searchParams;
+        let query = parseListParams(req);
 
-        const page = Number(searchParams.get('page') || 1);
-        const limit = Number(searchParams.get('limit') || 10);
-        const search = searchParams.get('search') ?? undefined;
+        // Legacy picker param: Sales pickers (Cash Sale, Sales Order) ask for
+        // sellable items only via ?sellable=true.
+        if (req.nextUrl.searchParams.get('sellable') === 'true') {
+            query = withDefaultFilters(query, [
+                { field: 'is_sellable', operator: 'eq', value: 'true' },
+            ]);
+        }
 
-        const result = await Service.findAllByClass(ctx, {
-            page,
-            limit,
-            search,
-            searchColumn: 'name',
-            // Sales pickers (Cash Sale, Sales Order) ask for sellable items only.
-            sellableOnly: searchParams.get('sellable') === 'true',
-        }, 'stock');
-
-        return NextResponse.json(result, { status: 200 });
+        const result = await Service.findAllByClassV2(ctx, query, 'stock');
+        return new ApiResponseSuccess(result, 'Success').toResponse();
     } catch (error) {
+        if (error instanceof ApiError) return error.toResponse();
         const message =
             error instanceof Error ? error.message : 'Unexpected error';
         return NextResponse.json({ error: message }, { status: 500 });

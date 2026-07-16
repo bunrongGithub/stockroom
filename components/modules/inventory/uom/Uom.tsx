@@ -8,13 +8,11 @@ import { DataTable, type DataTableColumn } from '@/components/ui/DataTable';
 import PopUpDeleteTransactionModal from '@/components/ui/PopUpDeleteModal';
 import { usePageActions } from '@/hook/usePageAction';
 import { useRegisterModule } from '@/hook/useModule';
+import { useTableQuery } from '@/hook/useTableQuery';
 import type { ModuleProps } from '@/lib/registry';
-import type { TMeta } from '@/types/app';
 import type { InventoryUom } from '@/service/apps/inventory/repo/uom';
 import { Ruler, Star } from 'lucide-react';
 import { useState } from 'react';
-
-const DEFAULT_META: TMeta = { total: 0, page: 1, limit: 10, totalPages: 0 };
 
 export default function InventoryUomListModule({
     currentPath,
@@ -33,10 +31,6 @@ export default function InventoryUomListModule({
     const staticActions = pageAction?.actions.filter((a) => !a.dynamic) ?? [];
     const dynamicActions = pageAction?.actions.filter((a) => a.dynamic) ?? [];
 
-    const [tableData, setTableData] = useState<InventoryUom[]>(
-        (initialData as InventoryUom[]) ?? [],
-    );
-    const [tableMeta, setTableMeta] = useState<TMeta>(initialMeta ?? DEFAULT_META);
     const [deletingId, setDeletingId] = useState<number | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
     const [toast, setToast] = useState<{
@@ -46,14 +40,14 @@ export default function InventoryUomListModule({
 
     const apiBase = `/api${currentPath.path}`;
 
-    const fetchPage = async (page: number, limit: number) => {
-        const res = await fetch(`${apiBase}?page=${page}&limit=${limit}`);
-        if (res.ok) {
-            const json = await res.json();
-            setTableData(json.data ?? []);
-            setTableMeta(json.meta ?? DEFAULT_META);
-        }
-    };
+    // Query Framework: search/sort/filter/pagination run server-side and the
+    // full list state lives in the URL.
+    const table = useTableQuery<InventoryUom>({
+        endpoint: apiBase,
+        initialData: initialData as InventoryUom[] | undefined,
+        initialMeta,
+        defaultSort: [{ field: 'name', direction: 'asc' }],
+    });
 
     const onConfirmDelete = async () => {
         if (!deletingId) return;
@@ -65,7 +59,7 @@ export default function InventoryUomListModule({
             const json = await res.json().catch(() => ({}));
             if (!res.ok) throw new Error(json.error ?? 'Delete failed');
             setToast({ msg: 'Unit deleted successfully', type: 'success' });
-            await fetchPage(tableMeta.page, tableMeta.limit);
+            await table.refresh();
         } catch (e) {
             setToast({
                 msg: e instanceof Error ? e.message : 'Failed to delete unit',
@@ -82,6 +76,7 @@ export default function InventoryUomListModule({
         {
             key: 'code',
             header: 'Code',
+            sortable: true,
             cell: (row) => (
                 <span className="inline-flex items-center gap-1.5">
                     <span className="rounded bg-gray-100 px-2.5 py-1 font-mono text-xs text-gray-600">
@@ -100,6 +95,7 @@ export default function InventoryUomListModule({
         {
             key: 'name',
             header: 'Name',
+            sortable: true,
             cell: (row) => (
                 <div className="min-w-0">
                     <div className="truncate font-mono text-xs text-gray-900">
@@ -116,6 +112,7 @@ export default function InventoryUomListModule({
         {
             key: 'display_name',
             header: 'Symbol',
+            sortable: true,
             cell: (row) => (
                 <span className="font-mono text-xs text-gray-700">
                     {row.display_name}
@@ -140,6 +137,8 @@ export default function InventoryUomListModule({
         {
             key: 'usage',
             header: 'Usage',
+            sortable: true,
+            sortKey: 'item_count',
             headerClassName: 'text-right',
             cellClassName: 'text-right',
             cell: (row) => (
@@ -208,24 +207,21 @@ export default function InventoryUomListModule({
 
                 <DataTable<InventoryUom>
                     columns={columns}
-                    data={tableData}
+                    data={table.data}
                     keyExtractor={(row) => row.id}
-                    searchFn={(row, q) =>
-                        row.code.toLowerCase().includes(q) ||
-                        row.name.toLowerCase().includes(q) ||
-                        row.display_name.toLowerCase().includes(q) ||
-                        (row.description ?? '').toLowerCase().includes(q)
-                    }
                     searchPlaceholder="Search by code, name, or description..."
-                    pageSize={tableMeta.limit}
                     pageSizeOptions={[10, 20, 50]}
-                    serverSide={{
-                        total: tableMeta.total,
-                        page: tableMeta.page,
-                        totalPages: tableMeta.totalPages,
-                        onPageChange: (p) => fetchPage(p, tableMeta.limit),
-                        onPageSizeChange: (limit) => fetchPage(1, limit),
-                    }}
+                    serverQuery={table.binding}
+                    filterDefs={[
+                        { key: 'is_active', label: 'Status', type: 'boolean' },
+                        { key: 'is_default', label: 'Default', type: 'boolean' },
+                        {
+                            key: 'created_at',
+                            label: 'Created',
+                            type: 'date-range',
+                        },
+                    ]}
+                    enableColumnVisibility
                     emptyIcon={<Ruler size={32} />}
                     emptyTitle="No units of measure found"
                     emptyDescription="Create a unit like Piece (PCS) or Kilogram (KG) to get started"

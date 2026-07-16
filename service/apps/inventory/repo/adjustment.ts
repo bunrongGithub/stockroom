@@ -1,4 +1,6 @@
 import { BaseRepository } from '@/service/core/base-repository';
+import type { QueryConfig } from '@/service/core/query/config.ts';
+import type { QueryObject } from '@/service/core/query/types.ts';
 import type {
     PaginationParams,
     PaginatedResult,
@@ -109,6 +111,36 @@ function mapAdjustment(r: any): StockAdjustment {
 
 export class StockAdjustmentRepository extends BaseRepository {
     private static instance: StockAdjustmentRepository;
+
+    /**
+     * Query Framework registry. The list keeps SELECT_DETAIL as its default
+     * select (items are needed for the total_in/total_out columns), so no
+     * relations map — all filterable fields live on the header row.
+     */
+    protected readonly queryConfig: QueryConfig = {
+        table: HEADER_TABLE,
+        defaultSelect: SELECT_DETAIL,
+        searchable: ['adjustment_no', 'reference_no'],
+        sortable: ['adjustment_no', 'adjustment_date', 'status', 'created_at'],
+        filterable: {
+            status: { type: 'enum', values: ['DRAFT', 'POSTED', 'VOID'] },
+            warehouse_id: { type: 'foreign-key' },
+            reason_code: { type: 'text', operators: ['eq', 'in'] },
+            adjustment_date: { type: 'date' },
+            created_at: { type: 'date' },
+        },
+        defaultSort: [{ field: 'id', direction: 'desc' }],
+    };
+
+    /** Standardized list path (Query Framework). */
+    async findAllV2(
+        ctx: RequestContext,
+        query: QueryObject,
+    ): Promise<PaginatedResult<StockAdjustment>> {
+        return this.findAllQuery<StockAdjustment>(ctx, query, {
+            map: mapAdjustment,
+        });
+    }
 
     static getInstance(): StockAdjustmentRepository {
         if (!StockAdjustmentRepository.instance) {
