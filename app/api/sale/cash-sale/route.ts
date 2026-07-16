@@ -1,24 +1,21 @@
 import { getRequestContext } from '@/lib/request-context';
 import { CashSaleService } from '@/service/apps/sale/cash-sale';
-import { SalesOrderRepository } from '@/service/apps/sale/repo/order';
 import { ApiError, ApiResponseSuccess } from '@/service/core/api-response';
 import { cashSaleSchema } from '@/service/schema/cash-sale.schema';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
 const service = CashSaleService.getInstance();
-const orders = SalesOrderRepository.getInstance();
 
-/** Completed counter sales (they are sales orders on the cash_sale channel). */
+/** Completed counter sales, each joined to its invoice for reprinting. */
 export async function GET(req: NextRequest) {
     try {
         const ctx = getRequestContext(req);
         const sp = req.nextUrl.searchParams;
-        const result = await orders.findAll(ctx, {
+        const result = await service.listSales(ctx, {
             page: Number(sp.get('page') || 1),
             limit: Number(sp.get('limit') || 10),
             search: sp.get('search') ?? undefined,
-            sourceChannel: 'cash_sale',
         });
         return new ApiResponseSuccess(result, 'Success').toResponse();
     } catch (error) {

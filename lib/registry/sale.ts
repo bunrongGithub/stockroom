@@ -60,6 +60,7 @@ export const saleRegistry: RegistryEntry[] = [
 
     // ── Cash Sale (counter register) ──────────────────────────────────────────
     ['SaleCashSale', () => import('@/components/modules/sale/cash-sale/page')],
+    ['SaleCashSaleList', () => import('@/components/modules/sale/cash-sale/list')],
     ['SaleSetting', () => import('@/components/modules/sale/setting/page')],
 
     // ── Customer Payment ──────────────────────────────────────────────────────

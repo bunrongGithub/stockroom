@@ -11,7 +11,12 @@ import type {
     SalesOrder,
     SalesShipment,
 } from '@/types/sales/order-management';
-import type { CustomerPayment } from '@/types/sales/payment';
+import type { CustomerPayment, InvoicePaymentStatus } from '@/types/sales/payment';
+import type {
+    PaginatedResult,
+    PaginationParams,
+} from '@/service/core/pagination';
+import { deriveInvoicePayment } from '../payment-summary';
 import { documentTotals } from '../pricing';
 import { SalesInvoiceRepository } from '../repo/invoice';
 import { SalesOrderRepository } from '../repo/order';
@@ -41,6 +46,20 @@ export type CashSaleResult = {
     shipment: SalesShipment;
     invoice: SalesInvoice;
     payment: CustomerPayment;
+};
+
+/** One completed counter sale for the history list (order + its invoice). */
+export type CashSaleListRow = {
+    id: number; // sales_order id
+    order_no: string;
+    order_date: string;
+    customer_name: string;
+    currency: string;
+    grand_total: number;
+    status: string; // order status
+    invoice_id: number | null;
+    invoice_no: string | null;
+    payment_status: InvoicePaymentStatus | null;
 };
 
 /** A line after the server has resolved price, UOM, location and serials. */
@@ -105,6 +124,70 @@ export class CashSaleService extends BaseRepository {
     private readonly serials = InventorySerialRepository.getInstance();
     private readonly itemUoms = ItemUomRepository.getInstance();
     private readonly settings = CompanySettingsRepository.getInstance();
+
+    // ── 0. History (read-only) ──────────────────────────────────────────────
+
+    /**
+     * Completed counter sales for the history list. A cash sale IS a sales
+     * order on the `cash_sale` channel; each row is joined to its invoice so
+     * the receipt can be reprinted. The invoice lookup is one batched query
+     * bounded to the page, not per-row.
+     */
+    async listSales(
+        ctx: RequestContext,
+        params: PaginationParams,
+    ): Promise<PaginatedResult<CashSaleListRow>> {
+        const page = await this.orders.findAll(ctx, {
+            ...params,
+            sourceChannel: 'cash_sale',
+        });
+        if (!page.data.length) {
+            return { ...page, data: [] };
+        }
+
+        const orderIds = page.data.map((o) => o.id);
+        const { data: invoiceRows, error } = await this.db
+            .from('sales_invoice')
+            .select('id, invoice_no, sales_order_id, grand_total, amount_paid')
+            .eq('company_id', Number(ctx.companyId))
+            .in('sales_order_id', orderIds)
+            .neq('status', 'CANCELLED');
+        if (error) throw new ApiError(error.message, 500);
+
+        // A cash sale raises exactly one invoice; keep the newest if ever more.
+        const byOrder = new Map<number, (typeof invoiceRows)[number]>();
+        for (const inv of invoiceRows ?? []) {
+            if (inv.sales_order_id == null) continue;
+            const existing = byOrder.get(inv.sales_order_id);
+            if (!existing || inv.id > existing.id) {
+                byOrder.set(inv.sales_order_id, inv);
+            }
+        }
+
+        return {
+            ...page,
+            data: page.data.map((o) => {
+                const inv = byOrder.get(o.id);
+                return {
+                    id: o.id,
+                    order_no: o.order_no,
+                    order_date: o.order_date,
+                    customer_name: o.customer_name,
+                    currency: o.currency,
+                    grand_total: o.grand_total,
+                    status: o.status,
+                    invoice_id: inv?.id ?? null,
+                    invoice_no: inv?.invoice_no ?? null,
+                    payment_status: inv
+                        ? deriveInvoicePayment(
+                              Number(inv.grand_total),
+                              Number(inv.amount_paid ?? 0),
+                          ).payment_status
+                        : null,
+                };
+            }),
+        };
+    }
 
     // ── 1. Validation (read-only) ───────────────────────────────────────────
 

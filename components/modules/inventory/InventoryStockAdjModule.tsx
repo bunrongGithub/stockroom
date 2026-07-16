@@ -8,6 +8,7 @@ import type {
     StockAdjustment,
     StockAdjustmentStatus,
 } from '@/types/inventory/adjustment';
+import type { TMeta } from '@/types/app';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
@@ -35,11 +36,14 @@ function StatusBadge({ status }: { status: StockAdjustmentStatus }) {
     );
 }
 
+const DEFAULT_META: TMeta = { total: 0, page: 1, limit: 10, totalPages: 0 };
+
 export default function InventoryStockAdjModule({
     currentPath,
     permission,
     currentPathActions,
     initialData,
+    initialMeta,
 }: ModuleProps) {
     useRegisterModule({
         actionModules: currentPathActions,
@@ -51,6 +55,7 @@ export default function InventoryStockAdjModule({
     const [adjustments, setAdjustments] = useState<StockAdjustment[]>(
         (initialData as StockAdjustment[]) ?? [],
     );
+    const [meta, setMeta] = useState<TMeta>(initialMeta ?? DEFAULT_META);
     const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(
         null,
     );
@@ -66,15 +71,22 @@ export default function InventoryStockAdjModule({
         setTimeout(() => setToast(null), 4000);
     }
 
-    async function refreshAdjustments() {
+    // Server-side pagination: one page in memory, so paging re-queries.
+    async function fetchPage(page: number, limit: number) {
         try {
-            setAdjustments(await stockAdjustmentApi.list());
+            const res = await stockAdjustmentApi.listPage({ page, limit });
+            setAdjustments(res.data);
+            setMeta(res.meta ?? DEFAULT_META);
         } catch (e) {
             showToast(
                 e instanceof Error ? e.message : 'Failed to load adjustments',
                 'error',
             );
         }
+    }
+
+    async function refreshAdjustments() {
+        await fetchPage(meta.page, meta.limit);
     }
 
     async function runAction() {
@@ -296,7 +308,15 @@ export default function InventoryStockAdjModule({
                     row.status.toLowerCase().includes(q)
                 }
                 searchPlaceholder="Search by adjustment no, reference, reason, or status..."
-                pageSize={10}
+                pageSize={meta.limit}
+                pageSizeOptions={[10, 20, 50]}
+                serverSide={{
+                    total: meta.total,
+                    page: meta.page,
+                    totalPages: meta.totalPages,
+                    onPageChange: (p) => fetchPage(p, meta.limit),
+                    onPageSizeChange: (limit) => fetchPage(1, limit),
+                }}
                 emptyTitle="No stock adjustments"
                 emptyDescription="Record an adjustment to correct inventory discrepancies"
             />

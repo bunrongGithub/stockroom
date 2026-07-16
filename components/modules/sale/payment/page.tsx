@@ -5,6 +5,7 @@ import { useRegisterModule } from '@/hook/useModule';
 import type { ModuleProps } from '@/lib/registry';
 import { financesPaymentApi } from '@/lib/api/finances';
 import type { CustomerPayment, PaymentStatus } from '@/types/sales/payment';
+import type { TMeta } from '@/types/app';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
@@ -36,6 +37,7 @@ const METHOD_LABEL: Record<string, string> = {
   BANK_TRANSFER: 'Bank Transfer',
   CARD: 'Card',
   CHEQUE: 'Cheque',
+  KHQR: 'ABA KHQR',
   OTHER: 'Other',
 };
 
@@ -46,11 +48,14 @@ function fmt(n: number) {
   });
 }
 
+const DEFAULT_META: TMeta = { total: 0, page: 1, limit: 10, totalPages: 0 };
+
 export default function SalePaymentPage({
   currentPath,
   permission,
   currentPathActions,
   initialData,
+  initialMeta,
 }: ModuleProps) {
   useRegisterModule({
     actionModules: currentPathActions,
@@ -62,6 +67,7 @@ export default function SalePaymentPage({
   const [payments, setPayments] = useState<CustomerPayment[]>(
     (initialData as CustomerPayment[]) ?? [],
   );
+  const [meta, setMeta] = useState<TMeta>(initialMeta ?? DEFAULT_META);
   const [toast, setToast] = useState<{
     msg: string;
     type: 'success' | 'error';
@@ -78,15 +84,22 @@ export default function SalePaymentPage({
     setTimeout(() => setToast(null), 4000);
   }
 
-  async function refreshPayments() {
+  // Server-side pagination: one page in memory, so paging re-queries.
+  async function fetchPage(page: number, limit: number) {
     try {
-      setPayments(await financesPaymentApi.list());
+      const res = await financesPaymentApi.listPage({ page, limit });
+      setPayments(res.data);
+      setMeta(res.meta ?? DEFAULT_META);
     } catch (e) {
       showToast(
         e instanceof Error ? e.message : 'Failed to load payments',
         'error',
       );
     }
+  }
+
+  async function refreshPayments() {
+    await fetchPage(meta.page, meta.limit);
   }
 
   async function runAction() {
@@ -306,7 +319,15 @@ export default function SalePaymentPage({
           row.status.toLowerCase().includes(q)
         }
         searchPlaceholder="Search by payment no, customer, reference, or status..."
-        pageSize={10}
+        pageSize={meta.limit}
+        pageSizeOptions={[10, 20, 50]}
+        serverSide={{
+          total: meta.total,
+          page: meta.page,
+          totalPages: meta.totalPages,
+          onPageChange: (p) => fetchPage(p, meta.limit),
+          onPageSizeChange: (limit) => fetchPage(1, limit),
+        }}
         emptyTitle="No payments"
         emptyDescription="Record a customer payment to settle invoices"
       />

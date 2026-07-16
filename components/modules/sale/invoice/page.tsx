@@ -8,6 +8,7 @@ import type {
   SalesInvoice,
   SalesInvoiceStatus,
 } from '@/types/sales/order-management';
+import type { TMeta } from '@/types/app';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
@@ -41,11 +42,14 @@ function fmt(n: number) {
   });
 }
 
+const DEFAULT_META: TMeta = { total: 0, page: 1, limit: 10, totalPages: 0 };
+
 export default function SaleInvoicePage({
   currentPath,
   permission,
   currentPathActions,
   initialData,
+  initialMeta,
 }: ModuleProps) {
   useRegisterModule({
     actionModules: currentPathActions,
@@ -57,6 +61,7 @@ export default function SaleInvoicePage({
   const [invoices, setInvoices] = useState<SalesInvoice[]>(
     (initialData as SalesInvoice[]) ?? [],
   );
+  const [meta, setMeta] = useState<TMeta>(initialMeta ?? DEFAULT_META);
   const [toast, setToast] = useState<{
     msg: string;
     type: 'success' | 'error';
@@ -73,15 +78,22 @@ export default function SaleInvoicePage({
     setTimeout(() => setToast(null), 4000);
   }
 
-  async function refreshInvoices() {
+  // Server-side pagination: one page in memory, so paging re-queries.
+  async function fetchPage(page: number, limit: number) {
     try {
-      setInvoices(await financesInvoiceApi.list());
+      const res = await financesInvoiceApi.listPage({ page, limit });
+      setInvoices(res.data);
+      setMeta(res.meta ?? DEFAULT_META);
     } catch (e) {
       showToast(
         e instanceof Error ? e.message : 'Failed to load invoices',
         'error',
       );
     }
+  }
+
+  async function refreshInvoices() {
+    await fetchPage(meta.page, meta.limit);
   }
 
   async function runAction() {
@@ -305,7 +317,15 @@ export default function SaleInvoicePage({
           row.status.toLowerCase().includes(q)
         }
         searchPlaceholder="Search by invoice no, customer, shipment, or status..."
-        pageSize={10}
+        pageSize={meta.limit}
+        pageSizeOptions={[10, 20, 50]}
+        serverSide={{
+          total: meta.total,
+          page: meta.page,
+          totalPages: meta.totalPages,
+          onPageChange: (p) => fetchPage(p, meta.limit),
+          onPageSizeChange: (limit) => fetchPage(1, limit),
+        }}
         emptyTitle="No invoices"
         emptyDescription="Create an invoice from a posted shipment"
       />

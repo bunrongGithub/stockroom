@@ -43,6 +43,24 @@ export type CashSaleResult = {
     payment: { id: number; payment_no: string; amount: number };
 };
 
+export type CashSaleListRow = {
+    id: number;
+    order_no: string;
+    order_date: string;
+    customer_name: string;
+    currency: string;
+    grand_total: number;
+    status: string;
+    invoice_id: number | null;
+    invoice_no: string | null;
+    payment_status: 'PAID' | 'PARTIALLY_PAID' | 'UNPAID' | null;
+};
+
+export type Paginated<T> = {
+    data: T[];
+    meta: { total: number; page: number; limit: number; totalPages: number };
+};
+
 export type SalesSettings = {
     default_sales_warehouse_id: number | null;
     default_sales_warehouse_name: string | null;
@@ -137,5 +155,19 @@ export const cashSaleApi = {
             await post(API.sale.cashSale.root, payload),
         );
         return body.data;
+    },
+
+    /** Completed counter sales (history list) — one page with its meta. */
+    async listPage(
+        params: { page?: number; limit?: number; search?: string } = {},
+    ): Promise<Paginated<CashSaleListRow>> {
+        const url = new URL(API.sale.cashSale.root, window.location.origin);
+        url.searchParams.set('page', String(params.page ?? 1));
+        url.searchParams.set('limit', String(params.limit ?? 10));
+        if (params.search) url.searchParams.set('search', params.search);
+        const body = await unwrap<Paginated<CashSaleListRow>>(
+            await fetch(url.toString()),
+        );
+        return { data: body.data ?? [], meta: body.meta };
     },
 };

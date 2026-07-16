@@ -14,14 +14,22 @@ import {
 } from '@/types/sales/payment';
 
 export const financesInvoiceApi = {
-    async list(search = ''): Promise<SalesInvoice[]> {
+    /** One page WITH its meta — the list needs `total` to paginate at all. */
+    async listPage(
+        params: { page?: number; limit?: number; search?: string } = {},
+    ): Promise<Paginated<SalesInvoice>> {
         const url = new URL(API.finances.invoice.root, window.location.origin);
-        url.searchParams.set('limit', '10');
-        if (search) url.searchParams.set('search', search);
-        const body = await unwrap<{ data: SalesInvoice[] }>(
+        url.searchParams.set('page', String(params.page ?? 1));
+        url.searchParams.set('limit', String(params.limit ?? 10));
+        if (params.search) url.searchParams.set('search', params.search);
+        const body = await unwrap<Paginated<SalesInvoice>>(
             await fetch(url.toString()),
         );
-        return body.data ?? [];
+        return { data: body.data ?? [], meta: body.meta };
+    },
+    async list(search = ''): Promise<SalesInvoice[]> {
+        const { data } = await this.listPage({ search, limit: 10 });
+        return data;
     },
     async get(id: number | string): Promise<SalesInvoice> {
         const body = await unwrap<{ data: SalesInvoice }>(
@@ -107,14 +115,21 @@ export const financesInvoiceApi = {
 // ─── Customer Payment ────────────────────────────────────────────────────────
 
 export const financesPaymentApi = {
-    async list(search = ''): Promise<CustomerPayment[]> {
+    async listPage(
+        params: { page?: number; limit?: number; search?: string } = {},
+    ): Promise<Paginated<CustomerPayment>> {
         const url = new URL(API.finances.payment.root, window.location.origin);
-        url.searchParams.set('limit', '10');
-        if (search) url.searchParams.set('search', search);
-        const body = await unwrap<{ data: CustomerPayment[] }>(
+        url.searchParams.set('page', String(params.page ?? 1));
+        url.searchParams.set('limit', String(params.limit ?? 10));
+        if (params.search) url.searchParams.set('search', params.search);
+        const body = await unwrap<Paginated<CustomerPayment>>(
             await fetch(url.toString()),
         );
-        return body.data ?? [];
+        return { data: body.data ?? [], meta: body.meta };
+    },
+    async list(search = ''): Promise<CustomerPayment[]> {
+        const { data } = await this.listPage({ search, limit: 10 });
+        return data;
     },
     async get(id: number | string): Promise<CustomerPayment> {
         const body = await unwrap<{ data: CustomerPayment }>(

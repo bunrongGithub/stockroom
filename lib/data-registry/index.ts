@@ -10,6 +10,8 @@ import { ModuleRepository } from '@/service/apps/setting/repo/module';
 import { Role } from '@/service/apps/base/core/role';
 import { SalesOrderRepository } from '@/service/apps/sale/repo/order';
 import { SalesShipmentRepository } from '@/service/apps/sale/repo/shipment';
+import { StockAdjustmentRepository } from '@/service/apps/inventory/repo/adjustment';
+import { CashSaleService } from '@/service/apps/sale/cash-sale';
 
 // ─── Server-side initial-data registry ──────────────────────────────────────
 // Maps a module path (the `modules.path` pattern) to the repository call that
@@ -104,6 +106,18 @@ const dataRegistry = new Map<string, DataLoader>([
             }),
     ],
     [
+        // Module path ≠ API path (/api/inventory/adjustment), so the loopback
+        // fallback would 404 — it must load through this in-process loader.
+        '/inventory/stock_adjust',
+        (ctx, { page, limit, search }) =>
+            StockAdjustmentRepository.getInstance().findAll(ctx, {
+                page,
+                limit,
+                search,
+                searchColumn: 'adjustment_no',
+            }),
+    ],
+    [
         '/inventory/receipts/:id/view',
         async (ctx, { pathParams }) => ({
             data: await ReceiptRepository.getInstance().findOne(
@@ -141,6 +155,17 @@ const dataRegistry = new Map<string, DataLoader>([
         '/sale/delivery-note',
         (ctx, { page, limit, search }) =>
             SalesShipmentRepository.getInstance().findAll(ctx, {
+                page,
+                limit,
+                search,
+            }),
+    ],
+    [
+        // History list — module path ≠ API path (/api/sale/cash-sale), so it
+        // must load through this loader rather than the HTTP loopback.
+        '/sale/cash-sale/history',
+        (ctx, { page, limit, search }) =>
+            CashSaleService.getInstance().listSales(ctx, {
                 page,
                 limit,
                 search,
