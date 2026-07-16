@@ -5,6 +5,8 @@ import type { ModuleProps } from '@/lib/registry';
 import {saleOrderApi, saleShipmentApi } from '@/lib/api/sale';
 import { financesInvoiceApi } from '@/lib/api/finances';
 import { RelatedDocumentsPanel } from '@/components/ui/RelatedDocuments';
+import { AuditInformationCard } from '@/components/ui/AuditInformationCard';
+import type { AuditMeta } from '@/types/audit';
 import type {
   SalesInvoice,
   SalesInvoiceStatus,
@@ -302,6 +304,8 @@ export default function SaleShipmentDetail({
               </button>
             )}
           </div>
+
+          <AuditInformationCard audit={shipment as Partial<AuditMeta>} />
         </aside>
 
         {/* RIGHT — tabs */}

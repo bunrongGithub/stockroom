@@ -2,7 +2,10 @@ import type {
     BranchCreateInput,
     BranchUpdateInput,
 } from '@/service/schema/branch.schema';
-import { BaseRepository } from '@/service/core/base-repository';
+import {
+    BaseRepository,
+    type WithAuditUsers,
+} from '@/service/core/base-repository';
 import type { RequestContext } from '@/types/request-context';
 import type { Warehouse } from '@/types/branch';
 import { PaginatedResult, PaginationParams } from '@/service/core';
@@ -54,7 +57,7 @@ export class WarehouseRepository extends BaseRepository {
     async findOne(
         context: RequestContext,
         id: number,
-    ): Promise<Warehouse | null> {
+    ): Promise<WithAuditUsers<Warehouse> | null> {
         const baseQuery = this.db
             .from(TABLE)
             .select('*,warehouse_location(*)')
@@ -67,7 +70,7 @@ export class WarehouseRepository extends BaseRepository {
             if (error && error instanceof PostgrestError) {
                 throw new ApiError(error.message);
             }
-            return data;
+            return data ? this.enrichAuditOne(data) : null;
         }
         const { data, error } = await this.applyCompanyFilter(
             baseQuery,
@@ -76,7 +79,7 @@ export class WarehouseRepository extends BaseRepository {
         if (error && error instanceof PostgrestError) {
             throw new ApiError(error.message);
         }
-        return data;
+        return data ? this.enrichAuditOne(data) : null;
     }
 
     async insertOne(
@@ -88,13 +91,18 @@ export class WarehouseRepository extends BaseRepository {
         if (input.is_default) {
             await supabase
                 .from(TABLE)
-                .update({ is_default: false })
+                .update(this.stampUpdate(ctx, { is_default: false }))
                 .eq('company_id', Number(ctx.companyId));
         }
 
         const { data, error } = await supabase
             .from(TABLE)
-            .insert({ ...input, company_id: Number(ctx.companyId) })
+            .insert(
+                this.stampCreate(ctx, {
+                    ...input,
+                    company_id: Number(ctx.companyId),
+                }),
+            )
             .select()
             .single();
 
@@ -127,14 +135,14 @@ export class WarehouseRepository extends BaseRepository {
         if (input.is_default === true) {
             await supabase
                 .from(TABLE)
-                .update({ is_default: false })
+                .update(this.stampUpdate(ctx, { is_default: false }))
                 .eq('company_id', Number(ctx.companyId))
                 .neq('id', id);
         }
 
         const { data, error } = await supabase
             .from(TABLE)
-            .update(input)
+            .update(this.stampUpdate(ctx, input))
             .eq('id', id)
             .eq('company_id', Number(ctx.companyId))
             .select()

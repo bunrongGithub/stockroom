@@ -2,6 +2,8 @@
 
 import { FieldLabel } from '@/components/ui/FieldLabel';
 import { ReadonlyInput } from '@/components/ui/Readonly';
+import { AuditInformationCard } from '@/components/ui/AuditInformationCard';
+import type { AuditMeta } from '@/types/audit';
 import type {
   TStockBalanceRow,
   TStockLocationSummary,
@@ -694,6 +696,8 @@ export default function StockViewDetail({ item }: { item: StockViewItem }) {
           )}
         </div>
       </div>
+
+      <AuditInformationCard audit={item as Partial<AuditMeta>} />
     </div>
   );
 }

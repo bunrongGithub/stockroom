@@ -4,6 +4,7 @@ import type {
     PaginatedResult,
 } from '@/service/core/pagination';
 import type { RequestContext } from '@/types/request-context';
+import type { AuditMeta } from '@/types/audit';
 import { getNextDocumentNumber } from '@/service/core/document-number';
 import { ApiError, NotFoundError } from '@/service/core/api-response';
 import { lineTotal, documentTotals } from '../pricing';
@@ -161,7 +162,7 @@ export class SalesInvoiceRepository extends BaseRepository {
     async findOne(
         ctx: RequestContext,
         id: number,
-    ): Promise<SalesInvoice | null> {
+    ): Promise<(SalesInvoice & Partial<AuditMeta>) | null> {
         const isSuperUser = await this.isSupperUser(ctx);
         const { data, error } = await this.applyFilter(
             this.db.from(HEADER_TABLE).select(SELECT_DETAIL).eq('id', id),
@@ -201,7 +202,11 @@ export class SalesInvoiceRepository extends BaseRepository {
             }
         }
 
-        return invoice;
+        return this.enrichAuditOne({
+            ...invoice,
+            created_by: (data as { created_by?: string | null }).created_by ?? null,
+            updated_by: (data as { updated_by?: string | null }).updated_by ?? null,
+        });
     }
 
     /** All invoices raised against a shipment (for the shipment's Invoices tab). */
@@ -315,28 +320,31 @@ export class SalesInvoiceRepository extends BaseRepository {
 
         const { data: header, error } = await this.db
             .from(HEADER_TABLE)
-            .insert({
-                company_id: companyId,
-                user_id: ctx.userId,
-                invoice_no: await getNextDocumentNumber(
-                    ctx,
-                    'sales_invoice',
-                    'INV',
-                ),
-                reference_no: input.reference_no ?? null,
-                shipment_id: input.shipment_id,
-                sales_order_id: shipment.sales_order_id,
-                customer_name: input.customer_name ?? shipment.customer_name,
-                customer_phone: input.customer_phone ?? shipment.customer_phone,
-                customer_address:
-                    input.customer_address ?? shipment.delivery_address,
-                invoice_date: input.invoice_date,
-                currency: input.currency ?? order?.currency ?? 'USD',
-                exchange_rate: input.exchange_rate ?? 1,
-                status: 'DRAFT',
-                ...totals,
-                remarks: input.remarks ?? null,
-            })
+            .insert(
+                this.stampCreate(ctx, {
+                    company_id: companyId,
+                    user_id: ctx.userId,
+                    invoice_no: await getNextDocumentNumber(
+                        ctx,
+                        'sales_invoice',
+                        'INV',
+                    ),
+                    reference_no: input.reference_no ?? null,
+                    shipment_id: input.shipment_id,
+                    sales_order_id: shipment.sales_order_id,
+                    customer_name: input.customer_name ?? shipment.customer_name,
+                    customer_phone:
+                        input.customer_phone ?? shipment.customer_phone,
+                    customer_address:
+                        input.customer_address ?? shipment.delivery_address,
+                    invoice_date: input.invoice_date,
+                    currency: input.currency ?? order?.currency ?? 'USD',
+                    exchange_rate: input.exchange_rate ?? 1,
+                    status: 'DRAFT',
+                    ...totals,
+                    remarks: input.remarks ?? null,
+                }),
+            )
             .select()
             .single();
         if (error) throw new ApiError(error.message, 500);
@@ -436,18 +444,23 @@ export class SalesInvoiceRepository extends BaseRepository {
 
         const { error } = await this.db
             .from(HEADER_TABLE)
-            .update({
-                reference_no: input.reference_no ?? existing.reference_no,
-                customer_name: input.customer_name ?? existing.customer_name,
-                customer_phone: input.customer_phone ?? existing.customer_phone,
-                customer_address:
-                    input.customer_address ?? existing.customer_address,
-                invoice_date: input.invoice_date,
-                currency: input.currency ?? existing.currency,
-                exchange_rate: input.exchange_rate ?? existing.exchange_rate,
-                remarks: input.remarks ?? null,
-                ...totals,
-            })
+            .update(
+                this.stampUpdate(ctx, {
+                    reference_no: input.reference_no ?? existing.reference_no,
+                    customer_name:
+                        input.customer_name ?? existing.customer_name,
+                    customer_phone:
+                        input.customer_phone ?? existing.customer_phone,
+                    customer_address:
+                        input.customer_address ?? existing.customer_address,
+                    invoice_date: input.invoice_date,
+                    currency: input.currency ?? existing.currency,
+                    exchange_rate:
+                        input.exchange_rate ?? existing.exchange_rate,
+                    remarks: input.remarks ?? null,
+                    ...totals,
+                }),
+            )
             .eq('id', id)
             .eq('company_id', companyId);
         if (error) throw new ApiError(error.message, 500);
@@ -712,7 +725,7 @@ export class SalesInvoiceRepository extends BaseRepository {
     ): Promise<SalesInvoice> {
         const { error } = await this.db
             .from(HEADER_TABLE)
-            .update({ status })
+            .update(this.stampUpdate(ctx, { status }))
             .eq('id', id)
             .eq('company_id', Number(ctx.companyId));
         if (error) throw new ApiError(error.message, 500);

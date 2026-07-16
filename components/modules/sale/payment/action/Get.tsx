@@ -3,6 +3,8 @@
 import { useRegisterModule } from '@/hook/useModule';
 import type { ModuleProps } from '@/lib/registry';
 import { financesPaymentApi } from '@/lib/api/finances';
+import { AuditInformationCard } from '@/components/ui/AuditInformationCard';
+import type { AuditMeta } from '@/types/audit';
 import type { CustomerPayment, PaymentStatus } from '@/types/sales/payment';
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -272,6 +274,8 @@ export default function SalePaymentDetail({
           </div>
         )}
       </section>
+
+      <AuditInformationCard audit={payment as Partial<AuditMeta>} />
     </div>
   );
 }

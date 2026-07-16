@@ -6,6 +6,7 @@ import {
     NotFoundError,
 } from '@/service/core/api-response';
 import type { RequestContext } from '@/types/request-context';
+import type { AuditMeta } from '@/types/audit';
 import type {
     Company,
     CompanyBrief,
@@ -100,7 +101,10 @@ export class CompanyRepository extends BaseRepository {
         return data as Company;
     }
 
-    async findOwn(ctx: RequestContext, overrideId?: number): Promise<Company> {
+    async findOwn(
+        ctx: RequestContext,
+        overrideId?: number,
+    ): Promise<Company & Partial<AuditMeta>> {
         const companyId = this.targetCompanyId(ctx, overrideId);
         const { data, error } = await this.db
             .from('company')
@@ -109,7 +113,7 @@ export class CompanyRepository extends BaseRepository {
             .single();
 
         if (error || !data) throw new NotFoundError('Company not found');
-        return data as Company;
+        return this.enrichAuditOne(data as Company);
     }
 
     async getBrief(companyId: number): Promise<CompanyBrief | null> {
@@ -129,7 +133,7 @@ export class CompanyRepository extends BaseRepository {
         const companyId = this.targetCompanyId(ctx, overrideId);
         const { data, error } = await this.db
             .from('company')
-            .update(payload)
+            .update(this.stampUpdate(ctx, payload))
             .eq('id', companyId)
             .select('*')
             .single();

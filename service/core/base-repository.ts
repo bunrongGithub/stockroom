@@ -4,6 +4,29 @@ import { getServerClient, createScopedClient } from '@/lib/supabase/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { RequestContext } from '@/types/request-context';
 import { ApiError, ForbiddenError } from './api-response';
+import { resolveAuditUsers, type AuditUser } from './audit';
+
+/** A row carrying the raw audit foreign keys, before enrichment. */
+type AuditRow = { created_by?: string | null; updated_by?: string | null };
+
+/** A row after enrichment: the raw ids resolved to display info. */
+export type WithAuditUsers<T> = T & {
+    created_by_user: AuditUser | null;
+    updated_by_user: AuditUser | null;
+};
+
+/**
+ * A domain object returned by a detail endpoint, carrying the enriched audit
+ * fields the AuditInformationCard reads. Domain types already expose
+ * created_at/updated_at, so this only adds the resolved user objects (+ the raw
+ * ids for completeness).
+ */
+export type AuditEnriched<T> = T & {
+    created_by: string | null;
+    updated_by: string | null;
+    created_by_user: AuditUser | null;
+    updated_by_user: AuditUser | null;
+};
 
 // Deduped per request: multiple repositories touched in one render/handler share
 // a single `profiles.is_super_user` lookup instead of querying once each.
@@ -171,6 +194,93 @@ export abstract class BaseRepository extends BaseQueryFilter {
     /** Company-scoped insert client — automatically stamps company_id on every insert row. */
     protected scopedDb(companyId: number) {
         return createScopedClient(companyId);
+    }
+
+    // ── Audit metadata ──────────────────────────────────────────────────────
+    // created_by / updated_by are system-managed: set ONLY from the request
+    // context, never from client input. Wrap every insert/update payload with
+    // these so no repository hand-assigns audit fields.
+
+    /** Stamp a NEW row: both created_by and updated_by = the current user. */
+    protected stampCreate<T extends object>(
+        ctx: RequestContext,
+        payload: T,
+    ): T & { created_by: string; updated_by: string } {
+        return { ...payload, created_by: ctx.userId, updated_by: ctx.userId };
+    }
+
+    /** Stamp an UPDATE: only updated_by. created_by is immutable (DB-enforced). */
+    protected stampUpdate<T extends object>(
+        ctx: RequestContext,
+        payload: T,
+    ): T & { updated_by: string } {
+        return { ...payload, updated_by: ctx.userId };
+    }
+
+    /**
+     * Insert one row with audit stamping applied. The zero-boilerplate path for
+     * new modules — created_by/updated_by are handled here, not in the caller.
+     */
+    protected async auditedInsert<R = Record<string, unknown>>(
+        ctx: RequestContext,
+        table: string,
+        payload: Record<string, unknown>,
+        select = '*',
+    ): Promise<R> {
+        const { data, error } = await this.db
+            .from(table)
+            .insert(this.stampCreate(ctx, payload))
+            .select(select)
+            .single();
+        if (error) throw new ApiError(error.message, 500, error.code);
+        return data as R;
+    }
+
+    /**
+     * Update one row (by id, company-scoped) with audit stamping applied. The
+     * DB immutability guard keeps created_by/created_at fixed regardless.
+     */
+    protected async auditedUpdate<R = Record<string, unknown>>(
+        ctx: RequestContext,
+        table: string,
+        id: number | string,
+        patch: Record<string, unknown>,
+        select = '*',
+    ): Promise<R> {
+        const { data, error } = await this.db
+            .from(table)
+            .update(this.stampUpdate(ctx, patch))
+            .eq('id', id)
+            .eq('company_id', Number(ctx.companyId))
+            .select(select)
+            .single();
+        if (error) throw new ApiError(error.message, 500, error.code);
+        return data as R;
+    }
+
+    /**
+     * Resolve created_by/updated_by ids to `{ id, full_name, avatar_url }` for a
+     * batch of rows in ONE query (no N+1). Returns rows widened with
+     * created_by_user / updated_by_user.
+     */
+    protected async enrichAudit<T extends AuditRow>(
+        rows: T[],
+    ): Promise<WithAuditUsers<T>[]> {
+        const users = await resolveAuditUsers(
+            rows.flatMap((r) => [r.created_by, r.updated_by]),
+        );
+        return rows.map((r) => ({
+            ...r,
+            created_by_user: r.created_by ? (users[r.created_by] ?? null) : null,
+            updated_by_user: r.updated_by ? (users[r.updated_by] ?? null) : null,
+        }));
+    }
+
+    /** enrichAudit for a single row. */
+    protected async enrichAuditOne<T extends AuditRow>(
+        row: T,
+    ): Promise<WithAuditUsers<T>> {
+        return (await this.enrichAudit([row]))[0];
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

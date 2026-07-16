@@ -4,6 +4,8 @@ import { useRegisterModule } from '@/hook/useModule';
 import type { ModuleProps } from '@/lib/registry';
 import { financesInvoiceApi } from '@/lib/api/finances';
 import { RelatedDocumentsPanel } from '@/components/ui/RelatedDocuments';
+import { AuditInformationCard } from '@/components/ui/AuditInformationCard';
+import type { AuditMeta } from '@/types/audit';
 import type {
   SalesInvoice,
   SalesInvoiceStatus,
@@ -362,6 +364,8 @@ export default function SaleInvoiceDetail({
               )}
             </div>
           )}
+
+          <AuditInformationCard audit={invoice as Partial<AuditMeta>} />
         </aside>
 
         {/* RIGHT — tabs */}

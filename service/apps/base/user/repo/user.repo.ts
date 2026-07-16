@@ -151,7 +151,7 @@ export class CompanyUserRepository extends BaseRepository {
 
         const { error } = await this.db
             .from('profiles')
-            .update(patch)
+            .update(this.stampUpdate(ctx, patch))
             .eq('id', id)
             .eq('company_id', companyId);
         if (error) throw new ApiError(error.message, 500, error.code);
@@ -250,7 +250,7 @@ export class CompanyUserRepository extends BaseRepository {
 
         const { error: profErr } = await this.db
             .from('profiles')
-            .update({ company_id: newCompanyId })
+            .update(this.stampUpdate(ctx, { company_id: newCompanyId }))
             .eq('id', id);
         if (profErr) throw new ApiError(profErr.message, 500, profErr.code);
 

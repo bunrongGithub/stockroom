@@ -4,6 +4,7 @@ import type {
     PaginatedResult,
 } from '@/service/core/pagination';
 import type { RequestContext } from '@/types/request-context';
+import type { AuditMeta } from '@/types/audit';
 import { getNextDocumentNumber } from '@/service/core/document-number';
 import {
     lineTotal as calcLineTotal,
@@ -193,7 +194,10 @@ export class SalesOrderRepository extends BaseRepository {
         return { ...result, data: result.data.map(mapOrder) };
     }
 
-    async findOne(ctx: RequestContext, id: number): Promise<SalesOrder | null> {
+    async findOne(
+        ctx: RequestContext,
+        id: number,
+    ): Promise<(SalesOrder & Partial<AuditMeta>) | null> {
         const isSuperUser = await this.isSupperUser(ctx);
         const { data, error } = await this.applyFilter(
             this.db.from(HEADER_TABLE).select(SELECT_DETAIL).eq('id', id),
@@ -201,7 +205,14 @@ export class SalesOrderRepository extends BaseRepository {
             isSuperUser,
         ).maybeSingle();
         if (error) throw new ApiError(error.message, 500);
-        return data ? mapOrder(data) : null;
+        if (!data) return null;
+        return this.enrichAuditOne({
+            ...mapOrder(data),
+            created_by:
+                (data as { created_by?: string | null }).created_by ?? null,
+            updated_by:
+                (data as { updated_by?: string | null }).updated_by ?? null,
+        });
     }
 
     /** The order a previous request already created for this key, if any. */
@@ -229,24 +240,27 @@ export class SalesOrderRepository extends BaseRepository {
 
         const { data: header, error } = await this.db
             .from(HEADER_TABLE)
-            .insert({
-                company_id: companyId,
-                user_id: ctx.userId,
-                order_no,
-                reference_no: input.reference_no ?? null,
-                customer_name: input.customer_name,
-                customer_phone: input.customer_phone ?? null,
-                customer_id: input.customer_id ?? null,
-                source_channel: input.source_channel ?? 'sales_order',
-                idempotency_key: input.idempotency_key ?? null,
-                order_date: input.order_date,
-                expected_delivery_date: input.expected_delivery_date ?? null,
-                warehouse_id: input.warehouse_id,
-                currency: input.currency ?? 'USD',
-                status: 'open',
-                ...totals,
-                notes: input.notes ?? null,
-            })
+            .insert(
+                this.stampCreate(ctx, {
+                    company_id: companyId,
+                    user_id: ctx.userId,
+                    order_no,
+                    reference_no: input.reference_no ?? null,
+                    customer_name: input.customer_name,
+                    customer_phone: input.customer_phone ?? null,
+                    customer_id: input.customer_id ?? null,
+                    source_channel: input.source_channel ?? 'sales_order',
+                    idempotency_key: input.idempotency_key ?? null,
+                    order_date: input.order_date,
+                    expected_delivery_date:
+                        input.expected_delivery_date ?? null,
+                    warehouse_id: input.warehouse_id,
+                    currency: input.currency ?? 'USD',
+                    status: 'open',
+                    ...totals,
+                    notes: input.notes ?? null,
+                }),
+            )
             .select()
             .single();
 
@@ -290,17 +304,20 @@ export class SalesOrderRepository extends BaseRepository {
 
         const { error } = await this.db
             .from(HEADER_TABLE)
-            .update({
-                reference_no: input.reference_no ?? null,
-                customer_name: input.customer_name,
-                customer_phone: input.customer_phone ?? null,
-                order_date: input.order_date,
-                expected_delivery_date: input.expected_delivery_date ?? null,
-                warehouse_id: input.warehouse_id,
-                currency: input.currency ?? 'USD',
-                notes: input.notes ?? null,
-                ...totals,
-            })
+            .update(
+                this.stampUpdate(ctx, {
+                    reference_no: input.reference_no ?? null,
+                    customer_name: input.customer_name,
+                    customer_phone: input.customer_phone ?? null,
+                    order_date: input.order_date,
+                    expected_delivery_date:
+                        input.expected_delivery_date ?? null,
+                    warehouse_id: input.warehouse_id,
+                    currency: input.currency ?? 'USD',
+                    notes: input.notes ?? null,
+                    ...totals,
+                }),
+            )
             .eq('id', id)
             .eq('company_id', companyId);
 
@@ -577,7 +594,7 @@ export class SalesOrderRepository extends BaseRepository {
         );
         await this.db
             .from(HEADER_TABLE)
-            .update({ status })
+            .update(this.stampUpdate(ctx, { status }))
             .eq('id', orderId)
             .eq('company_id', companyId);
     }
@@ -619,7 +636,7 @@ export class SalesOrderRepository extends BaseRepository {
     ): Promise<SalesOrder> {
         const { error } = await this.db
             .from(HEADER_TABLE)
-            .update({ status })
+            .update(this.stampUpdate(ctx, { status }))
             .eq('id', id)
             .eq('company_id', Number(ctx.companyId));
         if (error) throw new ApiError(error.message, 500);

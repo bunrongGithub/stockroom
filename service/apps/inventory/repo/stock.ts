@@ -11,6 +11,7 @@ import type {
     UpdateInventoryInput,
 } from '@/service/schema/inventory.schema';
 import type { RequestContext } from '@/types/request-context';
+import type { AuditMeta } from '@/types/audit';
 import { ItemUomRepository } from './item-uom';
 import { InventoryUomRepository } from './uom';
 
@@ -109,7 +110,7 @@ export class InventoryRepository extends BaseRepository {
     async findOne(
         ctx: RequestContext,
         id: number,
-    ): Promise<InventoryItem | null> {
+    ): Promise<(InventoryItem & Partial<AuditMeta>) | null> {
         const isSuperUser = await this.isSupperUser(ctx);
         const { data, error } = await this.applyFilter(
             this.db.from(TABLE).select(SELECT_COLS).eq('id', id),
@@ -121,7 +122,7 @@ export class InventoryRepository extends BaseRepository {
             if (error.code === 'PGRST116') return null;
             throw new Error(error.message);
         }
-        return data;
+        return data ? this.enrichAuditOne(data) : null;
     }
 
     async insertOne(
@@ -148,12 +149,14 @@ export class InventoryRepository extends BaseRepository {
 
         const { data, error } = await this.scopedDb(Number(ctx.companyId))
             .from(TABLE)
-            .insert({
-                ...input,
-                user_id: ctx.userId,
-                reference_no: referenceNo,
-                sku,
-            })
+            .insert(
+                this.stampCreate(ctx, {
+                    ...input,
+                    user_id: ctx.userId,
+                    reference_no: referenceNo,
+                    sku,
+                }),
+            )
             .select()
             .single();
 
@@ -214,7 +217,7 @@ export class InventoryRepository extends BaseRepository {
         const { data, error } = await this.applyFilter(
             this.db
                 .from(TABLE)
-                .update({ ...input })
+                .update(this.stampUpdate(ctx, { ...input }))
                 .eq('id', id),
             ctx,
             isSuperUser,

@@ -3,7 +3,9 @@
 import { API } from '@/lib/constant';
 import { FieldLabel } from '@/components/ui/FieldLabel';
 import { ReadonlyInput } from '@/components/ui/Readonly';
+import { AuditInformationCard } from '@/components/ui/AuditInformationCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import type { AuditMeta } from '@/types/audit';
 import type {
   InventoryMovemtTypeReasonMeta,
   ReceiptTxnType,
@@ -332,6 +334,8 @@ export default function View({ receiptData }: { receiptData: ReceiptTxnType }) {
           </div>
         </CardContent>
       </Card>
+
+      <AuditInformationCard audit={receipt as Partial<AuditMeta>} />
     </div>
   );
 }

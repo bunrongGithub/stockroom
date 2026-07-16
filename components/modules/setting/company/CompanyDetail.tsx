@@ -1,7 +1,9 @@
 'use client';
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { AuditInformationCard } from '@/components/ui/AuditInformationCard';
 import { useApp } from '@/context/AppContext';
+import type { AuditMeta } from '@/types/audit';
 import type { Company as TCompany, CompanyStatus } from '@/types/setting/company';
 import {
     ArrowLeft,
@@ -145,6 +147,10 @@ export default function CompanyDetail({
                     <RolesTab />
                 </TabsContent>
             </Tabs>
+
+            <div className="mt-4">
+                <AuditInformationCard audit={company as Partial<AuditMeta>} />
+            </div>
         </div>
     );
 }

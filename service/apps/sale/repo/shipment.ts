@@ -14,6 +14,7 @@ import type {
     UpdateSalesShipmentInput,
 } from '@/service/schema/sale-shipment.schema';
 import type { RequestContext } from '@/types/request-context';
+import type { AuditMeta } from '@/types/audit';
 import type {
     SalesOrder,
     SalesShipment,
@@ -143,7 +144,7 @@ export class SalesShipmentRepository extends BaseRepository {
     async findOne(
         ctx: RequestContext,
         id: number,
-    ): Promise<SalesShipment | null> {
+    ): Promise<(SalesShipment & Partial<AuditMeta>) | null> {
         const isSuperUser = await this.isSupperUser(ctx);
         const { data, error } = await this.applyFilter(
             this.db.from(HEADER_TABLE).select(SELECT_DETAIL).eq('id', id),
@@ -151,7 +152,14 @@ export class SalesShipmentRepository extends BaseRepository {
             isSuperUser,
         ).maybeSingle();
         if (error) throw new ApiError(error.message, 500);
-        return data ? mapShipment(data) : null;
+        if (!data) return null;
+        return this.enrichAuditOne({
+            ...mapShipment(data),
+            created_by:
+                (data as { created_by?: string | null }).created_by ?? null,
+            updated_by:
+                (data as { updated_by?: string | null }).updated_by ?? null,
+        });
     }
 
     async insertOne(
@@ -169,21 +177,24 @@ export class SalesShipmentRepository extends BaseRepository {
         );
         const { data: header, error } = await this.db
             .from(HEADER_TABLE)
-            .insert({
-                company_id: companyId,
-                user_id: ctx.userId,
-                shipment_no,
-                reference_no: input.reference_no ?? null,
-                sales_order_id: input.sales_order_id,
-                customer_name: input.customer_name ?? order.customer_name,
-                customer_phone: input.customer_phone ?? order.customer_phone,
-                delivery_date: input.delivery_date,
-                warehouse_id: input.warehouse_id ?? order.warehouse_id,
-                status: 'DRAFT',
-                receiver_name: input.receiver_name ?? null,
-                delivery_address: input.delivery_address ?? null,
-                notes: input.notes ?? null,
-            })
+            .insert(
+                this.stampCreate(ctx, {
+                    company_id: companyId,
+                    user_id: ctx.userId,
+                    shipment_no,
+                    reference_no: input.reference_no ?? null,
+                    sales_order_id: input.sales_order_id,
+                    customer_name: input.customer_name ?? order.customer_name,
+                    customer_phone:
+                        input.customer_phone ?? order.customer_phone,
+                    delivery_date: input.delivery_date,
+                    warehouse_id: input.warehouse_id ?? order.warehouse_id,
+                    status: 'DRAFT',
+                    receiver_name: input.receiver_name ?? null,
+                    delivery_address: input.delivery_address ?? null,
+                    notes: input.notes ?? null,
+                }),
+            )
             .select()
             .single();
 
@@ -217,16 +228,18 @@ export class SalesShipmentRepository extends BaseRepository {
 
         const { error } = await this.db
             .from(HEADER_TABLE)
-            .update({
-                reference_no: input.reference_no ?? null,
-                customer_name: input.customer_name ?? null,
-                customer_phone: input.customer_phone ?? null,
-                delivery_date: input.delivery_date,
-                warehouse_id: input.warehouse_id,
-                receiver_name: input.receiver_name ?? null,
-                delivery_address: input.delivery_address ?? null,
-                notes: input.notes ?? null,
-            })
+            .update(
+                this.stampUpdate(ctx, {
+                    reference_no: input.reference_no ?? null,
+                    customer_name: input.customer_name ?? null,
+                    customer_phone: input.customer_phone ?? null,
+                    delivery_date: input.delivery_date,
+                    warehouse_id: input.warehouse_id,
+                    receiver_name: input.receiver_name ?? null,
+                    delivery_address: input.delivery_address ?? null,
+                    notes: input.notes ?? null,
+                }),
+            )
             .eq('id', id)
             .eq('company_id', companyId);
         if (error) throw new ApiError(error.message, 500);
@@ -417,7 +430,7 @@ export class SalesShipmentRepository extends BaseRepository {
             // 4. Mark posted.
             const { error } = await this.db
                 .from(HEADER_TABLE)
-                .update({ status: 'POSTED' })
+                .update(this.stampUpdate(ctx, { status: 'POSTED' }))
                 .eq('id', id)
                 .eq('company_id', companyId);
             if (error) throw new ApiError(error.message, 500);
@@ -504,7 +517,7 @@ export class SalesShipmentRepository extends BaseRepository {
         //    remain posted (this one no longer counts).
         const { error } = await this.db
             .from(HEADER_TABLE)
-            .update({ status: 'DRAFT' })
+            .update(this.stampUpdate(ctx, { status: 'DRAFT' }))
             .eq('id', shipment.id)
             .eq('company_id', companyId);
         if (error) throw new ApiError(error.message, 500);
@@ -534,7 +547,7 @@ export class SalesShipmentRepository extends BaseRepository {
         }
         const { error } = await this.db
             .from(HEADER_TABLE)
-            .update({ status: 'VOID' })
+            .update(this.stampUpdate(ctx, { status: 'VOID' }))
             .eq('id', id)
             .eq('company_id', Number(ctx.companyId));
         if (error) throw new ApiError(error.message, 500);
@@ -633,7 +646,7 @@ export class SalesShipmentRepository extends BaseRepository {
 
         await this.db
             .from(HEADER_TABLE)
-            .update({ status })
+            .update(this.stampUpdate(ctx, { status }))
             .eq('id', shipmentId)
             .eq('company_id', companyId);
     }

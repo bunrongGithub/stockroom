@@ -1,8 +1,10 @@
 'use client';
 
+import { AuditInformationCard } from '@/components/ui/AuditInformationCard';
 import { Check } from '@/components/ui/Check';
 import { useRegisterModule } from '@/hook/useModule';
 import type { ModuleProps } from '@/lib/registry';
+import type { AuditMeta } from '@/types/audit';
 import type { Warehouse, WarehouseLocation } from '@/types/branch';
 import {
   ArrowLeft,
@@ -199,6 +201,8 @@ export default function View({
           </table>
         </div>
       </section>
+
+      <AuditInformationCard audit={warehouse as Partial<AuditMeta>} />
     </div>
   );
 }
