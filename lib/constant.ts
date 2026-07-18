@@ -46,6 +46,7 @@ export const API = {
 
     dashboard: {
         summary: '/api/dashboard/summary',
+        analytics: (metric: string) => `/api/dashboard/analytics/${metric}`,
     },
 
     inventory: {
