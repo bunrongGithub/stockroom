@@ -9,7 +9,7 @@
 
 # A short name to identify this project locally.
 # Does NOT have to match your cloud project ref.
-project_id = "pos"
+project_id = "elxxvmhgfwyyddvaigux"
 
 # =============================================================================
 # [api]  —  PostgREST (the auto-generated REST API over your Postgres tables)
