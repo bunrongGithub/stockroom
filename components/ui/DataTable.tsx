@@ -7,8 +7,10 @@ import {
     ArrowUpDown,
     ChevronLeft,
     ChevronRight,
+    ListFilter,
     Search,
     Settings2,
+    X,
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { useIsMobile } from '@/hook/use-mobile';
@@ -94,6 +96,31 @@ const DATE_PRESETS: { value: string; label: string }[] = [
 ];
 
 const ALL_VALUE = '__all__';
+
+/* Filter pills: dashed + muted when idle, emerald-tinted when active. */
+const PILL_BASE =
+    'h-8 rounded-full border bg-background px-3 text-xs shadow-none transition-colors';
+const PILL_IDLE =
+    'border-dashed border-border/80 text-muted-foreground hover:border-border hover:bg-muted/40 hover:text-foreground';
+const PILL_ACTIVE =
+    'border-solid border-emerald-600/35 bg-emerald-50/80 font-medium text-emerald-800 hover:bg-emerald-50 dark:border-emerald-400/30 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-950/60';
+
+/** Small "Label |" prefix rendered inside a pill control. */
+function PillLabel({ text, active }: { text: string; active: boolean }) {
+    return (
+        <>
+            <span
+                className={cn(
+                    'text-[11px] font-normal',
+                    active ? 'text-emerald-700/80 dark:text-emerald-400/80' : 'opacity-80',
+                )}
+            >
+                {text}
+            </span>
+            <span aria-hidden className="h-3.5 w-px shrink-0 bg-current opacity-25" />
+        </>
+    );
+}
 
 /** Pass this to enable server-driven pagination (the server already sliced the data). */
 export interface ServerSidePagination {
@@ -445,9 +472,9 @@ export function DataTable<T>({
                                                         )
                                                     }
                                                     className={cn(
-                                                        'inline-flex items-center gap-1 hover:text-foreground',
+                                                        'inline-flex items-center gap-1 rounded-md transition-colors hover:text-foreground',
                                                         direction &&
-                                                            'text-foreground',
+                                                            'font-medium text-emerald-700 dark:text-emerald-400',
                                                     )}
                                                 >
                                                     {col.header}
@@ -649,8 +676,11 @@ function ColumnVisibilityMenu<T>({
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="h-9 gap-1.5 text-xs">
-                    <Settings2 className="size-4" />
+                <Button
+                    variant="outline"
+                    className="h-8 gap-1.5 rounded-full border-border/80 px-3 text-xs text-muted-foreground shadow-none hover:text-foreground"
+                >
+                    <Settings2 className="size-3.5" />
                     Columns
                 </Button>
             </DropdownMenuTrigger>
@@ -690,7 +720,12 @@ function FilterBar({
 }) {
     const hasActive = defs.some((def) => values[def.key]);
     return (
-        <div className="flex flex-wrap items-end gap-2">
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border/60 bg-muted/30 px-3 py-2">
+            <span className="inline-flex items-center gap-1.5 pr-1 text-xs font-medium text-muted-foreground">
+                <ListFilter className="size-3.5" />
+                Filters
+            </span>
+            <span aria-hidden className="h-4 w-px bg-border/80" />
             {defs.map((def) => {
                 const value = values[def.key] ?? '';
                 if (def.type === 'date-range') {
@@ -720,48 +755,54 @@ function FilterBar({
                               { value: 'false', label: 'No' },
                           ]
                         : (def.options ?? []);
+                const active = Boolean(value);
                 return (
-                    <div key={def.key} className="space-y-1">
-                        <span className="block text-[11px] text-muted-foreground">
-                            {def.label}
-                        </span>
-                        <Select
-                            value={value || ALL_VALUE}
-                            onValueChange={(next) =>
-                                onFilter(
-                                    def.key,
-                                    next === ALL_VALUE ? null : next,
-                                )
-                            }
+                    <Select
+                        key={def.key}
+                        value={value || ALL_VALUE}
+                        onValueChange={(next) =>
+                            onFilter(def.key, next === ALL_VALUE ? null : next)
+                        }
+                    >
+                        <SelectTrigger
+                            size="sm"
+                            className={cn(
+                                PILL_BASE,
+                                active ? PILL_ACTIVE : PILL_IDLE,
+                                'gap-1.5 [&_svg:not([class*=text-])]:text-current [&_svg]:opacity-60',
+                            )}
                         >
-                            <SelectTrigger className="h-9 w-36 text-xs">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value={ALL_VALUE} className="text-xs">
-                                    All
+                            <PillLabel text={def.label} active={active} />
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="min-w-36 rounded-xl">
+                            <SelectItem
+                                value={ALL_VALUE}
+                                className="rounded-lg text-xs text-muted-foreground"
+                            >
+                                All
+                            </SelectItem>
+                            {options.map((option) => (
+                                <SelectItem
+                                    key={option.value}
+                                    value={option.value}
+                                    className="rounded-lg text-xs"
+                                >
+                                    {option.label}
                                 </SelectItem>
-                                {options.map((option) => (
-                                    <SelectItem
-                                        key={option.value}
-                                        value={option.value}
-                                        className="text-xs"
-                                    >
-                                        {option.label}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
+                            ))}
+                        </SelectContent>
+                    </Select>
                 );
             })}
             {hasActive && (
                 <Button
                     variant="ghost"
-                    className="h-9 text-xs text-muted-foreground"
+                    className="h-8 gap-1 rounded-full px-2.5 text-xs text-muted-foreground hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 dark:hover:text-rose-400"
                     onClick={() => defs.forEach((def) => onFilter(def.key, null))}
                 >
-                    Clear filters
+                    <X className="size-3.5" />
+                    Clear all
                 </Button>
             )}
         </div>
@@ -798,17 +839,32 @@ function TextFilter({
         }, 300);
     };
 
+    const active = Boolean(value);
     return (
-        <div className="space-y-1">
-            <span className="block text-[11px] text-muted-foreground">
-                {def.label}
-            </span>
-            <Input
+        <div
+            className={cn(
+                PILL_BASE,
+                active ? PILL_ACTIVE : PILL_IDLE,
+                'inline-flex items-center gap-1.5 focus-within:border-solid focus-within:border-emerald-600/40 focus-within:ring-2 focus-within:ring-emerald-500/15',
+            )}
+        >
+            <PillLabel text={def.label} active={active} />
+            <input
                 value={text}
-                placeholder={def.placeholder ?? def.label}
+                placeholder={def.placeholder ?? 'Any'}
                 onChange={(e) => handleChange(e.target.value)}
-                className="h-9 w-40 text-xs"
+                className="w-24 bg-transparent text-xs outline-none placeholder:text-muted-foreground/70"
             />
+            {text && (
+                <button
+                    type="button"
+                    aria-label={`Clear ${def.label} filter`}
+                    onClick={() => handleChange('')}
+                    className="rounded-full p-0.5 opacity-60 transition-opacity hover:opacity-100"
+                >
+                    <X className="size-3" />
+                </button>
+            )}
         </div>
     );
 }
@@ -823,74 +879,101 @@ function DateRangeFilter({
     onFilter: (key: string, value: string | null) => void;
 }) {
     const isCustom = value.startsWith('between:');
-    const [customOpen, setCustomOpen] = useState(isCustom);
-    const [fromDate, toDate] = isCustom
+    const [appliedFrom, appliedTo] = isCustom
         ? value.slice('between:'.length).split(',')
         : ['', ''];
 
+    const [customOpen, setCustomOpen] = useState(isCustom);
+    // Draft bounds: a half-entered range lives here until both dates exist —
+    // deriving from `value` alone would drop the first date while the second
+    // is still being picked.
+    const [draftFrom, setDraftFrom] = useState(appliedFrom);
+    const [draftTo, setDraftTo] = useState(appliedTo);
+
+    // Adjust-during-render: resync drafts when the filter changes from
+    // outside (e.g. "Clear all").
+    const [prevValue, setPrevValue] = useState(value);
+    if (prevValue !== value) {
+        setPrevValue(value);
+        setDraftFrom(appliedFrom);
+        setDraftTo(appliedTo);
+        if (!value) setCustomOpen(false);
+    }
+
     const applyCustom = (from: string, to: string) => {
+        setDraftFrom(from);
+        setDraftTo(to);
         if (from && to) onFilter(def.key, `between:${from},${to}`);
     };
 
     const selectValue = isCustom || customOpen ? 'custom' : value || ALL_VALUE;
+    const active = Boolean(value);
 
     return (
-        <div className="space-y-1">
-            <span className="block text-[11px] text-muted-foreground">
-                {def.label}
-            </span>
-            <div className="flex items-center gap-1.5">
-                <Select
-                    value={selectValue}
-                    onValueChange={(next) => {
-                        if (next === 'custom') {
-                            setCustomOpen(true);
-                            return;
-                        }
-                        setCustomOpen(false);
-                        onFilter(def.key, next === ALL_VALUE ? null : next);
-                    }}
+        <div className="inline-flex items-center gap-1.5">
+            <Select
+                value={selectValue}
+                onValueChange={(next) => {
+                    if (next === 'custom') {
+                        setCustomOpen(true);
+                        return;
+                    }
+                    setCustomOpen(false);
+                    onFilter(def.key, next === ALL_VALUE ? null : next);
+                }}
+            >
+                <SelectTrigger
+                    size="sm"
+                    className={cn(
+                        PILL_BASE,
+                        active ? PILL_ACTIVE : PILL_IDLE,
+                        'gap-1.5 [&_svg:not([class*=text-])]:text-current [&_svg]:opacity-60',
+                    )}
                 >
-                    <SelectTrigger className="h-9 w-36 text-xs">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ALL_VALUE} className="text-xs">
-                            All
+                    <PillLabel text={def.label} active={active} />
+                    <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="min-w-36 rounded-xl">
+                    <SelectItem
+                        value={ALL_VALUE}
+                        className="rounded-lg text-xs text-muted-foreground"
+                    >
+                        All
+                    </SelectItem>
+                    {DATE_PRESETS.map((preset) => (
+                        <SelectItem
+                            key={preset.value}
+                            value={preset.value}
+                            className="rounded-lg text-xs"
+                        >
+                            {preset.label}
                         </SelectItem>
-                        {DATE_PRESETS.map((preset) => (
-                            <SelectItem
-                                key={preset.value}
-                                value={preset.value}
-                                className="text-xs"
-                            >
-                                {preset.label}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-                {(customOpen || isCustom) && (
-                    <>
-                        <Input
-                            type="date"
-                            className="h-9 w-34 text-xs"
-                            value={fromDate}
-                            onChange={(e) =>
-                                applyCustom(e.target.value, toDate)
-                            }
-                        />
-                        <span className="text-xs text-muted-foreground">–</span>
-                        <Input
-                            type="date"
-                            className="h-9 w-34 text-xs"
-                            value={toDate}
-                            onChange={(e) =>
-                                applyCustom(fromDate, e.target.value)
-                            }
-                        />
-                    </>
-                )}
-            </div>
+                    ))}
+                </SelectContent>
+            </Select>
+            {(customOpen || isCustom) && (
+                <div
+                    className={cn(
+                        PILL_BASE,
+                        active ? PILL_ACTIVE : PILL_IDLE,
+                        'inline-flex items-center gap-1 border-solid',
+                    )}
+                >
+                    <input
+                        type="date"
+                        className="w-27 bg-transparent text-xs outline-none [color-scheme:light] dark:[color-scheme:dark]"
+                        value={draftFrom}
+                        onChange={(e) => applyCustom(e.target.value, draftTo)}
+                    />
+                    <span className="opacity-50">–</span>
+                    <input
+                        type="date"
+                        className="w-27 bg-transparent text-xs outline-none [color-scheme:light] dark:[color-scheme:dark]"
+                        value={draftTo}
+                        onChange={(e) => applyCustom(draftFrom, e.target.value)}
+                    />
+                </div>
+            )}
         </div>
     );
 }
