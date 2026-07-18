@@ -1,7 +1,7 @@
 import { getNextDocumentNumber } from '@/service/core/document-number';
 import { ItemUomRepository } from '@/service/apps/inventory/repo/item-uom';
 import { MovementRepository } from '@/service/apps/inventory/repo/movement';
-import { InventorySerialRepository } from '@/service/apps/inventory/repo/serial';
+import { SerialManagementService } from '@/service/apps/inventory/serial';
 import { validateSerialSelection } from '@/service/apps/inventory/repo/serial-validation';
 import { ApiError, NotFoundError } from '@/service/core/api-response';
 import { BaseRepository } from '@/service/core/base-repository';
@@ -357,7 +357,7 @@ export class SalesShipmentRepository extends BaseRepository {
 
         const itemUomService = ItemUomRepository.getInstance();
         const orderService = SalesOrderRepository.getInstance();
-        const serialRepo = InventorySerialRepository.getInstance();
+        const serialRepo = SerialManagementService.getInstance();
 
         // Build movement lines, converting entered qty → base UOM.
         const movementItems = await Promise.all(
@@ -535,7 +535,7 @@ export class SalesShipmentRepository extends BaseRepository {
         shipment: SalesShipment,
     ): Promise<void> {
         const companyId = Number(ctx.companyId);
-        const serialRepo = InventorySerialRepository.getInstance();
+        const serialRepo = SerialManagementService.getInstance();
         const movementRepo = MovementRepository.getInstance();
 
         // 1. Un-sell serials (guarded: only rows still `sold` for these lines).

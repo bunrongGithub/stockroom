@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getRequestContext } from '@/lib/request-context';
-import { InventorySerialRepository } from '@/service/apps/inventory/repo/serial';
+import { SerialManagementService } from '@/service/apps/inventory/serial';
 import { ApiError, ApiResponseSuccess } from '@/service/core/api-response';
 
-const service = InventorySerialRepository.getInstance();
+const service = SerialManagementService.getInstance();
 
 // GET /api/inventory/serial?item_id=&warehouse_id=&location_id=[&search=][&limit=]
 // AVAILABLE serials for an item in a warehouse+location, server-side prefix

@@ -26,6 +26,7 @@ interface ItemDetailResponse {
     uom_id?: number | null;
     uom?: { id: number | null; name: string } | null;
     track_serial?: boolean | null;
+    serial_generation?: 'manual' | 'auto' | 'both' | null;
     default_warehouse_id?: number | null;
     default_warehouse?: { id: number | null; name: string } | null;
     default_location_id?: number | null;
@@ -59,6 +60,8 @@ export interface ItemDefaults {
     itemUomId: number | null;
     uomName: string;
     trackSerial: boolean;
+    /** How serials are entered for this item (framework Generate vs typing). */
+    serialGeneration: 'manual' | 'auto' | 'both';
     defaultWarehouseId: number | null;
     defaultWarehouseName: string;
     defaultLocationId: number | null;
@@ -90,6 +93,7 @@ export function itemDefaults(
         itemUomId: defUom?.id ?? null,
         uomName: defUom?.name ?? item.uom?.name ?? '',
         trackSerial: Boolean(item.track_serial),
+        serialGeneration: item.serial_generation ?? 'both',
         defaultWarehouseId: item.default_warehouse_id ?? item.default_warehouse?.id ?? null,
         defaultWarehouseName: item.default_warehouse?.name ?? '',
         defaultLocationId: locId,

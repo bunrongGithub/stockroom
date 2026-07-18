@@ -44,6 +44,7 @@ export type StockEditItem = {
   is_returnable: boolean;
   is_warranty: boolean;
   track_serial?: boolean;
+  serial_generation?: 'manual' | 'auto' | 'both';
   warranty_duration: string | null;
   category_id: number | null;
   uom_id: number | null;
@@ -154,6 +155,9 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
     track_serial: Boolean(
       (item as StockEditItem & { track_serial?: boolean }).track_serial,
     ),
+    serial_generation:
+      (item as StockEditItem & { serial_generation?: 'manual' | 'auto' | 'both' })
+        .serial_generation ?? 'both',
     warranty_duration: item.warranty_duration ?? '',
     default_warehouse_id: item.default_warehouse_id ?? null,
     default_warehouse: item.default_warehouse ?? null,
@@ -194,6 +198,7 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
         is_returnable: formData.is_returnable,
         is_warranty: formData.is_warranty,
         track_serial: formData.track_serial,
+        serial_generation: formData.serial_generation,
         warranty_duration: formData.is_warranty
           ? formData.warranty_duration || null
           : null,
@@ -660,15 +665,38 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
                     label="Has Warranty"
                     description="This item comes with a warranty"
                   />
-                  <ToggleCheckbox
-                    checked={formData.track_serial}
-                    onChange={(val) =>
-                      setFormData((p) => ({ ...p, track_serial: val }))
-                    }
-                    icon={<Package size={16} />}
-                    label="Track Serial Numbers"
-                    description="Require serial number entry for receipts and shipments"
-                  />
+                  <div className="space-y-2">
+                    <ToggleCheckbox
+                      checked={formData.track_serial}
+                      onChange={(val) =>
+                        setFormData((p) => ({ ...p, track_serial: val }))
+                      }
+                      icon={<Package size={16} />}
+                      label="Track Serial Numbers"
+                      description="Require serial number entry for receipts and shipments"
+                    />
+                    {formData.track_serial && (
+                      <select
+                        value={formData.serial_generation ?? 'both'}
+                        onChange={(e) =>
+                          setFormData((p) => ({
+                            ...p,
+                            serial_generation: e.target.value as
+                              | 'manual'
+                              | 'auto'
+                              | 'both',
+                          }))
+                        }
+                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 font-mono text-xs text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                      >
+                        <option value="both">
+                          Serial entry: Manual or Generate
+                        </option>
+                        <option value="manual">Serial entry: Manual only</option>
+                        <option value="auto">Serial entry: Generate only</option>
+                      </select>
+                    )}
+                  </div>
                   <ToggleCheckbox
                     checked={formData.is_discount}
                     onChange={(val) =>

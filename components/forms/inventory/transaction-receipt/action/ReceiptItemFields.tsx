@@ -71,6 +71,9 @@ export default function ReceiptItemFields({
   const serialNumbers = watch('serial_numbers') ?? [];
   const receiptQty = Number(watch('receipt_qty') || 0);
   const [serialEnabled, setSerialEnabled] = useState(false);
+  const [serialGeneration, setSerialGeneration] = useState<
+    'manual' | 'auto' | 'both'
+  >('both');
 
   // Recompute the serial-tracking flag whenever the item changes (incl. on
   // mount when editing an existing line). Goes through the cached lookup, so it
@@ -87,6 +90,7 @@ export default function ReceiptItemFields({
       .then((d) => {
         if (!active) return;
         setSerialEnabled(d.trackSerial);
+        setSerialGeneration(d.serialGeneration);
         if (!d.trackSerial) setValue('serial_numbers', []);
       })
       .catch(() => {
@@ -282,6 +286,15 @@ export default function ReceiptItemFields({
             value={(serialNumbers as string[]).filter(Boolean)}
             onChange={(serials) => setValue('serial_numbers', serials)}
             requiredCount={receiptQty}
+            generate={
+              itemId
+                ? {
+                    itemId,
+                    warehouseId: warehouseId ?? undefined,
+                    mode: serialGeneration,
+                  }
+                : undefined
+            }
           />
         </div>
       )}

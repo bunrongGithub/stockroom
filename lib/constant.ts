@@ -93,7 +93,11 @@ export const API = {
         serial: {
             root: '/api/inventory/serial',
             history: (id: Id) => `/api/inventory/serial/${id}/history`,
+            generate: '/api/inventory/serial/generate',
+            validate: '/api/inventory/serial/validate',
+            search: '/api/inventory/serial/search',
         },
+        serialSetting: '/api/inventory/configurations/serial-setting',
 
         stockLocation: resource('/api/inventory/stock-location'),
     },

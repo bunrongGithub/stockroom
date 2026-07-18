@@ -39,6 +39,7 @@ type LineDraft = {
   item_id: number;
   item_label: string;
   track_serial: boolean;
+  serial_generation: 'manual' | 'auto' | 'both';
   item_uom_id: number | null;
   uom_label: string;
   current_qty: number;
@@ -59,6 +60,7 @@ const EMPTY_LINE: LineDraft = {
   item_id: 0,
   item_label: '',
   track_serial: false,
+  serial_generation: 'both',
   item_uom_id: null,
   uom_label: '',
   current_qty: 0,
@@ -107,6 +109,7 @@ export default function AdjustmentForm({
       item_id: i.item_id,
       item_label: i.product_name,
       track_serial: i.track_serial,
+      serial_generation: 'both',
       item_uom_id: i.item_uom_id,
       uom_label: i.uom,
       current_qty: i.current_qty,
@@ -168,6 +171,7 @@ export default function AdjustmentForm({
           ? {
               ...d,
               track_serial: defaults.trackSerial,
+              serial_generation: defaults.serialGeneration,
               current_qty: onHand,
               unit_cost:
                 defaults.cost != null ? String(defaults.cost) : d.unit_cost,
@@ -619,6 +623,15 @@ export default function AdjustmentForm({
                     }))
                   }
                   requiredCount={Math.abs(draftQty)}
+                  generate={
+                    draft.item_id
+                      ? {
+                          itemId: draft.item_id,
+                          warehouseId: warehouse.id ?? undefined,
+                          mode: draft.serial_generation,
+                        }
+                      : undefined
+                  }
                 />
               </div>
             )}

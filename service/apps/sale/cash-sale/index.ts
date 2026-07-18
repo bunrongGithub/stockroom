@@ -1,5 +1,5 @@
 import { ItemUomRepository } from '@/service/apps/inventory/repo/item-uom';
-import { InventorySerialRepository } from '@/service/apps/inventory/repo/serial';
+import { SerialManagementService } from '@/service/apps/inventory/serial';
 import { validateSerialSelection } from '@/service/apps/inventory/repo/serial-validation';
 import { CompanySettingsRepository } from '@/service/apps/setting/repo/company-settings';
 import { ApiError, NotFoundError } from '@/service/core/api-response';
@@ -122,7 +122,7 @@ export class CashSaleService extends BaseRepository {
     private readonly shipments = SalesShipmentRepository.getInstance();
     private readonly invoices = SalesInvoiceRepository.getInstance();
     private readonly payments = CustomerPaymentRepository.getInstance();
-    private readonly serials = InventorySerialRepository.getInstance();
+    private readonly serials = SerialManagementService.getInstance();
     private readonly itemUoms = ItemUomRepository.getInstance();
     private readonly settings = CompanySettingsRepository.getInstance();
 

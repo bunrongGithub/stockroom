@@ -12,6 +12,10 @@ export const inventoryRegistry: RegistryEntry[] = [
         () => import('@/components/modules/inventory/InventoryConfigModule'),
     ],
     [
+        'InventorySerialSetting',
+        () => import('@/components/modules/inventory/setting/SerialSettingPage'),
+    ],
+    [
         'InventoryCategoryModule',
         () => import('@/components/modules/inventory/InventoryCategoryModule'),
     ],

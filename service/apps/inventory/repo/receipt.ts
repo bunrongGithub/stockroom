@@ -20,7 +20,7 @@ import type { RequestContext } from '@/types/request-context';
 import type { AuditMeta } from '@/types/audit';
 import { ItemUomRepository } from './item-uom';
 import { MovementRepository } from './movement';
-import { InventorySerialRepository } from './serial';
+import { SerialManagementService } from '@/service/apps/inventory/serial';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export type InventoryTxnMovementType =
@@ -471,7 +471,7 @@ export class ReceiptRepository extends BaseRepository {
         // ── 3. Create serial records for serial-tracked lines ─────────────
         // Now that stock exists, materialise one inventory_serial (Available)
         // per entered serial + its initial history row.
-        const serialRepo = InventorySerialRepository.getInstance();
+        const serialRepo = SerialManagementService.getInstance();
         const trackItemIds = [...new Set(receipt.items.map((i) => i.item_id))];
         const { data: trackRows } = await this.db
             .from('inventory_item')

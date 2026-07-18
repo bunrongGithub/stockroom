@@ -9,7 +9,7 @@ import type { RequestContext } from '@/types/request-context';
 import { getNextDocumentNumber } from '@/service/core/document-number';
 import { ApiError, NotFoundError } from '@/service/core/api-response';
 import { MovementRepository } from './movement';
-import { InventorySerialRepository } from './serial';
+import { SerialManagementService } from '@/service/apps/inventory/serial';
 import type {
     CreateStockAdjustmentInput,
     UpdateStockAdjustmentInput,
@@ -343,7 +343,7 @@ export class StockAdjustmentRepository extends BaseRepository {
             throw new ApiError('Nothing to post: no items', 400);
         }
 
-        const serialRepo = InventorySerialRepository.getInstance();
+        const serialRepo = SerialManagementService.getInstance();
         const terminalStatus = terminalStatusFor(adjustment.reason_code);
 
         // ── Validate every line against LIVE stock & serial state ──────────

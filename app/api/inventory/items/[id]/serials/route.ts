@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getRequestContext } from '@/lib/request-context';
-import { InventorySerialRepository } from '@/service/apps/inventory/repo/serial';
+import { SerialManagementService } from '@/service/apps/inventory/serial';
 import { ApiError, ApiResponseSuccess } from '@/service/core/api-response';
 import type { RequestParam } from '@/app/api/http';
 
-const service = InventorySerialRepository.getInstance();
+const service = SerialManagementService.getInstance();
 
 // GET /api/inventory/items/:id/serials — all serials for an item (Item Detail tab).
 export async function GET(req: NextRequest, { params }: RequestParam) {
