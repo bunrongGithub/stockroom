@@ -1,21 +1,48 @@
 'use client';
 
 import { API } from '@/lib/constant';
-import { Loader2, ScanLine } from 'lucide-react';
+import { Loader2, Package, ScanLine } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 /**
  * The register's item entry: a single always-focused field that works for both
  * a barcode scanner and a keyboard.
  *
- * A scanner types the code and presses Enter, so Enter adds the exact SKU/name
- * match (or the only result) without a click. A cashier typing a name gets a
- * live list and picks with ↑/↓ + Enter, or the mouse. Search is server-side and
- * limited to SELLABLE stock items — the register never offers something that is
- * not for sale.
+ * A scanner types the code and presses Enter, so Enter adds the exact match on
+ * reference code / SKU / name (or the only result) without a click. A cashier
+ * typing gets a live list of item profile rows (thumbnail, code ~ name,
+ * category) and picks with ↑/↓ + Enter, or the mouse. Search is server-side
+ * (matches name, SKU, reference code) and limited to SELLABLE stock items —
+ * the register never offers something that is not for sale.
  */
 
-type ItemRow = { id: number; name: string; sku: string | null };
+type ItemRow = {
+    id: number;
+    name: string;
+    sku: string | null;
+    reference_no: string | null;
+    image_url?: string | null;
+    category: { name: string } | null;
+};
+
+/** Compact item thumbnail: the item photo when present, else a neutral tile. */
+function ItemThumb({ item }: { item: ItemRow }) {
+    if (item.image_url) {
+        return (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+                src={item.image_url}
+                alt=""
+                className="h-10 w-10 shrink-0 rounded-lg border border-slate-200 object-cover"
+            />
+        );
+    }
+    return (
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-emerald-100 bg-emerald-50 text-[#1a9e52]">
+            <Package size={18} />
+        </span>
+    );
+}
 
 export default function ItemScanSearch({
     onSelect,
@@ -101,10 +128,12 @@ export default function ItemScanSearch({
         // A scanner fires Enter faster than the debounce: resolve the code
         // against the server rather than against whatever is on screen.
         const candidates = rows.length ? rows : await search(keyword);
+        const kw = keyword.toLowerCase();
         const exact = candidates.find(
             (r) =>
-                r.sku?.toLowerCase() === keyword.toLowerCase() ||
-                r.name.toLowerCase() === keyword.toLowerCase(),
+                r.sku?.toLowerCase() === kw ||
+                r.reference_no?.toLowerCase() === kw ||
+                r.name.toLowerCase() === kw,
         );
         const chosen =
             exact ??
@@ -138,22 +167,40 @@ export default function ItemScanSearch({
             </div>
 
             {rows.length > 0 && (
-                <ul className="absolute z-30 mt-1 max-h-72 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg">
+                <ul className="absolute z-30 mt-1 max-h-80 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
                     {rows.map((row, i) => (
                         <li key={row.id}>
                             <button
                                 type="button"
                                 onMouseEnter={() => setActive(i)}
                                 onClick={() => pick(row)}
-                                className={`flex w-full items-center justify-between px-3 py-2.5 text-left text-sm ${
+                                className={`flex w-full items-center gap-3 px-3 py-2 text-left transition-colors ${
                                     i === active
-                                        ? 'bg-emerald-50 text-[#1a9e52]'
-                                        : 'text-slate-700 hover:bg-slate-50'
+                                        ? 'bg-emerald-50'
+                                        : 'hover:bg-slate-50'
                                 }`}
                             >
-                                <span className="truncate">{row.name}</span>
-                                <span className="ml-3 shrink-0 text-xs text-slate-400">
-                                    {row.sku ?? ''}
+                                <ItemThumb item={row} />
+                                <span className="min-w-0 flex-1">
+                                    <span className="flex items-baseline gap-1.5">
+                                        {row.reference_no && (
+                                            <span className="shrink-0 font-mono text-[11px] text-slate-400">
+                                                {row.reference_no}
+                                            </span>
+                                        )}
+                                        <span
+                                            className={`truncate text-sm font-medium ${
+                                                i === active
+                                                    ? 'text-[#1a9e52]'
+                                                    : 'text-slate-800'
+                                            }`}
+                                        >
+                                            {row.name}
+                                        </span>
+                                    </span>
+                                    <span className="mt-0.5 block truncate text-xs text-slate-400">
+                                        Category: {row.category?.name ?? '—'}
+                                    </span>
                                 </span>
                             </button>
                         </li>
