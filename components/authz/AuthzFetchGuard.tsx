@@ -34,7 +34,18 @@ export function AuthzFetchGuard() {
                             : args[0] instanceof URL
                               ? args[0].href
                               : (args[0] as Request).url;
-                    if (url && url.includes('/api/')) {
+                    // Only an ACTION the user attempted deserves the toast. A
+                    // 403 on a GET is "data you can't see" — pages that eagerly
+                    // load a related resource (e.g. a delivery note's invoices)
+                    // must degrade silently, not scold the user on open.
+                    const method = (
+                        args[0] instanceof Request
+                            ? args[0].method
+                            : (args[1]?.method ?? 'GET')
+                    ).toUpperCase();
+                    const isMutation =
+                        method !== 'GET' && method !== 'HEAD';
+                    if (url && url.includes('/api/') && isMutation) {
                         const now = performance.now();
                         if (now - lastToast > 1500) {
                             lastToast = now;

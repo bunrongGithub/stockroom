@@ -107,7 +107,9 @@ export default function SaleOrderDetail({
     try {
       const o = await saleOrderApi.get(id);
       setOrder(o);
-      setShipments(await saleShipmentApi.byOrder(o.id));
+      // Related shipments are best-effort — an order-only viewer still sees the
+      // order; the shipments section stays empty rather than failing the page.
+      setShipments(await saleShipmentApi.byOrder(o.id).catch(() => []));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load order');
     } finally {

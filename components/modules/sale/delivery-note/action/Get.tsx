@@ -115,9 +115,12 @@ export default function SaleShipmentDetail({
     try {
       const s = await saleShipmentApi.get(id);
       setShipment(s);
-      setInvoices(await financesInvoiceApi.byShipment(s.id));
+      // Related documents are best-effort: a user allowed to see shipments but
+      // not invoices/orders still gets the shipment — those sections just stay
+      // empty instead of failing the whole page (or firing a 403 toast).
+      setInvoices(await financesInvoiceApi.byShipment(s.id).catch(() => []));
       if (s.sales_order_id) {
-        setOrder(await saleOrderApi.get(s.sales_order_id));
+        setOrder(await saleOrderApi.get(s.sales_order_id).catch(() => null));
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load shipment');
