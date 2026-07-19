@@ -160,6 +160,7 @@ export class SalesShipmentRepository extends BaseRepository {
         query: QueryObject,
     ): Promise<PaginatedResult<SalesShipment>> {
         return this.findAllQuery<SalesShipment>(ctx, query, {
+            enrichAudit: true,
             map: mapShipment,
         });
     }

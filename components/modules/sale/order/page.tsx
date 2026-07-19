@@ -1,6 +1,7 @@
 'use client';
 
 import { DataTable, type DataTableColumn } from '@/components/ui/DataTable';
+import { auditUserColumns } from '@/components/ui/audit-columns';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -96,6 +97,7 @@ export default function SaleOrderPage({ currentPath, permission, currentPathActi
             header: 'Status',
             cell: (row) => <StatusBadge status={row.status} label={STATUS_LABEL[row.status]} />,
         },
+        ...auditUserColumns<SalesOrder>(),
         {
             key: 'actions',
             header: 'Actions',

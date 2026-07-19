@@ -1,6 +1,7 @@
 'use client';
 
 import { DataTable, type DataTableColumn } from '@/components/ui/DataTable';
+import { auditUserColumns } from '@/components/ui/audit-columns';
 import { useRegisterModule } from '@/hook/useModule';
 import { useTableQuery } from '@/hook/useTableQuery';
 import type { ModuleProps } from '@/lib/registry';
@@ -156,6 +157,7 @@ export default function InventoryStockAdjModule({
             ),
         },
         { key: 'status', header: 'Status', sortable: true, cell: (row) => <StatusBadge status={row.status} /> },
+        ...auditUserColumns<StockAdjustment>(),
         {
             key: 'actions',
             header: 'Actions',

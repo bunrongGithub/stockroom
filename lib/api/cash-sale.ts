@@ -1,4 +1,5 @@
 'use client';
+import type { AuditUser } from '@/types/audit';
 
 import { API } from '@/lib/constant';
 
@@ -54,6 +55,8 @@ export type CashSaleListRow = {
     invoice_id: number | null;
     invoice_no: string | null;
     payment_status: 'PAID' | 'PARTIALLY_PAID' | 'UNPAID' | null;
+    created_by_user: AuditUser | null;
+    updated_by_user: AuditUser | null;
 };
 
 export type Paginated<T> = {

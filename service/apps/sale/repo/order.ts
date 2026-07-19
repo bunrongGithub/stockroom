@@ -202,6 +202,7 @@ export class SalesOrderRepository extends BaseRepository {
         sourceChannel: 'sales_order' | 'cash_sale',
     ): Promise<PaginatedResult<SalesOrder>> {
         return this.findAllQuery<SalesOrder>(ctx, query, {
+            enrichAudit: true,
             forced: [
                 { column: 'source_channel', operator: 'eq', value: sourceChannel },
             ],

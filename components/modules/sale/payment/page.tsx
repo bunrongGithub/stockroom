@@ -1,6 +1,7 @@
 'use client';
 
 import { DataTable, type DataTableColumn } from '@/components/ui/DataTable';
+import { auditUserColumns } from '@/components/ui/audit-columns';
 import { useRegisterModule } from '@/hook/useModule';
 import { useTableQuery } from '@/hook/useTableQuery';
 import type { ModuleProps } from '@/lib/registry';
@@ -174,6 +175,7 @@ export default function SalePaymentPage({
       header: 'Status',
       cell: (row) => <StatusBadge status={row.status} />,
     },
+    ...auditUserColumns<CustomerPayment>(),
     {
       key: 'actions',
       header: 'Actions',

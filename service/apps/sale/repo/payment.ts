@@ -96,6 +96,7 @@ export class CustomerPaymentRepository extends BaseRepository {
         query: QueryObject,
     ): Promise<PaginatedResult<CustomerPayment>> {
         return this.findAllQuery<CustomerPayment>(ctx, query, {
+            enrichAudit: true,
             map: (r) => mapPayment(r),
         });
     }

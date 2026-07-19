@@ -1,6 +1,7 @@
 'use client';
 
 import { DataTable, type DataTableColumn } from '@/components/ui/DataTable';
+import { auditUserColumns } from '@/components/ui/audit-columns';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -95,6 +96,7 @@ export default function InventoryStockCountModule({
             sortable: true,
             cell: (row) => <span className="tnums">{formatDateTime(row.created_at)}</span>,
         },
+        ...auditUserColumns<StockCount>(),
         {
             key: 'actions',
             header: 'Actions',

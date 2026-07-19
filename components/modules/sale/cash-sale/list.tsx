@@ -1,6 +1,7 @@
 'use client';
 
 import { DataTable, type DataTableColumn } from '@/components/ui/DataTable';
+import { auditUserColumns } from '@/components/ui/audit-columns';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Button } from '@/components/ui/button';
 import { useRegisterModule } from '@/hook/useModule';
@@ -124,6 +125,7 @@ export default function SaleCashSaleList({
                     <span className="text-slate-400">—</span>
                 ),
         },
+        ...auditUserColumns<CashSaleListRow>(),
         {
             key: 'actions',
             header: 'Actions',

@@ -1,6 +1,7 @@
 'use client';
 
 import { DataTable, type DataTableColumn } from '@/components/ui/DataTable';
+import { auditUserColumns } from '@/components/ui/audit-columns';
 import { useRegisterModule } from '@/hook/useModule';
 import { useTableQuery } from '@/hook/useTableQuery';
 import type { ModuleProps } from '@/lib/registry';
@@ -88,6 +89,7 @@ export default function SaleShipmentPage({ currentPath, permission, currentPathA
         { key: 'customer', header: 'Customer', sortable: true, sortKey: 'customer_name', cell: (row) => <span className="font-mono text-xs">{row.customer_name || '—'}</span> },
         { key: 'delivery_date', header: 'Delivery Date', sortable: true, cell: (row) => <span className="font-mono text-xs">{row.delivery_date}</span> },
         { key: 'status', header: 'Status', sortable: true, cell: (row) => <StatusBadge status={row.status} /> },
+        ...auditUserColumns<SalesShipment>(),
         {
             key: 'actions',
             header: 'Actions',

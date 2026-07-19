@@ -389,6 +389,11 @@ export abstract class BaseRepository extends BaseQueryFilter {
             config?: QueryConfig;
             forced?: ForcedCondition[];
             map?: (row: Record<string, unknown>) => T;
+            /** Resolve created_by/updated_by → { id, full_name, avatar_url }
+             *  on every row (one batched query) so lists can show who
+             *  created/updated each record. Raw rows must select those columns
+             *  (the default `*` does). */
+            enrichAudit?: boolean;
         } = {},
     ): Promise<PaginatedResult<T>> {
         const { builder, validated } = await this.buildListQuery(ctx, query, {
@@ -410,8 +415,28 @@ export abstract class BaseRepository extends BaseQueryFilter {
         // signature, which would leak the index into mappers that take an
         // optional second parameter.
         const mapper = options.map;
+        let mapped = (mapper ? rows.map((row) => mapper(row)) : rows) as T[];
+
+        if (options.enrichAudit && mapped.length) {
+            const users = await resolveAuditUsers(
+                rows.flatMap((r) => [
+                    r.created_by as string | null,
+                    r.updated_by as string | null,
+                ]),
+            );
+            mapped = mapped.map((item, i) => ({
+                ...(item as Record<string, unknown>),
+                created_by_user: rows[i]?.created_by
+                    ? (users[rows[i].created_by as string] ?? null)
+                    : null,
+                updated_by_user: rows[i]?.updated_by
+                    ? (users[rows[i].updated_by as string] ?? null)
+                    : null,
+            })) as T[];
+        }
+
         return {
-            data: (mapper ? rows.map((row) => mapper(row)) : rows) as T[],
+            data: mapped,
             meta: {
                 total,
                 page: validated.page,

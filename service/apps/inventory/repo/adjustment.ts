@@ -138,6 +138,7 @@ export class StockAdjustmentRepository extends BaseRepository {
         query: QueryObject,
     ): Promise<PaginatedResult<StockAdjustment>> {
         return this.findAllQuery<StockAdjustment>(ctx, query, {
+            enrichAudit: true,
             map: mapAdjustment,
         });
     }

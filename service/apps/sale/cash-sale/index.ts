@@ -6,6 +6,7 @@ import { ApiError, NotFoundError } from '@/service/core/api-response';
 import { BaseRepository } from '@/service/core/base-repository';
 import type { CashSaleInput } from '@/service/schema/cash-sale.schema';
 import type { RequestContext } from '@/types/request-context';
+import type { AuditMeta, AuditUser } from '@/types/audit';
 import type {
     SalesInvoice,
     SalesOrder,
@@ -61,6 +62,8 @@ export type CashSaleListRow = {
     invoice_id: number | null;
     invoice_no: string | null;
     payment_status: InvoicePaymentStatus | null;
+    created_by_user: AuditUser | null;
+    updated_by_user: AuditUser | null;
 };
 
 /** A line after the server has resolved price, UOM, location and serials. */
@@ -189,6 +192,8 @@ export class CashSaleService extends BaseRepository {
             ...page,
             data: page.data.map((o) => {
                 const inv = byOrder.get(o.id);
+                // findAllV2(enrichAudit) attaches the audit users at runtime.
+                const audited = o as SalesOrder & Partial<AuditMeta>;
                 return {
                     id: o.id,
                     order_no: o.order_no,
@@ -205,6 +210,8 @@ export class CashSaleService extends BaseRepository {
                               Number(inv.amount_paid ?? 0),
                           ).payment_status
                         : null,
+                    created_by_user: audited.created_by_user ?? null,
+                    updated_by_user: audited.updated_by_user ?? null,
                 };
             }),
         };

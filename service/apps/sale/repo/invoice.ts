@@ -174,6 +174,7 @@ export class SalesInvoiceRepository extends BaseRepository {
         query: QueryObject,
     ): Promise<PaginatedResult<SalesInvoice>> {
         return this.findAllQuery<SalesInvoice>(ctx, query, {
+            enrichAudit: true,
             map: mapInvoice,
         });
     }

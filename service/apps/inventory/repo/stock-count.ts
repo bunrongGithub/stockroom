@@ -176,6 +176,7 @@ export class StockCountRepository extends BaseRepository {
         query: QueryObject,
     ): Promise<PaginatedResult<StockCount>> {
         return this.findAllQuery<StockCount>(ctx, query, {
+            enrichAudit: true,
             map: mapStockCount,
         });
     }
