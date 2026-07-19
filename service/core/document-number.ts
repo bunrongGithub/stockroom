@@ -31,7 +31,8 @@ export type DocumentType =
     | 'sales_return'
     | 'purchase_return'
     | 'inventory_transfer'
-    | 'stock_adjustment';
+    | 'stock_adjustment'
+    | 'stock_count';
 
 export async function getNextDocumentNumber(
     ctx: RequestContext,

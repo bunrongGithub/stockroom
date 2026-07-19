@@ -35,6 +35,22 @@ export const inventoryRegistry: RegistryEntry[] = [
         'InventoryStockAdjUpdate',
         () => import('@/components/modules/inventory/adjustment/action/Update'),
     ],
+    [
+        'InventoryStockCountModule',
+        () => import('@/components/modules/inventory/stock_count/page'),
+    ],
+    [
+        'InventoryStockCountCreate',
+        () => import('@/components/modules/inventory/stock_count/action/Create'),
+    ],
+    [
+        'InventoryStockCountDetail',
+        () => import('@/components/modules/inventory/stock_count/action/Detail'),
+    ],
+    [
+        'InventoryStockCountUpdate',
+        () => import('@/components/modules/inventory/stock_count/action/Update'),
+    ],
 
     // ── Stock Items ───────────────────────────────────────────────────────────
     [

@@ -13,6 +13,7 @@ import { Role } from '@/service/apps/base/core/role';
 import { SalesOrderRepository } from '@/service/apps/sale/repo/order';
 import { SalesShipmentRepository } from '@/service/apps/sale/repo/shipment';
 import { StockAdjustmentRepository } from '@/service/apps/inventory/repo/adjustment';
+import { StockCountRepository } from '@/service/apps/inventory/repo/stock-count';
 import { CashSaleService } from '@/service/apps/sale/cash-sale';
 
 // ─── Server-side initial-data registry ──────────────────────────────────────
@@ -127,6 +128,34 @@ const dataRegistry = new Map<string, DataLoader>([
                 ctx,
                 toWireQuery(args),
             ),
+    ],
+    [
+        // Module path ≠ API path (/api/inventory/stock-count) — in-process
+        // loader required, same as stock_adjust.
+        '/inventory/stock_count',
+        (ctx, args) =>
+            StockCountRepository.getInstance().findAllV2(
+                ctx,
+                toWireQuery(args),
+            ),
+    ],
+    [
+        '/inventory/stock_count/:id/view',
+        async (ctx, { pathParams }) => ({
+            data: await StockCountRepository.getInstance().findOne(
+                ctx,
+                Number(pathParams.id),
+            ),
+        }),
+    ],
+    [
+        '/inventory/stock_count/:id/update',
+        async (ctx, { pathParams }) => ({
+            data: await StockCountRepository.getInstance().findOne(
+                ctx,
+                Number(pathParams.id),
+            ),
+        }),
     ],
     [
         '/inventory/receipts/:id/view',

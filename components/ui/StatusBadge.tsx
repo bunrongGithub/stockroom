@@ -46,6 +46,8 @@ const STATUS_TONE: Record<string, StatusTone> = {
     FAILED: 'danger',
     OVERDUE: 'danger',
     // warning
+    COUNTING: 'warning',
+    PENDING_APPROVAL: 'warning',
     PARTIALLY_PAID: 'warning',
     PARTIAL: 'warning',
     'PARTIALLY INVOICED': 'warning',
@@ -54,6 +56,7 @@ const STATUS_TONE: Record<string, StatusTone> = {
     PENDING: 'warning',
     ON_HOLD: 'warning',
     // info
+    PREPARED: 'info',
     UNPAID: 'info',
     OPEN: 'info',
     SUBMITTED: 'info',

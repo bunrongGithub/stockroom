@@ -76,6 +76,23 @@ export const API = {
             onhand: '/api/inventory/adjustment/onhand',
         },
 
+        stockCount: {
+            ...resource('/api/inventory/stock-count'),
+            prepare: (id: Id) => `/api/inventory/stock-count/${id}/prepare`,
+            start: (id: Id) => `/api/inventory/stock-count/${id}/start`,
+            submit: (id: Id) => `/api/inventory/stock-count/${id}/submit`,
+            approve: (id: Id) => `/api/inventory/stock-count/${id}/approve`,
+            approvePreview: (id: Id) =>
+                `/api/inventory/stock-count/${id}/approve/preview`,
+            reopen: (id: Id) => `/api/inventory/stock-count/${id}/reopen`,
+            cancel: (id: Id) => `/api/inventory/stock-count/${id}/cancel`,
+            summary: (id: Id) => `/api/inventory/stock-count/${id}/summary`,
+            lines: (id: Id) => `/api/inventory/stock-count/${id}/lines`,
+            scan: (id: Id) => `/api/inventory/stock-count/${id}/scan`,
+            lineSerials: (id: Id, lineId: Id) =>
+                `/api/inventory/stock-count/${id}/lines/${lineId}/serials`,
+        },
+
         stockBalance: {
             root: '/api/inventory/stock-balance',
             item: (id: Id) => `/api/inventory/stock-balance/item/${id}`,
