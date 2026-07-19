@@ -1,3 +1,4 @@
+import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { NextRequest, NextResponse } from 'next/server';
 import { getRequestContext } from '@/lib/request-context';
 import { StockCountLineRepository } from '@/service/apps/inventory/repo/stock-count';
@@ -15,6 +16,7 @@ const service = StockCountLineRepository.getInstance();
 export async function GET(req: NextRequest, { params }: RequestParam) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.inventory.stockCount.view, { req: req });
         const { id } = await params;
         const idParsed = stockCountIdSchema.safeParse({ id });
         if (!idParsed.success) {
@@ -54,6 +56,7 @@ export async function GET(req: NextRequest, { params }: RequestParam) {
 export async function PATCH(req: NextRequest, { params }: RequestParam) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.inventory.stockCount.count, { req: req });
         const { id } = await params;
         const idParsed = stockCountIdSchema.safeParse({ id });
         if (!idParsed.success) {

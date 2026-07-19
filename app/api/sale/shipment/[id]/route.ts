@@ -1,3 +1,4 @@
+import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { NextRequest, NextResponse } from 'next/server';
 import { getRequestContext } from '@/lib/request-context';
 import { SalesShipmentRepository } from '@/service/apps/sale/repo/shipment';
@@ -17,6 +18,7 @@ const service = SalesShipmentRepository.getInstance();
 export async function GET(req: NextRequest, { params }: RequestParam) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.sales.shipment.view, { req: req });
         const { id } = await params;
         const idParsed = salesShipmentIdSchema.safeParse({ id });
         if (!idParsed.success) {
@@ -36,6 +38,7 @@ export async function GET(req: NextRequest, { params }: RequestParam) {
 export async function PATCH(req: NextRequest, { params }: RequestParam) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.sales.shipment.update, { req: req });
         const { id } = await params;
         const body = await req.json();
         const idParsed = salesShipmentIdSchema.safeParse({ id });
@@ -65,6 +68,7 @@ export async function PATCH(req: NextRequest, { params }: RequestParam) {
 export async function DELETE(req: NextRequest, { params }: RequestParam) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.sales.shipment.delete, { req: req });
         const { id } = await params;
         const idParsed = salesShipmentIdSchema.safeParse({ id });
         if (!idParsed.success) {

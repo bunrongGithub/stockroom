@@ -1,5 +1,17 @@
 import { NextResponse } from 'next/server';
 
+/**
+ * Coerce a value to a valid HTTP status. `NextResponse.json(..., { status })`
+ * throws `RangeError` if status is outside 200–599 (or non-numeric) — which
+ * happened when an `ApiError` was constructed with a PostgREST code string in
+ * the status slot, turning every such error into an opaque crash. Clamp here so
+ * the error path can never itself throw.
+ */
+function toHttpStatus(status: unknown, fallback = 500): number {
+    const n = Number(status);
+    return Number.isInteger(n) && n >= 200 && n <= 599 ? n : fallback;
+}
+
 export class ApiError extends Error {
     constructor(
         public readonly message: string,
@@ -14,7 +26,7 @@ export class ApiError extends Error {
     toResponse(): NextResponse {
         return NextResponse.json(
             { error: this.message, code: this.code, details: this.details },
-            { status: this.status },
+            { status: toHttpStatus(this.status) },
         );
     }
 }
@@ -83,7 +95,7 @@ export class ApiResponseSuccess<T> {
                 ...(this.data as Record<string, unknown>),
                 message: this.message,
             },
-            { status: this.status },
+            { status: toHttpStatus(this.status, 200) },
         );
     }
 }

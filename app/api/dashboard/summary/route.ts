@@ -1,3 +1,4 @@
+import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { NextRequest, NextResponse } from 'next/server';
 import { getRequestContext } from '@/lib/request-context';
 import { DashboardRepository } from '@/service/apps/dashboard/repo/summary';
@@ -9,6 +10,7 @@ const service = DashboardRepository.getInstance();
 export async function GET(req: NextRequest) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.dashboard.view, { req: req });
         const warehouseId = Number(req.nextUrl.searchParams.get('warehouse_id'));
         const locationId = Number(req.nextUrl.searchParams.get('location_id'));
         const data = await service.getSummary(

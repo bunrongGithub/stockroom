@@ -41,6 +41,7 @@ export const getMenu = cache(async function getMenu(
                     can_delete: item.can_delete,
                     can_export: item.can_export,
                 },
+                actions: item.actions ?? [],
             }));
         }
     }

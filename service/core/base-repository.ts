@@ -41,7 +41,7 @@ export type AuditEnriched<T> = T & {
 
 // Deduped per request: multiple repositories touched in one render/handler share
 // a single `profiles.is_super_user` lookup instead of querying once each.
-const fetchSuperUserFlag = cache(async (userId: string): Promise<boolean> => {
+export const fetchSuperUserFlag = cache(async (userId: string): Promise<boolean> => {
     const { data, error } = await getServerClient()
         .from('profiles')
         .select('is_super_user')

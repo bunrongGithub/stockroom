@@ -495,7 +495,21 @@ export class StockAdjustmentRepository extends BaseRepository {
         ctx: RequestContext,
         input: CreateStockAdjustmentInput,
     ): Promise<void> {
-        // Location must belong to the chosen warehouse.
+        // Object-level security: the warehouse must belong to the caller's
+        // company. warehouse_location has no company_id, so tenant ownership is
+        // established through its warehouse — verify that first. 404 (not 403)
+        // so we don't reveal another company's warehouse exists.
+        const { data: wh } = await this.db
+            .from('warehouse')
+            .select('id')
+            .eq('id', input.warehouse_id)
+            .eq('company_id', Number(ctx.companyId))
+            .maybeSingle();
+        if (!wh) {
+            throw new NotFoundError('Warehouse not found');
+        }
+
+        // Location must belong to the chosen (now company-verified) warehouse.
         const { data: loc, error } = await this.db
             .from('warehouse_location')
             .select('id, warehouse_id')

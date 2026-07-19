@@ -1,3 +1,4 @@
+import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { NextRequest, NextResponse } from 'next/server';
 import { getRequestContext } from '@/lib/request-context';
 import { SerialManagementService } from '@/service/apps/inventory/serial';
@@ -10,6 +11,7 @@ const service = SerialManagementService.getInstance();
 export async function GET(req: NextRequest, { params }: RequestParam) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.inventory.item.view, { req: req });
         const { id } = await params;
         const itemId = Number(id);
         if (!itemId) {

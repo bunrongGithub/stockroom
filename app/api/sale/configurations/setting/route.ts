@@ -1,3 +1,4 @@
+import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { getRequestContext } from '@/lib/request-context';
 import { CompanySettingsRepository } from '@/service/apps/setting/repo/company-settings';
 import { ApiError, ApiResponseSuccess } from '@/service/core/api-response';
@@ -15,6 +16,7 @@ const updateSalesSettingsSchema = z.object({
 export async function GET(req: NextRequest) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.sales.setting.view, { req: req });
         const data = await service.getSalesSettings(ctx);
         return new ApiResponseSuccess({ data }, 'Success').toResponse();
     } catch (error) {
@@ -28,6 +30,7 @@ export async function GET(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.sales.setting.update, { req: req });
         const parsed = updateSalesSettingsSchema.safeParse(await req.json());
         if (!parsed.success) {
             return NextResponse.json(

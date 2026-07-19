@@ -1,6 +1,8 @@
 'use client';
 
 import { useRegisterModule } from '@/hook/useModule';
+import { useCan } from '@/hook/useCan';
+import { PERMISSIONS } from '@/service/core/authz/permissions';
 import type { ModuleProps } from '@/lib/registry';
 import {saleOrderApi, saleShipmentApi } from '@/lib/api/sale';
 import { financesInvoiceApi } from '@/lib/api/finances';
@@ -98,6 +100,10 @@ export default function SaleShipmentDetail({
     type: 'success' | 'error';
   } | null>(null);
   const [busy, setBusy] = useState<'post' | 'void' | null>(null);
+
+  // UX gating; server enforces. Show only if status allows AND user is granted.
+  const mayPost = useCan(PERMISSIONS.sales.shipment.post);
+  const mayVoid = useCan(PERMISSIONS.sales.shipment.void);
 
   function showToast(msg: string, type: 'success' | 'error') {
     setToast({ msg, type });
@@ -260,7 +266,7 @@ export default function SaleShipmentDetail({
                 <PencilIcon size={14} /> Edit
               </button>
             )}
-            {a?.can_void && (
+            {a?.can_void && mayVoid && (
               <button
                 onClick={handleVoid}
                 disabled={busy !== null}
@@ -274,7 +280,7 @@ export default function SaleShipmentDetail({
                 Void
               </button>
             )}
-            {a?.can_post && (
+            {a?.can_post && mayPost && (
               <button
                 onClick={handlePost}
                 disabled={busy !== null}

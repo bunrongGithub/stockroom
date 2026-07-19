@@ -1,3 +1,4 @@
+import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { NextRequest, NextResponse } from 'next/server';
 import { getRequestContext } from '@/lib/request-context';
 import { StockAdjustmentRepository } from '@/service/apps/inventory/repo/adjustment';
@@ -10,6 +11,7 @@ const service = StockAdjustmentRepository.getInstance();
 export async function POST(req: NextRequest, { params }: RequestParam) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.inventory.adjustment.post, { req: req });
         const { id } = await params;
         const idParsed = stockAdjustmentIdSchema.safeParse({ id });
         if (!idParsed.success) {

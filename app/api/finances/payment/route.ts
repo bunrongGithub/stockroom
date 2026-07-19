@@ -1,3 +1,4 @@
+import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { NextRequest, NextResponse } from 'next/server';
 import { getRequestContext } from '@/lib/request-context';
 import { CustomerPaymentRepository } from '@/service/apps/sale/repo/payment';
@@ -11,6 +12,7 @@ const service = CustomerPaymentRepository.getInstance();
 export async function GET(req: NextRequest) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.sales.payment.view, { req: req });
         const result = await service.findAllV2(ctx, parseListParams(req));
         return new ApiResponseSuccess(result, 'Success').toResponse();
     } catch (error) {
@@ -24,6 +26,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.sales.payment.create, { req: req });
         const body = await req.json();
         const parsed = createCustomerPaymentSchema.safeParse(body);
         if (!parsed.success) {

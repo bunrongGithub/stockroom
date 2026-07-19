@@ -1,3 +1,4 @@
+import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { stockLocationCreateSchema } from '@/service/schema/branch.schema';
 import { NextRequest, NextResponse } from 'next/server';
 import { getRequestContext } from '@/lib/request-context';
@@ -6,6 +7,7 @@ import { service } from '@/app/api/inventory/index';
 export async function GET(req: NextRequest) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.inventory.warehouse.view, { req: req });
         const branchId = req.nextUrl.searchParams.get('branch_id');
         const items = await service.findAll(
             ctx,
@@ -22,6 +24,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.inventory.warehouse.create, { req: req });
         const body = await req.json();
 
         const parsed = stockLocationCreateSchema.safeParse(body);

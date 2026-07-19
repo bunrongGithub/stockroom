@@ -1,3 +1,4 @@
+import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { getRequestContext } from '@/lib/request-context';
 import { assertRole } from '@/lib/auth';
 import { ApiError, ApiResponseSuccess } from '@/service/core/api-response';
@@ -18,6 +19,7 @@ function parseId(raw: string): number {
 // read their own company (the repository rejects other ids).
 export async function GET(request: NextRequest, { params }: Params) {
     const context = getRequestContext(request);
+    await requirePermission(context, PERMISSIONS.setting.company.view, { req: request });
     try {
         const { id } = await params;
         const data = await getCompany(context, parseId(id));
@@ -32,6 +34,7 @@ export async function GET(request: NextRequest, { params }: Params) {
 // company, super admin for any).
 export async function PATCH(request: NextRequest, { params }: Params) {
     const context = getRequestContext(request);
+    await requirePermission(context, PERMISSIONS.setting.company.update, { req: request });
     try {
         assertRole(context, 'admin');
         const { id } = await params;

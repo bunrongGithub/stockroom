@@ -1,3 +1,4 @@
+import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { getRequestContext } from '@/lib/request-context';
 import { assertRole } from '@/lib/auth';
 import { ApiError } from '@/service/core/api-response';
@@ -10,6 +11,7 @@ import { z } from 'zod';
 export async function GET(request: NextRequest) {
     try {
         const ctx = getRequestContext(request);
+        await requirePermission(ctx, PERMISSIONS.setting.user.view, { req: request });
         const sp = request.nextUrl.searchParams;
         const data = await companyUserService.list(ctx, {
             page: Number(sp.get('page') || 1),
@@ -29,6 +31,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
     try {
         const ctx = getRequestContext(request);
+        await requirePermission(ctx, PERMISSIONS.setting.user.create, { req: request });
         assertRole(ctx, 'admin');
 
         const parsed = createUserSchema.safeParse(await request.json());

@@ -1,3 +1,4 @@
+import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { NextRequest, NextResponse } from 'next/server';
 import { getRequestContext } from '@/lib/request-context';
 import { SerialManagementService } from '@/service/apps/inventory/serial';
@@ -13,6 +14,7 @@ const service = SerialManagementService.getInstance();
 export async function POST(req: NextRequest) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.inventory.item.create, { req: req });
         const parsed = generateSerialsSchema.safeParse(await req.json());
         if (!parsed.success) {
             return NextResponse.json(

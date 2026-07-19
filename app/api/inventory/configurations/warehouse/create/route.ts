@@ -1,3 +1,4 @@
+import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { branchCreateSchema } from '@/service/schema/branch.schema';
 import { NextRequest } from 'next/server';
 import { getRequestContext } from '@/lib/request-context';
@@ -13,6 +14,7 @@ import { service } from '../route';
 export async function POST(req: NextRequest) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.inventory.warehouse.create, { req: req });
         const body = await req.json();
 
         const parsed = branchCreateSchema.safeParse(body);

@@ -1,3 +1,4 @@
+import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { getRequestContext } from '@/lib/request-context';
 import { createCategorySchema } from '@/service/schema/category.schema';
 import { NextRequest, NextResponse } from 'next/server';
@@ -7,6 +8,7 @@ import { service } from '..';
 export async function GET(request: NextRequest) {
     try {
         const ctx = getRequestContext(request);
+        await requirePermission(ctx, PERMISSIONS.inventory.category.view, { req: request });
         const searchParams = request.nextUrl.searchParams;
 
         const page = Number(searchParams.get('page') || 1);
@@ -30,6 +32,7 @@ export async function GET(request: NextRequest) {
 export async function POST(req: NextRequest) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.inventory.category.create, { req: req });
         const body = await req.json();
 
         const parsed = createCategorySchema.safeParse(body);

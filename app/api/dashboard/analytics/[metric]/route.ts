@@ -1,3 +1,4 @@
+import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { NextRequest, NextResponse } from 'next/server';
 import { getRequestContext } from '@/lib/request-context';
 import {
@@ -36,6 +37,7 @@ export async function GET(
 ) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.dashboard.view, { req: req });
         const parsedParams = paramsSchema.safeParse(await params);
         if (!parsedParams.success) {
             return NextResponse.json({ error: 'Unknown metric' }, { status: 404 });

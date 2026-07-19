@@ -1,3 +1,4 @@
+import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { NextRequest, NextResponse } from 'next/server';
 import { getRequestContext } from '@/lib/request-context';
 import { SalesInvoiceRepository } from '@/service/apps/sale/repo/invoice';
@@ -11,6 +12,7 @@ export const service = SalesInvoiceRepository.getInstance();
 export async function GET(req: NextRequest) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.sales.invoice.view, { req: req });
         const sp = req.nextUrl.searchParams;
 
         // Legacy: invoices for a specific shipment (shipment detail
@@ -34,6 +36,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.sales.invoice.create, { req: req });
         const body = await req.json();
         const parsed = createSalesInvoiceSchema.safeParse(body);
         if (!parsed.success) {

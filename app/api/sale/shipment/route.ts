@@ -1,3 +1,4 @@
+import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { NextRequest, NextResponse } from 'next/server';
 import { getRequestContext } from '@/lib/request-context';
 import { SalesShipmentRepository } from '@/service/apps/sale/repo/shipment';
@@ -11,6 +12,7 @@ export const service = SalesShipmentRepository.getInstance();
 export async function GET(req: NextRequest) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.sales.shipment.view, { req: req });
         let query = parseListParams(req);
 
         // Legacy param: an order's detail page lists its own shipments via
@@ -35,6 +37,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.sales.shipment.create, { req: req });
         const body = await req.json();
         const parsed = createSalesShipmentSchema.safeParse(body);
         if (!parsed.success) {

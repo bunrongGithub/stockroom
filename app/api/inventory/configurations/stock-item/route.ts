@@ -1,3 +1,4 @@
+import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { createInventorySchema } from '@/service/schema/inventory.schema';
 import { NextRequest, NextResponse } from 'next/server';
 import { getRequestContext } from '@/lib/request-context';
@@ -10,6 +11,7 @@ export const Service = InventoryRepository.getInstance();
 export async function GET(req: NextRequest) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.inventory.item.view, { req: req });
         let query = parseListParams(req);
 
         // Legacy picker param: Sales pickers (Cash Sale, Sales Order) ask for
@@ -33,6 +35,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.inventory.item.create, { req: req });
         const body = await req.json();
 
         const parsed = createInventorySchema.safeParse({ ...body, item_class: 'stock' });

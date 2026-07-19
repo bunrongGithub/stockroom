@@ -1,3 +1,4 @@
+import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { NextRequest, NextResponse } from 'next/server';
 import { getRequestContext } from '@/lib/request-context';
 import { SerialManagementService } from '@/service/apps/inventory/serial';
@@ -11,6 +12,7 @@ const service = SerialManagementService.getInstance();
 export async function GET(req: NextRequest) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.inventory.serialSetting.view, { req: req });
         const data = await service.getConfig(ctx);
         return new ApiResponseSuccess({ data }, 'Success').toResponse();
     } catch (error) {
@@ -25,6 +27,7 @@ export async function GET(req: NextRequest) {
 export async function PUT(req: NextRequest) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.inventory.serialSetting.update, { req: req });
         const parsed = updateSerialConfigSchema.safeParse(await req.json());
         if (!parsed.success) {
             return NextResponse.json(

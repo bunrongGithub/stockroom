@@ -1,3 +1,4 @@
+import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { NextRequest, NextResponse } from 'next/server';
 import { getRequestContext } from '@/lib/request-context';
 import { SalesInvoiceRepository } from '@/service/apps/sale/repo/invoice';
@@ -17,6 +18,7 @@ const service = SalesInvoiceRepository.getInstance();
 export async function GET(req: NextRequest, { params }: RequestParam) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.sales.invoice.view, { req: req });
         const { id } = await params;
         const idParsed = salesInvoiceIdSchema.safeParse({ id });
         if (!idParsed.success) {
@@ -36,6 +38,7 @@ export async function GET(req: NextRequest, { params }: RequestParam) {
 export async function PATCH(req: NextRequest, { params }: RequestParam) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.sales.invoice.update, { req: req });
         const { id } = await params;
         const body = await req.json();
         const idParsed = salesInvoiceIdSchema.safeParse({ id });
@@ -65,6 +68,7 @@ export async function PATCH(req: NextRequest, { params }: RequestParam) {
 export async function DELETE(req: NextRequest, { params }: RequestParam) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.sales.invoice.delete, { req: req });
         const { id } = await params;
         const idParsed = salesInvoiceIdSchema.safeParse({ id });
         if (!idParsed.success) {

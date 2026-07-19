@@ -1,3 +1,4 @@
+import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { NextRequest, NextResponse } from 'next/server';
 import { getRequestContext } from '@/lib/request-context';
 import { z } from 'zod';
@@ -6,6 +7,7 @@ import { service } from '.';
 export async function GET(request: NextRequest) {
     try {
         const ctx = getRequestContext(request);
+        await requirePermission(ctx, PERMISSIONS.setting.module.view, { req: request });
         const searchParams = request.nextUrl.searchParams;
 
         const page = Number(searchParams.get('page') || 1);
@@ -44,6 +46,7 @@ const createModuleSchema = z.object({
 export async function POST(request: NextRequest) {
     try {
         const ctx = getRequestContext(request);
+        await requirePermission(ctx, PERMISSIONS.setting.module.create, { req: request });
         const body = await request.json();
         const parsed = createModuleSchema.safeParse(body);
 

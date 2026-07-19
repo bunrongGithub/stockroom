@@ -1,3 +1,4 @@
+import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import {
     inventoryUomIdSchema,
     updateInventoryUomSchema,
@@ -13,6 +14,7 @@ type Params = { params: Promise<{ id: string }> };
 export async function GET(req: NextRequest, { params }: Params) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.inventory.uom.view, { req: req });
         const { id } = await params;
 
         const parsed = inventoryUomIdSchema.safeParse({ id });
@@ -40,6 +42,7 @@ export async function GET(req: NextRequest, { params }: Params) {
 export async function PATCH(req: NextRequest, { params }: Params) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.inventory.uom.update, { req: req });
         const { id } = await params;
 
         const parsed = inventoryUomIdSchema.safeParse({ id });
@@ -69,6 +72,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 export async function DELETE(req: NextRequest, { params }: Params) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.inventory.uom.delete, { req: req });
         const { id } = await params;
 
         const parsed = inventoryUomIdSchema.safeParse({ id });

@@ -1,3 +1,4 @@
+import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { RequestParam } from '@/app/api/http';
 import { getRequestContext } from '@/lib/request-context';
 import { NextRequest, NextResponse } from 'next/server';
@@ -7,6 +8,7 @@ import { ApiError, NotFoundError } from '@/service/core/api-response';
 export async function GET(request: NextRequest, { params }: RequestParam) {
     try {
         const context = getRequestContext(request);
+        await requirePermission(context, PERMISSIONS.inventory.warehouse.view, { req: request });
         const { id } = await params;
         const warehouse = await service.findOne(context, parseInt(id));
         if (!warehouse) {

@@ -1,5 +1,6 @@
 'use client';
 
+import { AuthzFetchGuard } from '@/components/authz/AuthzFetchGuard';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { ToastProvider } from '@/components/ui/Toast';
@@ -34,6 +35,7 @@ import {
   LayoutGrid,
   Weight,
   Menu,
+  Barcode,
   X,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -74,6 +76,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   LayoutDashboard,
   HandCoins,
   LayoutGrid,
+  Barcode,
   Weight,
 };
 
@@ -404,13 +407,7 @@ function SidebarProfile() {
 // Shell — full layout
 // ─────────────────────────────────────────────────────────────────────────────
 
-function BrandHeader({
-  name,
-  logo,
-}: {
-  name: string;
-  logo: string;
-}) {
+function BrandHeader({ name, logo }: { name: string; logo: string }) {
   return (
     <div className="h-16 flex items-center gap-3 px-5 border-b border-gray-800/60 shrink-0">
       <div className="bg-white p-0.5 rounded-lg w-9 h-9 shrink-0 overflow-hidden shadow">
@@ -567,6 +564,7 @@ export default function DashboardClient({
     <UserProfileProvider>
       <AppProvider initialData={initialData}>
         <ToastProvider>
+          <AuthzFetchGuard />
           <DashboardShell>{children}</DashboardShell>
         </ToastProvider>
       </AppProvider>

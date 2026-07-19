@@ -1,3 +1,4 @@
+import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { getRequestContext } from '@/lib/request-context';
 import { assertRole } from '@/lib/auth';
 import { ApiError } from '@/service/core/api-response';
@@ -15,6 +16,7 @@ type Params = { params: Promise<{ id: string }> };
 export async function GET(request: NextRequest, { params }: Params) {
     try {
         const ctx = getRequestContext(request);
+        await requirePermission(ctx, PERMISSIONS.setting.user.view, { req: request });
         const { id } = await params;
         const parsed = userIdSchema.safeParse({ id });
         if (!parsed.success) {
@@ -33,6 +35,7 @@ export async function GET(request: NextRequest, { params }: Params) {
 export async function PATCH(request: NextRequest, { params }: Params) {
     try {
         const ctx = getRequestContext(request);
+        await requirePermission(ctx, PERMISSIONS.setting.user.update, { req: request });
         assertRole(ctx, 'admin');
         const { id } = await params;
         const idParsed = userIdSchema.safeParse({ id });

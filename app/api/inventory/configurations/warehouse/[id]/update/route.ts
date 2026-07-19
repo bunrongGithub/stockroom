@@ -1,3 +1,4 @@
+import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { RequestParam } from '@/app/api/http';
 import { getRequestContext } from '@/lib/request-context';
 import { NextRequest, NextResponse } from 'next/server';
@@ -28,6 +29,7 @@ const updateWithLocationsSchema = branchUpdateSchema.extend({
 export async function GET(request: NextRequest, { params }: RequestParam) {
     try {
         const context = getRequestContext(request);
+        await requirePermission(context, PERMISSIONS.inventory.warehouse.view, { req: request });
         const { id } = await params;
         const warehouse = await service.findOne(context, parseInt(id));
         if (!warehouse) {
@@ -45,6 +47,7 @@ export async function GET(request: NextRequest, { params }: RequestParam) {
 export async function PUT(request: NextRequest, { params }: RequestParam) {
     try {
         const context = getRequestContext(request);
+        await requirePermission(context, PERMISSIONS.inventory.warehouse.update, { req: request });
         const { id } = await params;
         const warehouseId = parseInt(id);
         const body = await request.json();

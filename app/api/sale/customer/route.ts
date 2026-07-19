@@ -1,3 +1,4 @@
+import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { getRequestContext } from '@/lib/request-context';
 import { CustomerRepository } from '@/service/apps/base/customer';
 import { ApiError, ApiResponseSuccess } from '@/service/core/api-response';
@@ -12,6 +13,7 @@ const service = CustomerRepository.getInstance();
 export async function GET(req: NextRequest) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.sales.order.view, { req: req });
         // Counter pickers only ever offer active customers — default to
         // active-only unless the caller filters is_active explicitly
         // (legacy ?active=false keeps returning everyone).
@@ -35,6 +37,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.sales.order.create, { req: req });
         const parsed = createCustomerSchema.safeParse(await req.json());
         if (!parsed.success) {
             return NextResponse.json(

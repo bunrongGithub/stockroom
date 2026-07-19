@@ -1,3 +1,4 @@
+import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { createInventoryUomSchema } from '@/service/schema/inventory-uom.schema';
 import { getRequestContext } from '@/lib/request-context';
 import { ApiError, ApiResponseSuccess } from '@/service/core/api-response';
@@ -35,6 +36,7 @@ function mapLegacyParams(query: QueryObject, sp: URLSearchParams): QueryObject {
 export async function GET(req: NextRequest) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.inventory.uom.view, { req: req });
         const query = mapLegacyParams(
             parseListParams(req),
             req.nextUrl.searchParams,
@@ -52,6 +54,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.inventory.uom.create, { req: req });
         const body = await req.json();
 
         const parsed = createInventoryUomSchema.safeParse(body);

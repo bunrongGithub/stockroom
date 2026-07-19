@@ -1,3 +1,4 @@
+import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { NextRequest, NextResponse } from 'next/server';
 import { getRequestContext } from '@/lib/request-context';
 import { SalesOrderRepository } from '@/service/apps/sale/repo/order';
@@ -11,6 +12,7 @@ export const service = SalesOrderRepository.getInstance();
 export async function GET(req: NextRequest) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.sales.order.view, { req: req });
         const query = parseListParams(req);
         // Counter sales are sales orders too, but they belong on the Cash
         // Sale list — this is the order pipeline the sales desk works.
@@ -27,6 +29,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.sales.order.create, { req: req });
         const body = await req.json();
         const parsed = createSalesOrderSchema.safeParse(body);
         if (!parsed.success) {

@@ -1,3 +1,4 @@
+import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { getRequestContext } from '@/lib/request-context';
 import { idParamSchema } from '@/service/schema/branch.schema';
 import { NextRequest, NextResponse } from 'next/server';
@@ -10,6 +11,7 @@ export async function GET(
 ) {
     try {
         const ctx = getRequestContext(request);
+        await requirePermission(ctx, PERMISSIONS.setting.module.view, { req: request });
         const { id } = await params;
         const idParsed = idParamSchema.safeParse({ id });
         if (!idParsed.success) {
@@ -45,6 +47,7 @@ export async function PATCH(
 ) {
     try {
         const ctx = getRequestContext(request);
+        await requirePermission(ctx, PERMISSIONS.setting.module.update, { req: request });
         const { id } = await params;
         const idParsed = idParamSchema.safeParse({ id });
         if (!idParsed.success) {
@@ -69,6 +72,7 @@ export async function DELETE(
 ) {
     try {
         const ctx = getRequestContext(request);
+        await requirePermission(ctx, PERMISSIONS.setting.module.delete, { req: request });
         const { id } = await params;
         const idParsed = idParamSchema.safeParse({ id });
         if (!idParsed.success) {

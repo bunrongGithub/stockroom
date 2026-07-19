@@ -1,3 +1,4 @@
+import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { itemIdSchema, updateUomSchema } from '@/service/schema/uom.schema';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -9,6 +10,7 @@ type Params = { params: Promise<{ id: string }> };
 export async function GET(req: NextRequest, { params }: Params) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.inventory.item.view, { req: req });
         const { id } = await params;
 
         const parsed = itemIdSchema.safeParse({ id });
@@ -33,6 +35,7 @@ export async function GET(req: NextRequest, { params }: Params) {
 export async function PATCH(req: NextRequest, { params }: Params) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.inventory.item.update, { req: req });
         const { id } = await params;
 
         const parsed = itemIdSchema.safeParse({ id });

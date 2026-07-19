@@ -1,5 +1,5 @@
 import { getRequestContext } from '@/lib/request-context';
-import { assertRole } from '@/lib/auth';
+import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { getServerClient } from '@/lib/supabase/server';
 import {
     ApiError,
@@ -22,7 +22,9 @@ const ALLOWED: Record<string, string> = {
 export async function POST(request: NextRequest) {
     const context = getRequestContext(request);
     try {
-        assertRole(context, 'admin');
+        await requirePermission(context, PERMISSIONS.setting.company.update, {
+            req: request,
+        });
 
         const formData = await request.formData();
         const file = formData.get('file');

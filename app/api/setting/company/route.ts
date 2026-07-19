@@ -1,3 +1,4 @@
+import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { getRequestContext } from '@/lib/request-context';
 import { assertRole } from '@/lib/auth';
 import { ApiError, ApiResponseSuccess } from '@/service/core/api-response';
@@ -14,6 +15,7 @@ import { NextRequest, NextResponse } from 'next/server';
 // `?id=` keeps the legacy single-company response for the detail tabs.
 export async function GET(request: NextRequest) {
     const context = getRequestContext(request);
+    await requirePermission(context, PERMISSIONS.setting.company.view, { req: request });
     try {
         const sp = request.nextUrl.searchParams;
         const idParam = sp.get('id');
@@ -41,6 +43,7 @@ export async function GET(request: NextRequest) {
 // repository enforces the super-user check).
 export async function POST(request: NextRequest) {
     const context = getRequestContext(request);
+    await requirePermission(context, PERMISSIONS.setting.company.create, { req: request });
     try {
         assertRole(context, 'admin');
         const body = await request.json();
@@ -55,6 +58,7 @@ export async function POST(request: NextRequest) {
 // PATCH /api/setting/company — owner/admin/super_admin only.
 export async function PATCH(request: NextRequest) {
     const context = getRequestContext(request);
+    await requirePermission(context, PERMISSIONS.setting.company.update, { req: request });
     try {
         assertRole(context, 'admin');
         const body = await request.json();

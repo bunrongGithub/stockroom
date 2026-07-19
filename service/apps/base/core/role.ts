@@ -145,44 +145,103 @@ export class Role extends BaseRepository {
     }
 
     async updatePermissions(
-        _context: RequestContext,
+        context: RequestContext,
         roleId: number,
         permissions: UpdateRolePermissionsInput['permissions'],
     ) {
+        // Object-level security: you may only manage permissions on a role that
+        // belongs to your own company (unless super user). Returns 404 — never
+        // 403 — so we don't reveal that the role exists in another company.
+        const isSuperUser = await this.isSupperUser(context);
+        const { data: role } = await this.db
+            .from('roles')
+            .select('id, company_id')
+            .eq('id', roleId)
+            .maybeSingle();
+        if (
+            !role ||
+            (!isSuperUser && role.company_id !== Number(context.companyId))
+        ) {
+            throw new NotFoundError(`Role with id ${roleId} not found`);
+        }
+        const roleCompany = role.company_id as number;
+
+        // Replace the CRUD flags.
         const { error: deleteError } = await this.db
             .from('role_module_permission')
             .delete()
             .eq('role_id', roleId);
-
         if (deleteError)
             throw new ApiError(deleteError.message, 500, deleteError.code);
 
-        const toInsert = permissions
-            .filter(
-                (p) =>
-                    p.can_view ||
-                    p.can_create ||
-                    p.can_update ||
-                    p.can_delete ||
-                    p.can_export,
-            )
-            .map((p) => ({
-                role_id: roleId,
-                module_id: p.module_id,
-                can_view: p.can_view,
-                can_create: p.can_create,
-                can_update: p.can_update,
-                can_delete: p.can_delete,
-                can_export: p.can_export,
-            }));
+        const granted = permissions.filter(
+            (p) =>
+                p.can_view ||
+                p.can_create ||
+                p.can_update ||
+                p.can_delete ||
+                p.can_export,
+        );
 
-        if (toInsert.length > 0) {
+        if (granted.length > 0) {
             const { error: insertError } = await this.db
                 .from('role_module_permission')
-                .insert(toInsert);
-
+                .insert(
+                    granted.map((p) => ({
+                        role_id: roleId,
+                        company_id: roleCompany,
+                        module_id: p.module_id,
+                        can_view: p.can_view,
+                        can_create: p.can_create,
+                        can_update: p.can_update,
+                        can_delete: p.can_delete,
+                        can_export: p.can_export,
+                    })),
+                );
             if (insertError)
                 throw new ApiError(insertError.message, 500, insertError.code);
+        }
+
+        // Keep the authorization grant table (source of truth for enforcement)
+        // in sync for the CRUD actions on the edited modules. Extended actions
+        // (post/void/…) are managed separately and left intact.
+        const moduleIds = permissions.map((p) => p.module_id);
+        if (moduleIds.length > 0) {
+            await this.db
+                .from('role_module_action_permission')
+                .delete()
+                .eq('role_id', roleId)
+                .in('module_id', moduleIds)
+                .in('action', ['view', 'create', 'update', 'delete', 'export']);
+        }
+        const actionRows = granted.flatMap((p) =>
+            (
+                [
+                    ['view', p.can_view],
+                    ['create', p.can_create],
+                    ['update', p.can_update],
+                    ['delete', p.can_delete],
+                    ['export', p.can_export],
+                ] as const
+            )
+                .filter(([, on]) => on)
+                .map(([action]) => ({
+                    role_id: roleId,
+                    company_id: roleCompany,
+                    module_id: p.module_id,
+                    action,
+                    granted: true,
+                    created_by: context.userId,
+                    updated_by: context.userId,
+                })),
+        );
+        if (actionRows.length > 0) {
+            const { error } = await this.db
+                .from('role_module_action_permission')
+                .upsert(actionRows, {
+                    onConflict: 'role_id,module_id,action',
+                });
+            if (error) throw new ApiError(error.message, 500, error.code);
         }
 
         return { success: true };

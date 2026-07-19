@@ -1,3 +1,4 @@
+import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { NextRequest, NextResponse } from 'next/server';
 import { getRequestContext } from '@/lib/request-context';
 import { WarehouseRepository } from '@/service/apps/inventory/repo/warehouse';
@@ -8,6 +9,7 @@ export const service = WarehouseRepository.getInstance();
 export async function GET(req: NextRequest) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.inventory.warehouse.view, { req: req });
 
         const searchParams = req.nextUrl.searchParams;
 

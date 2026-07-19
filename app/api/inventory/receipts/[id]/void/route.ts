@@ -1,3 +1,4 @@
+import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { NextRequest, NextResponse } from 'next/server';
 import { getRequestContext } from '@/lib/request-context';
 import { ReceiptRepository } from '@/service/apps/inventory/repo/receipt';
@@ -10,6 +11,7 @@ const service = ReceiptRepository.getInstance();
 export async function POST(req: NextRequest, { params }: RequestParam) {
     try {
         const ctx    = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.inventory.receipt.void, { req: req });
         const { id } = await params;
         const parsed = receiptIdSchema.safeParse({ id });
 

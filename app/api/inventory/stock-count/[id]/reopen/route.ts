@@ -1,3 +1,4 @@
+import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { NextRequest, NextResponse } from 'next/server';
 import { getRequestContext } from '@/lib/request-context';
 import { StockCountRepository } from '@/service/apps/inventory/repo/stock-count';
@@ -10,6 +11,7 @@ const service = StockCountRepository.getInstance();
 export async function POST(req: NextRequest, { params }: RequestParam) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.inventory.stockCount.update, { req: req });
         const { id } = await params;
         const idParsed = stockCountIdSchema.safeParse({ id });
         if (!idParsed.success) {

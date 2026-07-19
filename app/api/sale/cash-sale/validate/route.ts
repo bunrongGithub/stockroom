@@ -1,3 +1,4 @@
+import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { getRequestContext } from '@/lib/request-context';
 import { CashSaleService } from '@/service/apps/sale/cash-sale';
 import { ApiError, ApiResponseSuccess } from '@/service/core/api-response';
@@ -11,6 +12,7 @@ const service = CashSaleService.getInstance();
 export async function POST(req: NextRequest) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.sales.cashSale.view, { req: req });
         const parsed = cashSaleSchema.safeParse(await req.json());
         if (!parsed.success) {
             return NextResponse.json(

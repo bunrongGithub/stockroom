@@ -1,3 +1,4 @@
+import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { NextRequest, NextResponse } from 'next/server';
 import { getRequestContext } from '@/lib/request-context';
 import { MovementRepository } from '@/service/apps/inventory/repo/movement';
@@ -10,6 +11,7 @@ const service = MovementRepository.getInstance();
 export async function GET(req: NextRequest, { params }: RequestParam) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.inventory.item.view, { req: req });
         const { id } = await params;
         const parsed = itemIdSchema.safeParse({ id });
 

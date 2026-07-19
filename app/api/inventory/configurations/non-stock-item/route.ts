@@ -1,3 +1,4 @@
+import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { createInventorySchema } from '@/service/schema/inventory.schema';
 import { NextRequest, NextResponse } from 'next/server';
 import { getRequestContext } from '@/lib/request-context';
@@ -9,6 +10,7 @@ export const Service = InventoryRepository.getInstance();
 export async function GET(req: NextRequest) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.inventory.item.view, { req: req });
         const searchParams = req.nextUrl.searchParams;
 
         const page = Number(searchParams.get('page') || 1);
@@ -32,6 +34,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.inventory.item.create, { req: req });
         const body = await req.json();
 
         const parsed = createInventorySchema.safeParse({ ...body, item_class: 'non_stock' });

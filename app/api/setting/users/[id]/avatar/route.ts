@@ -1,5 +1,5 @@
 import { getRequestContext } from '@/lib/request-context';
-import { assertRole } from '@/lib/auth';
+import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { getServerClient } from '@/lib/supabase/server';
 import {
     ApiError,
@@ -23,7 +23,9 @@ type Params = { params: Promise<{ id: string }> };
 export async function POST(request: NextRequest, { params }: Params) {
     const ctx = getRequestContext(request);
     try {
-        assertRole(ctx, 'admin');
+        await requirePermission(ctx, PERMISSIONS.setting.user.update, {
+            req: request,
+        });
         const { id } = await params;
         const idParsed = userIdSchema.safeParse({ id });
         if (!idParsed.success) {

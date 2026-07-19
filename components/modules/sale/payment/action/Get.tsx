@@ -1,6 +1,8 @@
 'use client';
 
 import { useRegisterModule } from '@/hook/useModule';
+import { useCan } from '@/hook/useCan';
+import { PERMISSIONS } from '@/service/core/authz/permissions';
 import type { ModuleProps } from '@/lib/registry';
 import { financesPaymentApi } from '@/lib/api/finances';
 import { AuditInformationCard } from '@/components/ui/AuditInformationCard';
@@ -62,6 +64,8 @@ export default function SalePaymentDetail({
 
   const params = useParams();
   const router = useRouter();
+  const mayPost = useCan(PERMISSIONS.sales.payment.post);
+  const mayCancel = useCan(PERMISSIONS.sales.payment.cancel);
   const id = Number(Array.isArray(params.slug) ? params.slug.at(-2) : '');
 
   const [payment, setPayment] = useState<CustomerPayment | null>(null);
@@ -147,7 +151,7 @@ export default function SalePaymentDetail({
               <PencilIcon size={13} /> Edit
             </button>
           )}
-          {a?.can_post && (
+          {a?.can_post && mayPost && (
             <button
               onClick={() => act('post')}
               disabled={busy}
@@ -161,7 +165,7 @@ export default function SalePaymentDetail({
               Post
             </button>
           )}
-          {a?.can_cancel && (
+          {a?.can_cancel && mayCancel && (
             <button
               onClick={() => act('cancel')}
               disabled={busy}
