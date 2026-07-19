@@ -87,6 +87,39 @@ export const PERMISSIONS = {
     },
 } as const;
 
+/**
+ * Extended (non-CRUD) actions derive from a base CRUD capability until a
+ * granular per-action grant UI exists: granting `update` (Edit) on a document
+ * implies `post`/`approve`/…; granting `delete` implies `void`/`cancel`. This
+ * mirrors the authorization migration's seed, and is what the role permission
+ * editor uses to keep new roles working without a separate UI.
+ */
+export const EXTENDED_ACTION_BASE: Partial<
+    Record<PermissionAction, 'update' | 'delete'>
+> = {
+    post: 'update',
+    approve: 'update',
+    prepare: 'update',
+    count: 'update',
+    complete: 'update',
+    close: 'update',
+    void: 'delete',
+    cancel: 'delete',
+    reverse: 'delete',
+};
+
+/** The extended actions a module declares in the catalog, each paired with the
+ *  CRUD flag it derives from. Empty for modules with no extended actions. */
+export function extendedActionsForModule(
+    moduleKey: string,
+): Array<{ action: PermissionAction; base: 'update' | 'delete' }> {
+    return allPermissions()
+        .filter(
+            (p) => p.moduleKey === moduleKey && EXTENDED_ACTION_BASE[p.action],
+        )
+        .map((p) => ({ action: p.action, base: EXTENDED_ACTION_BASE[p.action]! }));
+}
+
 /** Flatten the catalog for tests/tooling (e.g. the CI enforcement gate). */
 export function allPermissions(): Permission[] {
     const out: Permission[] = [];

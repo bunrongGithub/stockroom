@@ -10,6 +10,7 @@ import {
     UpdateRolePermissionsInput,
 } from '@/service/schema/role.schema';
 import { RequestContext } from '@/types/request-context';
+import { extendedActionsForModule } from '@/service/core/authz/permissions';
 import { z } from 'zod';
 
 export class Role extends BaseRepository {
@@ -202,39 +203,56 @@ export class Role extends BaseRepository {
                 throw new ApiError(insertError.message, 500, insertError.code);
         }
 
-        // Keep the authorization grant table (source of truth for enforcement)
-        // in sync for the CRUD actions on the edited modules. Extended actions
-        // (post/void/…) are managed separately and left intact.
+        // Re-sync the authorization grant table (the source of truth for
+        // enforcement) for the edited modules: the CRUD actions straight from
+        // the flags, PLUS each module's extended actions (post/void/approve/…)
+        // derived from their base capability (post←update, void←delete). Without
+        // this, a role edited through the CRUD editor can never gain post/void,
+        // so those buttons stay hidden — the exact gap new companies hit.
         const moduleIds = permissions.map((p) => p.module_id);
+        const keyById = new Map<number, string>();
         if (moduleIds.length > 0) {
+            const { data: mods } = await this.db
+                .from('modules')
+                .select('id, key')
+                .in('id', moduleIds);
+            for (const m of mods ?? []) keyById.set(m.id, m.key as string);
             await this.db
                 .from('role_module_action_permission')
                 .delete()
                 .eq('role_id', roleId)
-                .in('module_id', moduleIds)
-                .in('action', ['view', 'create', 'update', 'delete', 'export']);
+                .in('module_id', moduleIds);
         }
-        const actionRows = granted.flatMap((p) =>
-            (
-                [
-                    ['view', p.can_view],
-                    ['create', p.can_create],
-                    ['update', p.can_update],
-                    ['delete', p.can_delete],
-                    ['export', p.can_export],
-                ] as const
+        const mkRow = (module_id: number, action: string) => ({
+            role_id: roleId,
+            company_id: roleCompany,
+            module_id,
+            action,
+            granted: true,
+            created_by: context.userId,
+            updated_by: context.userId,
+        });
+        const actionRows = granted.flatMap((p) => {
+            const flags: Record<string, boolean> = {
+                view: p.can_view,
+                create: p.can_create,
+                update: p.can_update,
+                delete: p.can_delete,
+                export: p.can_export,
+            };
+            const rows = (
+                ['view', 'create', 'update', 'delete', 'export'] as const
             )
-                .filter(([, on]) => on)
-                .map(([action]) => ({
-                    role_id: roleId,
-                    company_id: roleCompany,
-                    module_id: p.module_id,
-                    action,
-                    granted: true,
-                    created_by: context.userId,
-                    updated_by: context.userId,
-                })),
-        );
+                .filter((a) => flags[a])
+                .map((a) => mkRow(p.module_id, a));
+            const key = keyById.get(p.module_id);
+            if (key) {
+                for (const { action, base } of extendedActionsForModule(key)) {
+                    if (flags[base]) rows.push(mkRow(p.module_id, action));
+                }
+            }
+            return rows;
+        });
         if (actionRows.length > 0) {
             const { error } = await this.db
                 .from('role_module_action_permission')
