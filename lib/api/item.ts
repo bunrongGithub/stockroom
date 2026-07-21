@@ -16,10 +16,11 @@ import { unwrap } from '@/lib/api/sale';
  * contributes to a line."
  */
 
-/** Raw item-detail shape (subset we consume) returned by stockItem.detail(id). */
+/** Raw item-detail shape (subset we consume) returned by item.detail(id). */
 interface ItemDetailResponse {
     id: number;
     name: string;
+    item_class?: string | null;
     description?: string | null;
     price?: number | null; // selling price (backend column `price`)
     cost?: number | null;
@@ -48,6 +49,8 @@ interface ItemUomRow {
 /** Normalized defaults an item contributes to a transaction line. */
 export interface ItemDefaults {
     itemId: number;
+    /** stock | non_stock | service — feed to behaviorOf() for routing/UI. */
+    itemClass: string;
     name: string;
     description: string | null;
     price: number | null;
@@ -86,6 +89,7 @@ export function itemDefaults(
 
     return {
         itemId: item.id,
+        itemClass: item.item_class ?? 'stock',
         name: item.name,
         description: item.description ?? null,
         price: item.price ?? null,
@@ -116,7 +120,9 @@ export const itemApi = {
         // the default inventory_item_uom.id, which the detail endpoint doesn't
         // embed.
         const p = Promise.all([
-            fetch(API.inventory.stockItem.detail(id)).then((r) =>
+            // Class-agnostic detail endpoint: resolves stock, non-stock, and
+            // service items alike (the per-class endpoints 404 on mismatches).
+            fetch(API.inventory.item.detail(id)).then((r) =>
                 unwrap<{ data: ItemDetailResponse }>(r),
             ),
             fetch(`${API.inventory.itemUom.root}?item_id=${id}&limit=10`)

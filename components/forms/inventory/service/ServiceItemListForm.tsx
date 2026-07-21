@@ -12,7 +12,7 @@ import {
 import { usePageActions } from '@/hook/usePageAction';
 import type { ServerQueryBinding } from '@/hook/useTableQuery';
 import type { InventoryItemProps } from '@/types/inventory/item';
-import { Package, Percent, RotateCcw, ShieldCheck, Tags } from 'lucide-react';
+import { Percent, RotateCcw, ShieldCheck, Tags, Wrench } from 'lucide-react';
 import { JSX } from 'react';
 
 function PropertyBadges({ item }: { item: InventoryItemProps }) {
@@ -78,17 +78,17 @@ const FILTER_DEFS: DataTableFilterDef[] = [
   { key: 'created_at', label: 'Created', type: 'date-range' },
 ];
 
-export type NonStockItemListFormProps = {
+export type ServiceItemListFormProps = {
   items: Array<InventoryItemProps>;
   serverQuery: ServerQueryBinding;
   onDeleteAction: (id: number) => void;
 };
 
-export default function NonStockItemListForm({
+export default function ServiceItemListForm({
   items,
   serverQuery,
   onDeleteAction,
-}: NonStockItemListFormProps) {
+}: ServiceItemListFormProps) {
   const pageAction = usePageActions();
   const staticActions = pageAction?.actions.filter((a) => !a.dynamic) ?? [];
   const dynamicActions = pageAction?.actions.filter((a) => a.dynamic) ?? [];
@@ -106,7 +106,7 @@ export default function NonStockItemListForm({
     },
     {
       key: 'name',
-      header: 'Item Name',
+      header: 'Service Name',
       sortable: true,
       cellClassName: 'whitespace-normal max-w-xs',
       cell: (row) => (
@@ -116,7 +116,7 @@ export default function NonStockItemListForm({
               {row.name}
             </div>
             <div className="mt-0.5 truncate text-xs text-gray-500">
-              Non-Stock Item
+              Service Item
             </div>
             <PropertyBadges item={row} />
           </div>
@@ -176,10 +176,10 @@ export default function NonStockItemListForm({
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
           <h2 className="flex items-center gap-2 text-2xl text-slate-800">
-            <Package className="text-[#1a9e52]" />
-            Non-Stock
+            <Wrench className="text-[#1a9e52]" />
+            Service
           </h2>
-          <p className="mt-1 text-slate-500">Manage your non-stock items</p>
+          <p className="mt-1 text-slate-500">Manage your service items</p>
         </div>
         <div className="flex items-center gap-2">
           {staticActions.map((action) => (
@@ -199,8 +199,8 @@ export default function NonStockItemListForm({
         serverQuery={serverQuery}
         filterDefs={FILTER_DEFS}
         enableColumnVisibility
-        emptyIcon={<Package size={32} />}
-        emptyTitle="No non-stock items found"
+        emptyIcon={<Wrench size={32} />}
+        emptyTitle="No service items found"
         emptyDescription="No items match your search criteria"
       />
     </div>

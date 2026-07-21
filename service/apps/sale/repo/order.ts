@@ -13,6 +13,7 @@ import {
     documentTotals,
 } from '../pricing';
 import { ApiError, NotFoundError } from '@/service/core/api-response';
+import { behaviorOf } from '@/service/core/item-behavior';
 import type {
     CreateSalesOrderInput,
     UpdateSalesOrderInput,
@@ -62,17 +63,10 @@ function orderTotals(lines: LineCalcInput[]) {
     );
 }
 
-/** Progress status from shipped vs ordered. Never returns 'cancelled'. */
-export function deriveOrderStatus(
-    items: { ordered_qty: number; shipped_qty: number }[],
-): Exclude<SalesOrderStatus, 'cancelled'> {
-    if (items.length === 0) return 'open';
-    const allShipped = items.every((i) => i.ordered_qty - i.shipped_qty <= 0);
-    const anyShipped = items.some((i) => i.shipped_qty > 0);
-    if (allShipped) return 'closed';
-    if (anyShipped) return 'partial_shipment';
-    return 'open';
-}
+// Pure fulfillment derivation lives in ../fulfillment (unit-tested there);
+// re-exported so existing imports keep working.
+import { deriveOrderStatus } from '../fulfillment';
+export { deriveOrderStatus };
 
 /**
  * Editing/cancelling/closing/shipping are only allowed while the order is
@@ -97,12 +91,14 @@ function mapOrderItem(r: any): SalesOrderItem {
         id: r.id,
         item_id: r.item_id,
         item_uom_id: r.item_uom_id ?? null,
+        item_class: r.item_class ?? 'stock',
         track_serial: r.item?.track_serial ?? false,
         product_name: r.item?.name ?? r.description ?? '',
         description: r.description ?? '',
         uom: r.uom ?? r.item_uom?.name ?? '',
         ordered_qty: Number(r.ordered_qty),
         shipped_qty: Number(r.shipped_qty),
+        invoiced_qty: Number(r.invoiced_qty ?? 0),
         unit_price: Number(r.unit_price),
         discount: Number(r.discount),
         tax: Number(r.tax),
@@ -289,6 +285,16 @@ export class SalesOrderRepository extends BaseRepository {
         input: CreateSalesOrderRepoInput,
     ): Promise<SalesOrder> {
         const companyId = Number(ctx.companyId);
+        // Snapshot each line's item class up-front; the warehouse rule and
+        // all later routing derive from the snapshot, not live item rows.
+        const classes = await this.classesFor(
+            companyId,
+            input.items.map((l) => l.item_id),
+        );
+        this.assertWarehouseRule(input.warehouse_id ?? null, [
+            ...classes.values(),
+        ]);
+
         const order_no = await getNextDocumentNumber(ctx, 'sales_order', 'SO');
         const totals = orderTotals(input.items);
 
@@ -308,7 +314,7 @@ export class SalesOrderRepository extends BaseRepository {
                     order_date: input.order_date,
                     expected_delivery_date:
                         input.expected_delivery_date ?? null,
-                    warehouse_id: input.warehouse_id,
+                    warehouse_id: input.warehouse_id ?? null,
                     currency: input.currency ?? 'USD',
                     status: 'open',
                     ...totals,
@@ -321,13 +327,57 @@ export class SalesOrderRepository extends BaseRepository {
         if (error) throw new ApiError(error.message, 500);
 
         try {
-            await this.insertLines(companyId, header.id, input.items);
+            await this.insertLines(companyId, header.id, input.items, classes);
         } catch (err) {
             await this.db.from(HEADER_TABLE).delete().eq('id', header.id);
             throw err;
         }
 
         return (await this.findOne(ctx, header.id))!;
+    }
+
+    /** Load item classes for a set of items, scoped to the company. */
+    private async classesFor(
+        companyId: number,
+        itemIds: number[],
+    ): Promise<Map<number, string>> {
+        const unique = [...new Set(itemIds)];
+        if (unique.length === 0) return new Map();
+        const { data, error } = await this.db
+            .from('inventory_item')
+            .select('id, item_class')
+            .eq('company_id', companyId)
+            .in('id', unique);
+        if (error) throw new ApiError(error.message, 500);
+        const map = new Map<number, string>(
+            (data ?? []).map((r) => [r.id as number, r.item_class as string]),
+        );
+        const missing = unique.filter((id) => !map.has(id));
+        if (missing.length) {
+            throw new ApiError(
+                `Item #${missing[0]} not found`,
+                404,
+                'ITEM_NOT_FOUND',
+            );
+        }
+        return map;
+    }
+
+    /** A warehouse is required exactly when the order has shippable lines. */
+    private assertWarehouseRule(
+        warehouseId: number | null,
+        itemClasses: string[],
+    ): void {
+        const needsWarehouse = itemClasses.some(
+            (c) => behaviorOf(c).requiresWarehouse,
+        );
+        if (needsWarehouse && !warehouseId) {
+            throw new ApiError(
+                'A warehouse is required when the order contains stock items',
+                422,
+                'WAREHOUSE_REQUIRED',
+            );
+        }
     }
 
     async updateOne(
@@ -346,6 +396,20 @@ export class SalesOrderRepository extends BaseRepository {
                 'INVALID_STATUS',
             );
         }
+
+        // Warehouse rule against the lines the order will have after this
+        // update (submitted lines when replacing, current lines otherwise).
+        const lineClasses = input.items
+            ? [
+                  ...(
+                      await this.classesFor(
+                          companyId,
+                          input.items.map((l) => l.item_id),
+                      )
+                  ).values(),
+              ]
+            : existing.items.map((l) => l.item_class);
+        this.assertWarehouseRule(input.warehouse_id ?? null, lineClasses);
 
         const totals = input.items
             ? orderTotals(input.items)
@@ -366,7 +430,7 @@ export class SalesOrderRepository extends BaseRepository {
                     order_date: input.order_date,
                     expected_delivery_date:
                         input.expected_delivery_date ?? null,
-                    warehouse_id: input.warehouse_id,
+                    warehouse_id: input.warehouse_id ?? null,
                     currency: input.currency ?? 'USD',
                     notes: input.notes ?? null,
                     ...totals,
@@ -399,10 +463,14 @@ export class SalesOrderRepository extends BaseRepository {
         items: UpdateSalesOrderInput['items'],
     ): Promise<void> {
         const submitted = items ?? [];
+        const classes = await this.classesFor(
+            companyId,
+            submitted.map((l) => l.item_id),
+        );
 
         const { data: existingRows, error: exErr } = await this.db
             .from(LINE_TABLE)
-            .select('id, shipped_qty')
+            .select('id, shipped_qty, invoiced_qty')
             .eq('order_id', orderId)
             .eq('company_id', companyId);
         if (exErr) throw new ApiError(exErr.message, 500);
@@ -410,7 +478,10 @@ export class SalesOrderRepository extends BaseRepository {
         const existing = new Map(
             (existingRows ?? []).map((r) => [
                 r.id as number,
-                Number(r.shipped_qty),
+                {
+                    shipped: Number(r.shipped_qty),
+                    invoiced: Number(r.invoiced_qty ?? 0),
+                },
             ]),
         );
         const submittedIds = new Set(
@@ -436,6 +507,21 @@ export class SalesOrderRepository extends BaseRepository {
                     'ITEM_IN_SHIPMENT',
                 );
             }
+            // Direct-invoice lines are referenced by invoice lines instead of
+            // shipment lines — protect them the same way.
+            const { data: invRefs, error: invRefErr } = await this.db
+                .from('sales_invoice_items')
+                .select('sales_order_item_id, invoice:sales_invoice!inner(status)')
+                .in('sales_order_item_id', toDelete)
+                .neq('invoice.status', 'CANCELLED');
+            if (invRefErr) throw new ApiError(invRefErr.message, 500);
+            if (invRefs && invRefs.length) {
+                throw new ApiError(
+                    'Cannot remove an item that is already used in an invoice.',
+                    409,
+                    'ITEM_IN_INVOICE',
+                );
+            }
             const { error: delErr } = await this.db
                 .from(LINE_TABLE)
                 .delete()
@@ -447,18 +533,26 @@ export class SalesOrderRepository extends BaseRepository {
         // ── 2. Update lines that are still present ────────────────────────────
         for (const l of submitted) {
             if (typeof l.id !== 'number' || !existing.has(l.id)) continue;
-            const shipped = existing.get(l.id) ?? 0;
-            if (l.ordered_qty < shipped) {
+            const counters = existing.get(l.id) ?? { shipped: 0, invoiced: 0 };
+            if (l.ordered_qty < counters.shipped) {
                 throw new ApiError(
-                    `Ordered quantity for an item cannot be less than the quantity already shipped (${shipped}).`,
+                    `Ordered quantity for an item cannot be less than the quantity already shipped (${counters.shipped}).`,
                     400,
                     'QTY_BELOW_SHIPPED',
+                );
+            }
+            if (l.ordered_qty < counters.invoiced) {
+                throw new ApiError(
+                    `Ordered quantity for an item cannot be less than the quantity already invoiced (${counters.invoiced}).`,
+                    400,
+                    'QTY_BELOW_INVOICED',
                 );
             }
             const { error } = await this.db
                 .from(LINE_TABLE)
                 .update({
                     item_id: l.item_id,
+                    item_class: classes.get(l.item_id) ?? 'stock',
                     item_uom_id: l.item_uom_id ?? null,
                     description: l.description ?? null,
                     uom: l.uom ?? null,
@@ -482,7 +576,7 @@ export class SalesOrderRepository extends BaseRepository {
         // ── 3. Insert newly added lines ───────────────────────────────────────
         const newLines = submitted.filter((l) => typeof l.id !== 'number');
         if (newLines.length) {
-            await this.insertLines(companyId, orderId, newLines);
+            await this.insertLines(companyId, orderId, newLines, classes);
         }
     }
 
@@ -622,6 +716,88 @@ export class SalesOrderRepository extends BaseRepository {
         }
     }
 
+    /**
+     * Add invoiced quantities to direct-invoice order lines (called when an
+     * order-sourced invoice is created/posted). Mirrors incrementShipped.
+     */
+    async incrementInvoiced(
+        ctx: RequestContext,
+        entries: { sales_order_item_id: number; qty: number }[],
+    ): Promise<void> {
+        const companyId = Number(ctx.companyId);
+        for (const e of entries) {
+            const { data: line, error } = await this.db
+                .from(LINE_TABLE)
+                .select('id, invoiced_qty')
+                .eq('id', e.sales_order_item_id)
+                .eq('company_id', companyId)
+                .maybeSingle();
+            if (error) throw new ApiError(error.message, 500);
+            if (!line) continue;
+            const { error: upErr } = await this.db
+                .from(LINE_TABLE)
+                .update({
+                    invoiced_qty: Number(line.invoiced_qty ?? 0) + e.qty,
+                })
+                .eq('id', e.sales_order_item_id)
+                .eq('company_id', companyId);
+            if (upErr) throw new ApiError(upErr.message, 500);
+        }
+    }
+
+    /**
+     * Re-derive `invoiced_qty` from the invoice lines that reference order
+     * lines directly (shipment-sourced invoice lines carry shipment_item_id
+     * and fulfill through shipped_qty instead). Cancelled invoices do not
+     * count. Recompute-not-accumulate: safe after cancels and partial writes.
+     */
+    async recomputeInvoicedQty(
+        ctx: RequestContext,
+        orderId: number,
+    ): Promise<void> {
+        const companyId = Number(ctx.companyId);
+
+        const { data: lines, error: lineErr } = await this.db
+            .from(LINE_TABLE)
+            .select('id')
+            .eq('order_id', orderId)
+            .eq('company_id', companyId);
+        if (lineErr) throw new ApiError(lineErr.message, 500);
+        const lineIds = (lines ?? []).map((l) => l.id as number);
+        if (lineIds.length === 0) return;
+
+        const { data: invoiced, error: invErr } = await this.db
+            .from('sales_invoice_items')
+            .select(
+                'sales_order_item_id, quantity, invoice:sales_invoice!inner(id, status)',
+            )
+            .eq('company_id', companyId)
+            .in('sales_order_item_id', lineIds)
+            .is('shipment_item_id', null)
+            .neq('invoice.status', 'CANCELLED');
+        if (invErr) throw new ApiError(invErr.message, 500);
+
+        const byLine = new Map<number, number>();
+        for (const row of invoiced ?? []) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const r = row as any;
+            if (r.sales_order_item_id == null) continue;
+            byLine.set(
+                r.sales_order_item_id,
+                (byLine.get(r.sales_order_item_id) ?? 0) + Number(r.quantity),
+            );
+        }
+
+        for (const id of lineIds) {
+            const { error } = await this.db
+                .from(LINE_TABLE)
+                .update({ invoiced_qty: byLine.get(id) ?? 0 })
+                .eq('id', id)
+                .eq('company_id', companyId);
+            if (error) throw new ApiError(error.message, 500);
+        }
+    }
+
     /** Recompute progress status from current line quantities. */
     async recomputeStatus(ctx: RequestContext, orderId: number): Promise<void> {
         const companyId = Number(ctx.companyId);
@@ -635,7 +811,7 @@ export class SalesOrderRepository extends BaseRepository {
 
         const { data: lines, error } = await this.db
             .from(LINE_TABLE)
-            .select('ordered_qty, shipped_qty')
+            .select('ordered_qty, shipped_qty, invoiced_qty, item_class')
             .eq('order_id', orderId)
             .eq('company_id', companyId);
         if (error) throw new ApiError(error.message, 500);
@@ -644,6 +820,8 @@ export class SalesOrderRepository extends BaseRepository {
             (lines ?? []).map((l) => ({
                 ordered_qty: Number(l.ordered_qty),
                 shipped_qty: Number(l.shipped_qty),
+                invoiced_qty: Number(l.invoiced_qty ?? 0),
+                item_class: (l.item_class as string) ?? 'stock',
             })),
         );
         await this.db
@@ -659,16 +837,25 @@ export class SalesOrderRepository extends BaseRepository {
         companyId: number,
         orderId: number,
         items: CreateSalesOrderInput['items'],
+        classes?: Map<number, string>,
     ): Promise<void> {
+        const classMap =
+            classes ??
+            (await this.classesFor(
+                companyId,
+                items.map((l) => l.item_id),
+            ));
         const rows = items.map((l) => ({
             order_id: orderId,
             company_id: companyId,
             item_id: l.item_id,
+            item_class: classMap.get(l.item_id) ?? 'stock',
             item_uom_id: l.item_uom_id ?? null,
             description: l.description ?? null,
             uom: l.uom ?? null,
             ordered_qty: l.ordered_qty,
             shipped_qty: 0,
+            invoiced_qty: 0,
             unit_price: l.unit_price,
             discount: l.discount ?? 0,
             tax: l.tax ?? 0,

@@ -3,7 +3,10 @@
 import { useRegisterModule } from '@/hook/useModule';
 import type { ModuleProps } from '@/lib/registry';
 import { saleOrderApi, saleShipmentApi } from '@/lib/api/sale';
+import { financesInvoiceApi } from '@/lib/api/finances';
+import ItemClassBadge from '@/components/ui/ItemClassBadge';
 import { RelatedDocumentsPanel } from '@/components/ui/RelatedDocuments';
+import { behaviorOf } from '@/service/core/item-behavior';
 import type {
   SalesOrder,
   SalesOrderStatus,
@@ -19,6 +22,7 @@ import {
   Package,
   PackageIcon,
   PencilIcon,
+  ReceiptTextIcon,
   TruckIcon,
   XCircleIcon,
 } from 'lucide-react';
@@ -121,6 +125,30 @@ export default function SaleOrderDetail({
     if (id) load();
   }, [id]);
 
+  // Invoice the order's direct (non-stock/service) lines without a shipment.
+  // The server copies whatever is still un-invoiced; stock lines keep
+  // invoicing through their shipments.
+  async function createDirectInvoice() {
+    if (!order || busy) return;
+    setBusy(true);
+    try {
+      const inv = await financesInvoiceApi.createFromOrder({
+        sales_order_id: order.id,
+        invoice_date: new Date().toISOString().slice(0, 10),
+        currency: order.currency,
+        customer_name: order.customer_name,
+        customer_phone: order.customer_phone ?? undefined,
+      });
+      router.push(`/finances/invoice/${inv.id}/view`);
+    } catch (e) {
+      showToast(
+        e instanceof Error ? e.message : 'Could not create invoice',
+        'error',
+      );
+      setBusy(false);
+    }
+  }
+
   async function runAction(type: 'cancel' | 'close') {
     if (!order) return;
     setBusy(true);
@@ -169,6 +197,20 @@ export default function SaleOrderDetail({
   }
 
   const a = order.actions;
+
+  // Per-channel remaining work (item-behavior): shipping only ever applies to
+  // stock lines; direct lines invoice straight from the order.
+  const shippableRemaining = order.items.some(
+    (i) =>
+      behaviorOf(i.item_class ?? 'stock').requiresShipment &&
+      i.ordered_qty - i.shipped_qty > 0,
+  );
+  const directRemaining = order.items.some(
+    (i) =>
+      !behaviorOf(i.item_class ?? 'stock').requiresShipment &&
+      i.ordered_qty - (i.invoiced_qty ?? 0) > 0,
+  );
+  const canInvoiceDirect = order.status !== 'cancelled' && directRemaining;
 
   return (
     <div className="space-y-4 font-mono text-xs">
@@ -281,7 +323,11 @@ export default function SaleOrderDetail({
             </div>
           </section>
 
-          {(a?.can_update || a?.can_ship || a?.can_close || a?.can_cancel) && (
+          {(a?.can_update ||
+            a?.can_ship ||
+            a?.can_close ||
+            a?.can_cancel ||
+            canInvoiceDirect) && (
             <div className="flex flex-col gap-2">
               {a?.can_update && (
                 <button
@@ -291,7 +337,7 @@ export default function SaleOrderDetail({
                   <PencilIcon size={14} /> Edit
                 </button>
               )}
-              {a?.can_ship && (
+              {a?.can_ship && shippableRemaining && (
                 <button
                   onClick={() => {
                     if (typeof window !== 'undefined')
@@ -305,6 +351,24 @@ export default function SaleOrderDetail({
                 >
                   <TruckIcon size={14} /> Create Shipment
                 </button>
+              )}
+              {canInvoiceDirect && (
+                <div className="flex flex-col gap-1">
+                  <button
+                    onClick={() => void createDirectInvoice()}
+                    disabled={busy}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 py-2.5 font-semibold text-white transition-colors hover:bg-sky-700 disabled:opacity-50"
+                  >
+                    <ReceiptTextIcon size={14} />
+                    {busy ? 'Creating…' : 'Create Invoice'}
+                  </button>
+                  {shippableRemaining && (
+                    <p className="px-1 text-center text-[10px] leading-snug text-slate-400">
+                      Invoices the non-stock / service lines now. Stock items
+                      are invoiced from their shipment after it posts.
+                    </p>
+                  )}
+                </div>
               )}
               {a?.can_close && (
                 <button
@@ -399,7 +463,7 @@ export default function SaleOrderDetail({
                           Ordered
                         </th>
                         <th className="text-right py-2 pr-3 font-medium">
-                          Shipped
+                          Fulfilled
                         </th>
                         <th className="text-right py-2 pr-3 font-medium">
                           Remaining
@@ -421,20 +485,37 @@ export default function SaleOrderDetail({
                     </thead>
                     <tbody>
                       {order.items.map((item) => {
-                        const remaining = item.ordered_qty - item.shipped_qty;
+                        // Shippable lines fulfill by shipping; non-stock and
+                        // service lines fulfill by invoicing (item-behavior).
+                        const ships = behaviorOf(
+                          item.item_class ?? 'stock',
+                        ).requiresShipment;
+                        const fulfilled = ships
+                          ? item.shipped_qty
+                          : (item.invoiced_qty ?? 0);
+                        const remaining = item.ordered_qty - fulfilled;
                         return (
                           <tr
                             key={item.id}
                             className="border-b hover:bg-muted/20"
                           >
                             <td className="py-2 pr-3 font-medium">
-                              {item.product_name}
+                              <span className="inline-flex items-center gap-1.5">
+                                {item.product_name}
+                                <ItemClassBadge
+                                  itemClass={item.item_class}
+                                  iconOnly
+                                />
+                              </span>
                             </td>
                             <td className="py-2 pr-3 text-right">
                               {item.ordered_qty}
                             </td>
-                            <td className="py-2 pr-3 text-right font-medium text-emerald-600">
-                              {item.shipped_qty}
+                            <td
+                              className="py-2 pr-3 text-right font-medium text-emerald-600"
+                              title={ships ? 'Shipped' : 'Invoiced'}
+                            >
+                              {fulfilled}
                             </td>
                             <td className="py-2 pr-3 text-right">
                               <span

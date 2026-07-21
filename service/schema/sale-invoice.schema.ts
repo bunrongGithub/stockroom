@@ -32,13 +32,22 @@ const invoiceHeaderBase = {
     remarks: z.string().optional().nullable(),
 };
 
-export const createSalesInvoiceSchema = z.object({
-    shipment_id: z.number().int().positive(),
-    ...invoiceHeaderBase,
-    // Optional on create: the server copies the lines from the shipment/order
-    // when omitted; when the user reviewed/edited them the client sends them.
-    items: z.array(createSalesInvoiceLineSchema).min(1).optional(),
-});
+export const createSalesInvoiceSchema = z
+    .object({
+        // At least one source document. shipment_id → invoice a posted
+        // shipment (direct order lines are auto-included when the shipment's
+        // order has them); sales_order_id alone → invoice the order's
+        // direct-invoice (non-stock/service) lines with no shipment involved.
+        shipment_id: z.number().int().positive().optional().nullable(),
+        sales_order_id: z.number().int().positive().optional().nullable(),
+        ...invoiceHeaderBase,
+        // Optional on create: the server copies the lines from the shipment/order
+        // when omitted; when the user reviewed/edited them the client sends them.
+        items: z.array(createSalesInvoiceLineSchema).min(1).optional(),
+    })
+    .refine((v) => v.shipment_id != null || v.sales_order_id != null, {
+        message: 'Either shipment_id or sales_order_id is required',
+    });
 
 export const updateSalesInvoiceSchema = z.object({
     ...invoiceHeaderBase,

@@ -5,6 +5,7 @@ import { SerialManagementService } from '@/service/apps/inventory/serial';
 import { validateSerialSelection } from '@/service/apps/inventory/repo/serial-validation';
 import { ApiError, NotFoundError } from '@/service/core/api-response';
 import { BaseRepository } from '@/service/core/base-repository';
+import { behaviorOf } from '@/service/core/item-behavior';
 import type { QueryConfig } from '@/service/core/query/config.ts';
 import type { QueryObject } from '@/service/core/query/types.ts';
 import type {
@@ -742,6 +743,15 @@ export class SalesShipmentRepository extends BaseRepository {
                 throw new ApiError(
                     `Order line ${line.sales_order_item_id} not found on this order`,
                     400,
+                );
+            }
+            // Only classes that physically move can appear on a shipment —
+            // non-stock/service lines fulfill by invoicing instead.
+            if (!behaviorOf(soItem.item_class).requiresShipment) {
+                throw new ApiError(
+                    `${soItem.product_name} is a ${soItem.item_class} item and does not require shipment`,
+                    422,
+                    'NOT_SHIPPABLE',
                 );
             }
             const remaining = soItem.ordered_qty - soItem.shipped_qty;

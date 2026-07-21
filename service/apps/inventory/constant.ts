@@ -1,4 +1,4 @@
-export type TItemClassType = 'stock' | 'non-stock';
+export type { ItemClass as TItemClassType } from '@/service/core/item-behavior';
 
 export type TItemMovementType =
     | 'stock-in'

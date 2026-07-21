@@ -21,7 +21,7 @@ import {
 import Link from 'next/link';
 import { useState } from 'react';
 
-export type NonStockViewItem = {
+export type ServiceViewItem = {
     id: number;
     name: string;
     reference_no: string | null;
@@ -103,7 +103,7 @@ function ReadonlyToggle({
     );
 }
 
-export default function NonStockItemViewDetail({ item }: { item: NonStockViewItem }) {
+export default function ServiceItemViewDetail({ item }: { item: ServiceViewItem }) {
     const [activeTab, setActiveTab] = useState<TabId>('details');
 
     const profit = (item.price ?? 0) - (item.cost ?? 0);
@@ -118,7 +118,7 @@ export default function NonStockItemViewDetail({ item }: { item: NonStockViewIte
             {/* Header */}
             <div className="font-bold">
                 <Link
-                    href="/inventory/configurations/non-stock-item"
+                    href="/inventory/configurations/service-item"
                     className="inline-flex items-center gap-2 text-sm text-slate-500 transition-colors hover:text-slate-700"
                 >
                     <ArrowLeft size={16} /> Back
@@ -136,7 +136,7 @@ export default function NonStockItemViewDetail({ item }: { item: NonStockViewIte
                         <div className="p-4">
                             <div className="flex items-center gap-3">
                                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-[#1a9e52] to-emerald-700 text-sm font-bold text-white shadow-sm">
-                                    {item.name?.[0]?.toUpperCase() ?? 'I'}
+                                    {item.name?.[0]?.toUpperCase() ?? 'S'}
                                 </div>
                                 <div className="min-w-0">
                                     <p className="truncate text-sm font-semibold text-slate-800">{item.name}</p>
@@ -184,13 +184,13 @@ export default function NonStockItemViewDetail({ item }: { item: NonStockViewIte
                     {/* Action Buttons */}
                     <div className="flex flex-col-reverse gap-2">
                         <Link
-                            href="/inventory/configurations/non-stock-item"
+                            href="/inventory/configurations/service-item"
                             className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-center text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
                         >
                             Back
                         </Link>
                         <Link
-                            href={`/inventory/configurations/non-stock-item/${item.id}/update`}
+                            href={`/inventory/configurations/service-item/${item.id}/update`}
                             className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1a9e52] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#158042]"
                         >
                             <Edit2 size={15} /> Update
@@ -227,7 +227,7 @@ export default function NonStockItemViewDetail({ item }: { item: NonStockViewIte
                                         <ReadonlyInput value={item.reference_no ?? ''} placeholder="—" />
                                     </div>
                                     <div>
-                                        <FieldLabel>Item Name</FieldLabel>
+                                        <FieldLabel>Service Name</FieldLabel>
                                         <ReadonlyInput value={item.name} />
                                     </div>
                                     <div>

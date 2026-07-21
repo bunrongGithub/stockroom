@@ -8,6 +8,7 @@ import InvoiceForm, {
 } from '../InvoiceForm';
 import { saleOrderApi, saleShipmentApi } from '@/lib/api/sale';
 import { financesInvoiceApi } from '@/lib/api/finances';
+import { behaviorOf } from '@/service/core/item-behavior';
 import type { SalesOrder, SalesShipment } from '@/types/sales/order-management';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -130,12 +131,35 @@ export default function SaleInvoiceCreate({
       item_id: s.item_id,
       sales_order_item_id: s.sales_order_item_id,
       shipment_item_id: s.id,
+      item_class: ol?.item_class ?? 'stock',
       product_name: s.product_name,
       uom: s.uom,
       quantity: remaining,
       unit_price: ol?.unit_price ?? 0,
       discount: ol?.discount ?? 0,
       tax: ol?.tax ?? 0,
+    });
+  }
+
+  // The server auto-includes the order's un-invoiced direct lines (non-stock /
+  // service — item-behavior) on this invoice; show them so the form matches
+  // exactly what will be created.
+  for (const ol of order?.items ?? []) {
+    if (behaviorOf(ol.item_class ?? 'stock').requiresShipment) continue;
+    const remaining = ol.ordered_qty - (ol.invoiced_qty ?? 0);
+    if (remaining <= 0) continue;
+    lines.push({
+      key: `l${keySeq++}`,
+      item_id: ol.item_id,
+      sales_order_item_id: ol.id,
+      shipment_item_id: null,
+      item_class: ol.item_class,
+      product_name: ol.product_name,
+      uom: ol.uom,
+      quantity: remaining,
+      unit_price: ol.unit_price,
+      discount: ol.discount,
+      tax: ol.tax,
     });
   }
 

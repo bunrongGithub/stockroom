@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
             ]);
         }
 
-        const result = await Service.findAllByClassV2(ctx, query, 'non_stock');
+        const result = await Service.findAllByClassV2(ctx, query, 'service');
         return new ApiResponseSuccess(result, 'Success').toResponse();
     } catch (error) {
         if (error instanceof ApiError) return error.toResponse();
@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
         await requirePermission(ctx, PERMISSIONS.inventory.item.create, { req: req });
         const body = await req.json();
 
-        const parsed = createInventorySchema.safeParse({ ...body, item_class: 'non_stock' });
+        const parsed = createInventorySchema.safeParse({ ...body, item_class: 'service' });
         if (!parsed.success) {
             return NextResponse.json(
                 { error: z.flattenError(parsed.error).fieldErrors },

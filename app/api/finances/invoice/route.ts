@@ -45,7 +45,12 @@ export async function POST(req: NextRequest) {
                 { status: 422 },
             );
         }
-        const data = await service.createFromShipment(ctx, parsed.data);
+        // Shipment-sourced when a shipment is given (direct order lines are
+        // auto-included); order-sourced for shipmentless (non-stock/service
+        // only) invoicing.
+        const data = parsed.data.shipment_id
+            ? await service.createFromShipment(ctx, parsed.data)
+            : await service.createFromOrder(ctx, parsed.data);
         return new ApiResponseSuccess({ data }, 'Created', 201).toResponse();
     } catch (error) {
         if (error instanceof ApiError) return error.toResponse();

@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { saleShipmentApi } from '@/lib/api/sale';
 import { API } from '@/lib/constant';
+import { behaviorOf } from '@/service/core/item-behavior';
 import type { SalesOrder, SalesShipment } from '@/types/sales/order-management';
 import {
   AlertCircle,
@@ -70,8 +71,10 @@ function buildLines(order: SalesOrder, initial?: SalesShipment): ShipLine[] {
       };
     });
   }
-  // Create: every order line that still has quantity to ship.
+  // Create: every shippable order line that still has quantity to ship.
+  // Non-stock/service lines fulfill by invoicing and never appear here.
   return order.items
+    .filter((o) => behaviorOf(o.item_class).requiresShipment)
     .map((o) => {
       const remaining = o.ordered_qty - o.shipped_qty;
       return {
@@ -151,6 +154,12 @@ export default function ShipmentForm({
           `Select exactly ${l.shipment_qty} serial number(s) for ${l.product_name}`,
         );
       }
+    }
+
+    if (!order.warehouse_id) {
+      return setError(
+        'This order has no warehouse — only orders with stock items can be shipped',
+      );
     }
 
     setSaving(true);
@@ -425,7 +434,7 @@ export default function ShipmentForm({
                             label="Location *"
                             placeholder="Select location..."
                             apiUrl={API.inventory.warehouse.locations(
-                              order.warehouse_id,
+                              order.warehouse_id ?? 0,
                             )}
                             value={line.location_id}
                             selectedLabel={line.location_name}
@@ -463,7 +472,7 @@ export default function ShipmentForm({
                         {line.track_serial && (
                           <SerialLookupPanel
                             itemId={line.item_id}
-                            warehouseId={order.warehouse_id}
+                            warehouseId={order.warehouse_id ?? 0}
                             locationId={line.location_id}
                             requiredCount={Number(line.shipment_qty) || 0}
                             value={line.serial_numbers}

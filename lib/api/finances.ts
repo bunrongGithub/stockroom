@@ -53,6 +53,19 @@ export const financesInvoiceApi = {
         );
         return body.data;
     },
+    /**
+     * Invoice an order's direct-invoice (non-stock / service) lines straight
+     * from the order — the path for orders that never ship. The server copies
+     * the remaining un-invoiced direct lines.
+     */
+    async createFromOrder(
+        payload: CreateSalesInvoicePayload & { sales_order_id: number },
+    ): Promise<SalesInvoice> {
+        const body = await unwrap<{ data: SalesInvoice }>(
+            await fetch(API.finances.invoice.root, jsonInit('POST', payload)),
+        );
+        return body.data;
+    },
     async update(
         id: number | string,
         payload: Omit<CreateSalesInvoicePayload, 'shipment_id'>,

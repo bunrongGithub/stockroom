@@ -9,6 +9,7 @@ import type { RequestContext } from '@/types/request-context';
 import type { AuditMeta } from '@/types/audit';
 import { getNextDocumentNumber } from '@/service/core/document-number';
 import { ApiError, NotFoundError } from '@/service/core/api-response';
+import { behaviorOf } from '@/service/core/item-behavior';
 import { lineTotal, documentTotals } from '../pricing';
 import { SalesShipmentRepository } from './shipment';
 import { SalesOrderRepository } from './order';
@@ -34,7 +35,7 @@ const LINE_TABLE = 'sales_invoice_items' as const;
 const SELECT_LIST =
     '*, shipment:sales_shipment(id, shipment_no), sales_order:sales_order(id, order_no)';
 const SELECT_DETAIL =
-    '*, shipment:sales_shipment(id, shipment_no), sales_order:sales_order(id, order_no), items:sales_invoice_items(*, item:inventory_item(id, name, sku, track_serial))';
+    '*, shipment:sales_shipment(id, shipment_no), sales_order:sales_order(id, order_no), items:sales_invoice_items(*, item:inventory_item(id, name, sku, track_serial, item_class))';
 
 /** Draft = editable/deletable; Posted = official/cancellable; Cancelled = terminal. */
 export function computeInvoiceActions(
@@ -57,6 +58,7 @@ function mapInvoiceItem(r: any): SalesInvoiceItem {
     shipment_item_id: r.shipment_item_id ?? null,
     product_name: r.item?.name ?? r.description ?? `#${r.item_id}`,
     sku: r.item?.sku ?? null,
+    item_class: r.item?.item_class ?? 'stock',
     track_serial: r.item?.track_serial ?? false,
     description: r.description ?? '',
     uom: r.uom ?? '',
@@ -284,6 +286,11 @@ export class SalesInvoiceRepository extends BaseRepository {
      * (shipped − already invoiced) and is validated `qty ≤ remaining`. Line pricing
      * comes from the source ORDER line (shipments carry no pricing). Never touches
      * inventory. Recomputes the shipment status from invoiced-vs-shipped quantity.
+     *
+     * When the shipment's order also carries direct-invoice lines (non-stock /
+     * service — item-behavior), their un-invoiced remainder is AUTO-INCLUDED as
+     * order-sourced lines (shipment_item_id null) so a mixed order yields one
+     * combined invoice. The client can exclude one by sending it with qty 0.
      */
     async createFromShipment(
         ctx: RequestContext,
@@ -291,8 +298,12 @@ export class SalesInvoiceRepository extends BaseRepository {
     ): Promise<SalesInvoice> {
         const companyId = Number(ctx.companyId);
         const shipmentRepo = SalesShipmentRepository.getInstance();
+        const shipmentId = input.shipment_id;
+        if (!shipmentId) {
+            throw new ApiError('shipment_id is required', 400);
+        }
 
-        const shipment = await shipmentRepo.findOne(ctx, input.shipment_id);
+        const shipment = await shipmentRepo.findOne(ctx, shipmentId);
         if (!shipment) throw new NotFoundError('Shipment not found');
         if (!shipment.actions?.can_invoice) {
             throw new ApiError(
@@ -315,10 +326,22 @@ export class SalesInvoiceRepository extends BaseRepository {
         // Already-invoiced quantity per shipment line (all active invoices).
         const invoiced = await shipmentRepo.getInvoicedQtyByShipmentItem(
             ctx,
-            input.shipment_id,
+            shipmentId,
         );
+        const edits = input.items ?? [];
         const editByShipItem = new Map(
-            (input.items ?? []).map((i) => [i.shipment_item_id ?? 0, i]),
+            edits
+                .filter((i) => i.shipment_item_id != null)
+                .map((i) => [i.shipment_item_id as number, i]),
+        );
+        const editByOrderItem = new Map(
+            edits
+                .filter(
+                    (i) =>
+                        i.shipment_item_id == null &&
+                        i.sales_order_item_id != null,
+                )
+                .map((i) => [i.sales_order_item_id as number, i]),
         );
 
         // One invoice line per shipment line that still has remaining quantity.
@@ -352,6 +375,38 @@ export class SalesInvoiceRepository extends BaseRepository {
             });
         }
 
+        // Combined invoicing: append the order's un-invoiced direct lines.
+        const directEntries: { sales_order_item_id: number; qty: number }[] =
+            [];
+        for (const ol of order?.items ?? []) {
+            if (behaviorOf(ol.item_class).requiresShipment) continue;
+            const remaining = ol.ordered_qty - ol.invoiced_qty;
+            if (remaining <= 0) continue;
+
+            const edit = editByOrderItem.get(ol.id);
+            const quantity = edit ? Number(edit.quantity) : remaining;
+            if (quantity <= 0) continue; // explicit exclude
+            if (quantity > remaining) {
+                throw new ApiError(
+                    `Cannot invoice ${quantity} of ${ol.product_name}: only ${remaining} remaining.`,
+                    400,
+                    'EXCEEDS_REMAINING',
+                );
+            }
+            lines.push({
+                item_id: ol.item_id,
+                sales_order_item_id: ol.id,
+                shipment_item_id: null,
+                description: ol.description || ol.product_name,
+                uom: ol.uom,
+                quantity,
+                unit_price: edit?.unit_price ?? ol.unit_price,
+                discount: edit?.discount ?? ol.discount,
+                tax: edit?.tax ?? ol.tax,
+            });
+            directEntries.push({ sales_order_item_id: ol.id, qty: quantity });
+        }
+
         if (!lines.length) {
             throw new ApiError(
                 'Nothing left to invoice on this shipment.',
@@ -360,8 +415,145 @@ export class SalesInvoiceRepository extends BaseRepository {
             );
         }
 
+        const header = await this.insertInvoice(ctx, {
+            shipment_id: shipmentId,
+            sales_order_id: shipment.sales_order_id ?? null,
+            customer_name: input.customer_name ?? shipment.customer_name,
+            customer_phone: input.customer_phone ?? shipment.customer_phone,
+            customer_address:
+                input.customer_address ?? shipment.delivery_address,
+            currency: input.currency ?? order?.currency ?? 'USD',
+            input,
+            lines,
+        });
+
+        await shipmentRepo.recomputeInvoiceStatus(ctx, shipmentId);
+        if (directEntries.length && shipment.sales_order_id) {
+            const orders = SalesOrderRepository.getInstance();
+            await orders.incrementInvoiced(ctx, directEntries);
+            await orders.recomputeStatus(ctx, shipment.sales_order_id);
+        }
+
+        return (await this.findOne(ctx, header.id))!;
+    }
+
+    /**
+     * Create a DRAFT invoice straight from a sales order — for its
+     * direct-invoice (non-stock / service) lines only. Stock lines fulfill
+     * through shipments and are rejected here. This is how an order with no
+     * shippable lines gets invoiced at all (it never has a shipment).
+     */
+    async createFromOrder(
+        ctx: RequestContext,
+        input: CreateSalesInvoiceInput,
+    ): Promise<SalesInvoice> {
+        const orderId = input.sales_order_id;
+        if (!orderId) {
+            throw new ApiError('sales_order_id is required', 400);
+        }
+        const orders = SalesOrderRepository.getInstance();
+        const order = await orders.findOne(ctx, orderId);
+        if (!order) throw new NotFoundError('Sales order not found');
+        if (order.status === 'cancelled') {
+            throw new ApiError(
+                'Cannot invoice a cancelled order',
+                400,
+                'INVALID_STATUS',
+            );
+        }
+
+        const edits = new Map(
+            (input.items ?? [])
+                .filter((i) => i.sales_order_item_id != null)
+                .map((i) => [i.sales_order_item_id as number, i]),
+        );
+
+        const lines: InvoiceLineDraft[] = [];
+        const directEntries: { sales_order_item_id: number; qty: number }[] =
+            [];
+        for (const ol of order.items) {
+            if (behaviorOf(ol.item_class).requiresShipment) {
+                // Stock lines are invoiced via their shipment; a client that
+                // explicitly asks for one gets a clear error, silent skip
+                // otherwise.
+                if (edits.has(ol.id)) {
+                    throw new ApiError(
+                        `${ol.product_name} is a stock item — invoice it from its shipment`,
+                        422,
+                        'REQUIRES_SHIPMENT',
+                    );
+                }
+                continue;
+            }
+            const remaining = ol.ordered_qty - ol.invoiced_qty;
+            if (remaining <= 0) continue;
+
+            const edit = edits.get(ol.id);
+            const quantity = edit ? Number(edit.quantity) : remaining;
+            if (quantity <= 0) continue;
+            if (quantity > remaining) {
+                throw new ApiError(
+                    `Cannot invoice ${quantity} of ${ol.product_name}: only ${remaining} remaining.`,
+                    400,
+                    'EXCEEDS_REMAINING',
+                );
+            }
+            lines.push({
+                item_id: ol.item_id,
+                sales_order_item_id: ol.id,
+                shipment_item_id: null,
+                description: ol.description || ol.product_name,
+                uom: ol.uom,
+                quantity,
+                unit_price: edit?.unit_price ?? ol.unit_price,
+                discount: edit?.discount ?? ol.discount,
+                tax: edit?.tax ?? ol.tax,
+            });
+            directEntries.push({ sales_order_item_id: ol.id, qty: quantity });
+        }
+
+        if (!lines.length) {
+            throw new ApiError(
+                'Nothing left to invoice on this order.',
+                400,
+                'NOTHING_TO_INVOICE',
+            );
+        }
+
+        const header = await this.insertInvoice(ctx, {
+            shipment_id: null,
+            sales_order_id: orderId,
+            customer_name: input.customer_name ?? order.customer_name,
+            customer_phone: input.customer_phone ?? order.customer_phone,
+            customer_address: input.customer_address ?? null,
+            currency: input.currency ?? order.currency,
+            input,
+            lines,
+        });
+
+        await orders.incrementInvoiced(ctx, directEntries);
+        await orders.recomputeStatus(ctx, orderId);
+
+        return (await this.findOne(ctx, header.id))!;
+    }
+
+    /** Shared header+lines insert for both invoice factories. */
+    private async insertInvoice(
+        ctx: RequestContext,
+        args: {
+            shipment_id: number | null;
+            sales_order_id: number | null;
+            customer_name: string | null;
+            customer_phone: string | null;
+            customer_address: string | null;
+            currency: string;
+            input: CreateSalesInvoiceInput;
+            lines: InvoiceLineDraft[];
+        },
+    ): Promise<{ id: number }> {
+        const companyId = Number(ctx.companyId);
         const totals = documentTotals(
-            lines.map((l) => ({
+            args.lines.map((l) => ({
                 quantity: l.quantity,
                 unit_price: l.unit_price,
                 discount: l.discount,
@@ -380,20 +572,18 @@ export class SalesInvoiceRepository extends BaseRepository {
                         'sales_invoice',
                         'INV',
                     ),
-                    reference_no: input.reference_no ?? null,
-                    shipment_id: input.shipment_id,
-                    sales_order_id: shipment.sales_order_id,
-                    customer_name: input.customer_name ?? shipment.customer_name,
-                    customer_phone:
-                        input.customer_phone ?? shipment.customer_phone,
-                    customer_address:
-                        input.customer_address ?? shipment.delivery_address,
-                    invoice_date: input.invoice_date,
-                    currency: input.currency ?? order?.currency ?? 'USD',
-                    exchange_rate: input.exchange_rate ?? 1,
+                    reference_no: args.input.reference_no ?? null,
+                    shipment_id: args.shipment_id,
+                    sales_order_id: args.sales_order_id,
+                    customer_name: args.customer_name,
+                    customer_phone: args.customer_phone,
+                    customer_address: args.customer_address,
+                    invoice_date: args.input.invoice_date,
+                    currency: args.currency,
+                    exchange_rate: args.input.exchange_rate ?? 1,
                     status: 'DRAFT',
                     ...totals,
-                    remarks: input.remarks ?? null,
+                    remarks: args.input.remarks ?? null,
                 }),
             )
             .select()
@@ -401,15 +591,12 @@ export class SalesInvoiceRepository extends BaseRepository {
         if (error) throw new ApiError(error.message, 500);
 
         try {
-            await this.insertLines(companyId, header.id, lines);
+            await this.insertLines(companyId, header.id, args.lines);
         } catch (err) {
             await this.db.from(HEADER_TABLE).delete().eq('id', header.id);
             throw err;
         }
-
-        await shipmentRepo.recomputeInvoiceStatus(ctx, input.shipment_id);
-
-        return (await this.findOne(ctx, header.id))!;
+        return header;
     }
 
     async updateOne(
@@ -430,7 +617,7 @@ export class SalesInvoiceRepository extends BaseRepository {
 
         // Validate edited quantities against remaining (shipped − invoiced by
         // OTHER invoices, so this invoice's own current lines don't count).
-        if (input.items) {
+        if (input.items && existing.shipment_id) {
             const shipmentRepo = SalesShipmentRepository.getInstance();
             const shipment = await shipmentRepo.findOne(
                 ctx,
@@ -456,6 +643,46 @@ export class SalesInvoiceRepository extends BaseRepository {
                 if (Number(l.quantity) > remaining) {
                     throw new ApiError(
                         `Invoice quantity for a line exceeds remaining (${remaining}).`,
+                        400,
+                        'EXCEEDS_REMAINING',
+                    );
+                }
+            }
+        }
+
+        // Direct (order-sourced) lines: remaining = ordered − invoiced by
+        // other invoices. The order-line counter includes THIS invoice, so
+        // add back this invoice's own current quantity per line.
+        if (input.items && existing.sales_order_id) {
+            const order = await SalesOrderRepository.getInstance().findOne(
+                ctx,
+                existing.sales_order_id,
+            );
+            const orderLineById = new Map(
+                (order?.items ?? []).map((o) => [o.id, o]),
+            );
+            const ownByOrderItem = new Map<number, number>();
+            for (const l of existing.items) {
+                if (l.shipment_item_id != null) continue;
+                if (l.sales_order_item_id == null) continue;
+                ownByOrderItem.set(
+                    l.sales_order_item_id,
+                    (ownByOrderItem.get(l.sales_order_item_id) ?? 0) +
+                        Number(l.quantity),
+                );
+            }
+            for (const l of input.items) {
+                if (l.shipment_item_id != null) continue;
+                if (l.sales_order_item_id == null) continue;
+                const ol = orderLineById.get(l.sales_order_item_id);
+                if (!ol) continue;
+                const remaining =
+                    ol.ordered_qty -
+                    ol.invoiced_qty +
+                    (ownByOrderItem.get(l.sales_order_item_id) ?? 0);
+                if (Number(l.quantity) > remaining) {
+                    throw new ApiError(
+                        `Invoice quantity for ${ol.product_name} exceeds remaining (${remaining}).`,
                         400,
                         'EXCEEDS_REMAINING',
                     );
@@ -526,13 +753,37 @@ export class SalesInvoiceRepository extends BaseRepository {
                 .eq('company_id', companyId);
             if (delErr) throw new ApiError(delErr.message, 500);
             await this.insertLines(companyId, id, lines);
-            await SalesShipmentRepository.getInstance().recomputeInvoiceStatus(
+            await this.syncSourceDocs(
                 ctx,
                 existing.shipment_id,
+                existing.sales_order_id,
             );
         }
 
         return (await this.findOne(ctx, id))!;
+    }
+
+    /**
+     * Re-derive both source documents' state after this invoice changed:
+     * the shipment's POSTED/PARTIALLY_INVOICED/INVOICED status and the
+     * order's direct-line invoiced_qty counters + progress status.
+     */
+    private async syncSourceDocs(
+        ctx: RequestContext,
+        shipmentId: number | null,
+        orderId: number | null,
+    ): Promise<void> {
+        if (shipmentId) {
+            await SalesShipmentRepository.getInstance().recomputeInvoiceStatus(
+                ctx,
+                shipmentId,
+            );
+        }
+        if (orderId) {
+            const orders = SalesOrderRepository.getInstance();
+            await orders.recomputeInvoicedQty(ctx, orderId);
+            await orders.recomputeStatus(ctx, orderId);
+        }
     }
 
     async deleteOne(ctx: RequestContext, id: number): Promise<void> {
@@ -552,9 +803,10 @@ export class SalesInvoiceRepository extends BaseRepository {
             .eq('company_id', Number(ctx.companyId));
         if (error) throw new ApiError(error.message, 500);
 
-        await SalesShipmentRepository.getInstance().recomputeInvoiceStatus(
+        await this.syncSourceDocs(
             ctx,
             existing.shipment_id,
+            existing.sales_order_id,
         );
     }
 
@@ -583,9 +835,10 @@ export class SalesInvoiceRepository extends BaseRepository {
             .eq('company_id', Number(ctx.companyId));
         if (error) throw new ApiError(error.message, 500);
 
-        await SalesShipmentRepository.getInstance().recomputeInvoiceStatus(
+        await this.syncSourceDocs(
             ctx,
             existing.shipment_id,
+            existing.sales_order_id,
         );
     }
 
@@ -613,10 +866,11 @@ export class SalesInvoiceRepository extends BaseRepository {
             );
         }
         const updated = await this.setStatus(ctx, id, 'CANCELLED');
-        // Cancelling frees its quantity → re-derive the shipment status.
-        await SalesShipmentRepository.getInstance().recomputeInvoiceStatus(
+        // Cancelling frees its quantity → re-derive both source documents.
+        await this.syncSourceDocs(
             ctx,
             existing.shipment_id,
+            existing.sales_order_id,
         );
         return updated;
     }

@@ -4,6 +4,7 @@ import { validateSerialSelection } from '@/service/apps/inventory/repo/serial-va
 import { CompanySettingsRepository } from '@/service/apps/setting/repo/company-settings';
 import { ApiError, NotFoundError } from '@/service/core/api-response';
 import { BaseRepository } from '@/service/core/base-repository';
+import { behaviorOf } from '@/service/core/item-behavior';
 import type { CashSaleInput } from '@/service/schema/cash-sale.schema';
 import type { RequestContext } from '@/types/request-context';
 import type { AuditMeta, AuditUser } from '@/types/audit';
@@ -45,7 +46,8 @@ import { getPaymentGateway } from './gateway';
 
 export type CashSaleResult = {
     order: SalesOrder;
-    shipment: SalesShipment;
+    /** Null when the sale had no inventory lines — nothing shipped. */
+    shipment: SalesShipment | null;
     invoice: SalesInvoice;
     payment: CustomerPayment;
 };
@@ -69,6 +71,7 @@ export type CashSaleListRow = {
 /** A line after the server has resolved price, UOM, location and serials. */
 type ResolvedLine = {
     item_id: number;
+    item_class: string;
     product_name: string;
     description: string | null;
     quantity: number;
@@ -77,16 +80,19 @@ type ResolvedLine = {
     tax: number;
     item_uom_id: number | null;
     uom_name: string;
-    location_id: number;
+    /** Null for non-inventory (non-stock / service) lines. */
+    location_id: number | null;
     track_serial: boolean;
     serial_numbers: string[];
-    available: number;
+    /** Null for non-inventory lines — stock is never checked for them. */
+    available: number | null;
 };
 
 export type ResolvedCashSale = {
-    warehouse_id: number;
+    /** Null when the cart has no inventory lines (nothing ships). */
+    warehouse_id: number | null;
     warehouse_name: string;
-    location_id: number;
+    location_id: number | null;
     location_name: string;
     customer: { customer_id: number | null; name: string; phone: string | null };
     lines: ResolvedLine[];
@@ -231,16 +237,22 @@ export class CashSaleService extends BaseRepository {
     ): Promise<ResolvedCashSale> {
         const companyId = Number(ctx.companyId);
 
-        // Warehouse + location: from Sales Settings unless explicitly overridden.
-        const { warehouse, location } = await this.resolveDestination(
-            ctx,
-            input,
-        );
-
         const items = await this.loadSellableItems(
             companyId,
             input.items.map((l) => l.item_id),
         );
+
+        // Warehouse + location only matter when something physically leaves —
+        // a cart of non-stock/service items needs no destination at all.
+        const hasInventoryLines = input.items.some((l) => {
+            const item = items.get(l.item_id);
+            return item && behaviorOf(item.item_class).requiresInventory;
+        });
+        const destination = hasInventoryLines
+            ? await this.resolveDestination(ctx, input)
+            : null;
+        const warehouse = destination?.warehouse ?? null;
+        const location = destination?.location ?? null;
 
         const lines: ResolvedLine[] = [];
         // The same item can appear on several lines (different price, serials).
@@ -276,26 +288,7 @@ export class CashSaleService extends BaseRepository {
                 );
             }
 
-            const locationId = line.location_id ?? location.id;
-            await this.assertLocationInWarehouse(locationId, warehouse.id);
-
-            // Stock: available (on hand − reserved), not just on hand.
-            const available = await this.availableQty(
-                companyId,
-                line.item_id,
-                warehouse.id,
-                locationId,
-            );
-            const key = `${line.item_id}:${locationId}`;
-            const required = (demand.get(key) ?? 0) + line.quantity;
-            demand.set(key, required);
-            if (available < required) {
-                throw new ApiError(
-                    `${item.name}: only ${available} available at ${location.name}.`,
-                    422,
-                    'INSUFFICIENT_STOCK',
-                );
-            }
+            const behavior = behaviorOf(item.item_class);
 
             const serialNumbers = [
                 ...new Set(
@@ -314,42 +307,86 @@ export class CashSaleService extends BaseRepository {
                 }
                 claimedSerials.add(serial);
             }
-            if (item.track_serial) {
-                try {
-                    validateSerialSelection({
-                        quantity: line.quantity,
-                        serials: serialNumbers,
-                    });
-                } catch (e) {
+
+            let locationId: number | null = null;
+            let available: number | null = null;
+
+            if (behavior.requiresInventory) {
+                // warehouse/location are always resolved when the cart has
+                // inventory lines (see hasInventoryLines above).
+                if (!warehouse || !location) {
                     throw new ApiError(
-                        e instanceof Error
-                            ? `${item.name}: ${e.message}`
-                            : `${item.name}: invalid serial selection`,
-                        400,
-                        'SERIAL_QUANTITY',
+                        'No sales warehouse resolved for a stock item.',
+                        500,
                     );
                 }
-                const selectable = await this.serials.findSelectableForSale(
-                    ctx,
-                    {
-                        itemId: line.item_id,
-                        warehouseId: warehouse.id,
-                        locationId,
-                        serialNumbers,
-                    },
+                locationId = line.location_id ?? location.id;
+                await this.assertLocationInWarehouse(locationId, warehouse.id);
+
+                // Stock: available (on hand − reserved), not just on hand.
+                available = await this.availableQty(
+                    companyId,
+                    line.item_id,
+                    warehouse.id,
+                    locationId,
                 );
-                if (selectable.length !== serialNumbers.length) {
-                    const found = new Set(
-                        selectable.map((s) => s.serial_number),
-                    );
-                    const missing = serialNumbers.filter((s) => !found.has(s));
+                const key = `${line.item_id}:${locationId}`;
+                const required = (demand.get(key) ?? 0) + line.quantity;
+                demand.set(key, required);
+                if (available < required) {
                     throw new ApiError(
-                        `${item.name}: serial(s) not available at ${location.name}: ${missing.join(', ')}`,
-                        409,
-                        'SERIAL_NOT_AVAILABLE',
+                        `${item.name}: only ${available} available at ${location.name}.`,
+                        422,
+                        'INSUFFICIENT_STOCK',
+                    );
+                }
+
+                if (item.track_serial && behavior.supportsSerial) {
+                    try {
+                        validateSerialSelection({
+                            quantity: line.quantity,
+                            serials: serialNumbers,
+                        });
+                    } catch (e) {
+                        throw new ApiError(
+                            e instanceof Error
+                                ? `${item.name}: ${e.message}`
+                                : `${item.name}: invalid serial selection`,
+                            400,
+                            'SERIAL_QUANTITY',
+                        );
+                    }
+                    const selectable = await this.serials.findSelectableForSale(
+                        ctx,
+                        {
+                            itemId: line.item_id,
+                            warehouseId: warehouse.id,
+                            locationId,
+                            serialNumbers,
+                        },
+                    );
+                    if (selectable.length !== serialNumbers.length) {
+                        const found = new Set(
+                            selectable.map((s) => s.serial_number),
+                        );
+                        const missing = serialNumbers.filter(
+                            (s) => !found.has(s),
+                        );
+                        throw new ApiError(
+                            `${item.name}: serial(s) not available at ${location.name}: ${missing.join(', ')}`,
+                            409,
+                            'SERIAL_NOT_AVAILABLE',
+                        );
+                    }
+                } else if (serialNumbers.length) {
+                    throw new ApiError(
+                        `${item.name} is not serial-tracked.`,
+                        400,
+                        'SERIAL_NOT_TRACKED',
                     );
                 }
             } else if (serialNumbers.length) {
+                // Non-inventory lines never carry serials.
                 throw new ApiError(
                     `${item.name} is not serial-tracked.`,
                     400,
@@ -365,6 +402,7 @@ export class CashSaleService extends BaseRepository {
 
             lines.push({
                 item_id: line.item_id,
+                item_class: item.item_class,
                 product_name: item.name,
                 description: line.description ?? item.description ?? item.name,
                 quantity: line.quantity,
@@ -374,7 +412,7 @@ export class CashSaleService extends BaseRepository {
                 item_uom_id: itemUom?.id ?? null,
                 uom_name: itemUom?.name ?? '',
                 location_id: locationId,
-                track_serial: item.track_serial,
+                track_serial: item.track_serial && behavior.supportsSerial,
                 serial_numbers: serialNumbers,
                 available,
             });
@@ -390,10 +428,10 @@ export class CashSaleService extends BaseRepository {
         );
 
         return {
-            warehouse_id: warehouse.id,
-            warehouse_name: warehouse.name,
-            location_id: location.id,
-            location_name: location.name,
+            warehouse_id: warehouse?.id ?? null,
+            warehouse_name: warehouse?.name ?? '',
+            location_id: location?.id ?? null,
+            location_name: location?.name ?? '',
             customer: await this.resolveCustomer(ctx, input),
             lines,
             currency: input.currency ?? 'USD',
@@ -461,51 +499,78 @@ export class CashSaleService extends BaseRepository {
             // sales_order_item_id.
             const orderLineIds = order.items.map((i) => i.id);
 
-            // ── Shipment (DRAFT) ─────────────────────────────────────────────
-            const draftShipment = await this.shipments.insertOne(ctx, {
-                sales_order_id: order.id,
-                customer_name: sale.customer.name,
-                customer_phone: sale.customer.phone,
-                delivery_date: today,
-                warehouse_id: sale.warehouse_id,
-                notes: input.notes ?? null,
-                items: sale.lines.map((l, i) => ({
-                    sales_order_item_id: orderLineIds[i],
-                    item_id: l.item_id,
-                    location_id: l.location_id,
-                    item_uom_id: l.item_uom_id,
-                    ordered_qty: l.quantity,
-                    previously_shipped_qty: 0,
-                    shipment_qty: l.quantity,
-                    serial_numbers: l.serial_numbers,
-                })),
-            });
-            compensations.push({
-                label: `delete shipment ${draftShipment.shipment_no}`,
-                undo: () => this.shipments.deleteOne(ctx, draftShipment.id),
-            });
+            // Only inventory lines ship; non-stock/service lines go straight
+            // to the invoice (item-behavior). Indexes are kept so shipment
+            // lines still pair up with their order lines positionally.
+            const shippable = sale.lines
+                .map((l, i) => ({ line: l, index: i }))
+                .filter(({ line }) =>
+                    behaviorOf(line.item_class).requiresShipment,
+                );
 
-            // ── Post the shipment: stock leaves, serials are sold ────────────
-            const shipment = await this.shipments.postOne(
-                ctx,
-                draftShipment.id,
-            );
-            compensations.push({
-                label: `reverse posting of shipment ${shipment.shipment_no}`,
-                undo: async () => {
-                    await this.shipments.reversePosting(ctx, shipment.id);
-                },
-            });
+            // ── Shipment (DRAFT → POSTED), only when something moves ─────────
+            let shipment: SalesShipment | null = null;
+            if (shippable.length > 0) {
+                if (!sale.warehouse_id) {
+                    throw new ApiError(
+                        'No sales warehouse resolved for stock items.',
+                        500,
+                    );
+                }
+                const draftShipment = await this.shipments.insertOne(ctx, {
+                    sales_order_id: order.id,
+                    customer_name: sale.customer.name,
+                    customer_phone: sale.customer.phone,
+                    delivery_date: today,
+                    warehouse_id: sale.warehouse_id,
+                    notes: input.notes ?? null,
+                    items: shippable.map(({ line, index }) => ({
+                        sales_order_item_id: orderLineIds[index],
+                        item_id: line.item_id,
+                        location_id: line.location_id as number,
+                        item_uom_id: line.item_uom_id,
+                        ordered_qty: line.quantity,
+                        previously_shipped_qty: 0,
+                        shipment_qty: line.quantity,
+                        serial_numbers: line.serial_numbers,
+                    })),
+                });
+                compensations.push({
+                    label: `delete shipment ${draftShipment.shipment_no}`,
+                    undo: () =>
+                        this.shipments.deleteOne(ctx, draftShipment.id),
+                });
+
+                // ── Post the shipment: stock leaves, serials are sold ────────
+                shipment = await this.shipments.postOne(ctx, draftShipment.id);
+                const posted = shipment;
+                compensations.push({
+                    label: `reverse posting of shipment ${posted.shipment_no}`,
+                    undo: async () => {
+                        await this.shipments.reversePosting(ctx, posted.id);
+                    },
+                });
+            }
 
             // ── Invoice ──────────────────────────────────────────────────────
-            const draftInvoice = await this.invoices.createFromShipment(ctx, {
-                shipment_id: shipment.id,
+            // Shipment-sourced when stock moved (direct lines auto-included →
+            // one combined invoice); order-sourced when nothing shipped.
+            const invoiceHeader = {
                 customer_name: sale.customer.name,
                 customer_phone: sale.customer.phone,
                 invoice_date: today,
                 currency: sale.currency,
                 exchange_rate: 1,
-            });
+            };
+            const draftInvoice = shipment
+                ? await this.invoices.createFromShipment(ctx, {
+                      shipment_id: shipment.id,
+                      ...invoiceHeader,
+                  })
+                : await this.invoices.createFromOrder(ctx, {
+                      sales_order_id: order.id,
+                      ...invoiceHeader,
+                  });
             // One compensation covers the invoice in either state: a POSTED
             // invoice is cancelled first, and the row is then removed so it does
             // not hold its shipment and order in place via the FK chain.
@@ -569,7 +634,9 @@ export class CashSaleService extends BaseRepository {
 
             return {
                 order: (await this.orders.findOne(ctx, order.id))!,
-                shipment: (await this.shipments.findOne(ctx, shipment.id))!,
+                shipment: shipment
+                    ? (await this.shipments.findOne(ctx, shipment.id))!
+                    : null,
                 invoice: (await this.invoices.findOne(ctx, invoice.id))!,
                 payment,
             };
@@ -614,14 +681,31 @@ export class CashSaleService extends BaseRepository {
             .order('id', { ascending: false })
             .limit(1)
             .maybeSingle();
-        if (!shipmentRow) {
-            throw new NotFoundError(
-                'This sale was started but never completed. Void it and sell again.',
-            );
-        }
 
-        const shipment = (await this.shipments.findOne(ctx, shipmentRow.id))!;
-        const [invoice] = await this.invoices.findByShipment(ctx, shipment.id);
+        // A shipmentless sale (non-stock/service only) is complete once its
+        // order-sourced invoice exists — the shipment is legitimately absent.
+        const shipment = shipmentRow
+            ? ((await this.shipments.findOne(ctx, shipmentRow.id)) ?? null)
+            : null;
+
+        let invoice: SalesInvoice | undefined;
+        if (shipment) {
+            [invoice] = await this.invoices.findByShipment(ctx, shipment.id);
+        } else {
+            const { data: invoiceRow } = await this.db
+                .from('sales_invoice')
+                .select('id')
+                .eq('company_id', Number(ctx.companyId))
+                .eq('sales_order_id', order.id)
+                .neq('status', 'CANCELLED')
+                .order('id', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+            invoice = invoiceRow
+                ? ((await this.invoices.findOne(ctx, invoiceRow.id)) ??
+                  undefined)
+                : undefined;
+        }
         if (!invoice) {
             throw new NotFoundError(
                 'This sale was started but never invoiced. Void it and sell again.',
@@ -760,7 +844,6 @@ export class CashSaleService extends BaseRepository {
                 'id, name, description, item_class, is_sellable, track_serial, price, min_price, max_price',
             )
             .eq('company_id', companyId)
-            .eq('item_class', 'stock')
             .eq('is_sellable', true)
             .in('id', [...new Set(itemIds)]);
         if (error) throw new ApiError(error.message, 500);

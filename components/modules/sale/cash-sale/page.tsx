@@ -10,8 +10,10 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import ItemClassBadge from '@/components/ui/ItemClassBadge';
 import SerialLookupPanel from '@/components/ui/serial/SerialLookupPanel';
 import { useItemAutoFill } from '@/hook/useItemAutoFill';
+import { behaviorOf } from '@/service/core/item-behavior';
 import { useRegisterModule } from '@/hook/useModule';
 import { cashSaleApi, type Customer, type SalesSettings } from '@/lib/api/cash-sale';
 import { API } from '@/lib/constant';
@@ -44,6 +46,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 type CartLine = {
     key: string;
     item_id: number;
+    /** stock | non_stock | service — drives per-line behavior and the badge. */
+    item_class: string;
     name: string;
     description: string | null;
     quantity: number;
@@ -204,6 +208,7 @@ export default function CashSaleModule({
                     {
                         key: `${id}-${Date.now()}`,
                         item_id: id,
+                        item_class: d.itemClass,
                         name: d.name,
                         description: d.description,
                         quantity: 1,
@@ -310,9 +315,14 @@ export default function CashSaleModule({
     const serialsComplete = lines.every(
         (l) => !l.track_serial || l.serial_numbers.length === l.quantity,
     );
+    // Warehouse/location only gate the sale when something in the cart
+    // actually moves stock (item-behavior); a service-only cart needs neither.
+    const cartNeedsInventory = lines.some(
+        (l) => behaviorOf(l.item_class).requiresInventory,
+    );
     const canComplete =
         permission.can_create &&
-        warehouseReady &&
+        (!cartNeedsInventory || warehouseReady) &&
         lines.length > 0 &&
         serialsComplete &&
         !saving;
@@ -325,10 +335,10 @@ export default function CashSaleModule({
                 </div>
             )}
 
-            {!warehouseReady && settings && (
+            {!warehouseReady && settings && cartNeedsInventory && (
                 <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-800">
                     No default sales warehouse or location is configured. Set one
-                    in <b>Sale → Settings</b> before selling.
+                    in <b>Sale → Settings</b> before selling stock items.
                 </div>
             )}
 
@@ -343,10 +353,7 @@ export default function CashSaleModule({
                             <ScanLine size={16} className="text-[#1a9e52]" />
                             <span>Scan or search an item to add it</span>
                         </div>
-                        <ItemScanSearch
-                            onSelect={(id) => void addItem(id)}
-                            disabled={!warehouseReady}
-                        />
+                        <ItemScanSearch onSelect={(id) => void addItem(id)} />
                     </div>
 
                     {lines.length === 0 ? (
@@ -362,8 +369,12 @@ export default function CashSaleModule({
                                 >
                                     <div className="flex items-start justify-between gap-3">
                                         <div className="min-w-0">
-                                            <p className="truncate text-sm font-semibold text-slate-800">
+                                            <p className="flex items-center gap-1.5 truncate text-sm font-semibold text-slate-800">
                                                 {line.name}
+                                                <ItemClassBadge
+                                                    itemClass={line.item_class}
+                                                    iconOnly
+                                                />
                                             </p>
                                             <p className="text-slate-400">
                                                 {line.uom_name || '—'}
@@ -596,7 +607,14 @@ export default function CashSaleModule({
 
                         {/* The counter this sale sells from. Seeded from Sales
                             Settings; switchable for one sale without touching
-                            the company default. */}
+                            the company default. Hidden while nothing in the
+                            cart moves stock — services need no counter. */}
+                        {!cartNeedsInventory && lines.length > 0 ? (
+                            <div className="rounded-xl bg-slate-50 px-3 py-2 text-slate-400">
+                                No stock items — warehouse not needed for this
+                                sale.
+                            </div>
+                        ) : (
                         <div className="rounded-xl bg-slate-50 px-3 py-2">
                             <div className="flex items-start justify-between gap-2">
                                 <div className="min-w-0 text-slate-500">
@@ -689,6 +707,7 @@ export default function CashSaleModule({
                                 </div>
                             )}
                         </div>
+                        )}
                     </div>
 
                     <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4">

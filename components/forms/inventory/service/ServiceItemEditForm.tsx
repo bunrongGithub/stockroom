@@ -16,18 +16,18 @@ import {
     ChevronRight,
     Clock,
     Loader2,
-    Package,
     Percent,
     RotateCcw,
     ShieldCheck,
     Tag,
+    Wrench,
     X,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
-export type NonStockEditItem = {
+export type ServiceEditItem = {
     id: number;
     name: string;
     reference_no: string | null;
@@ -103,7 +103,7 @@ function ToggleCheckbox({
     );
 }
 
-export default function NonStockItemEditForm({ item }: { item: NonStockEditItem }) {
+export default function ServiceItemEditForm({ item }: { item: ServiceEditItem }) {
     const router = useRouter();
     const [activeTab, setActiveTab] = useState<TabId>('details');
     const [isSaving, setIsSaving] = useState(false);
@@ -161,7 +161,7 @@ export default function NonStockItemEditForm({ item }: { item: NonStockEditItem 
                 warranty_duration: formData.is_warranty ? (formData.warranty_duration || null) : null,
             };
 
-            const res = await fetch(`/api/inventory/configurations/non-stock-item/${item.id}`, {
+            const res = await fetch(`/api/inventory/configurations/service-item/${item.id}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload),
@@ -172,7 +172,7 @@ export default function NonStockItemEditForm({ item }: { item: NonStockEditItem 
                 throw new Error(json.error?.message ?? json.error ?? 'Update failed');
             }
 
-            router.push(`/inventory/configurations/non-stock-item/${item.id}/view`);
+            router.push(`/inventory/configurations/service-item/${item.id}/view`);
             router.refresh();
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to save changes');
@@ -188,13 +188,13 @@ export default function NonStockItemEditForm({ item }: { item: NonStockEditItem 
         <div className="space-y-4 font-mono">
             <div>
                 <Link
-                    href={`/inventory/configurations/non-stock-item/${item.id}/view`}
+                    href={`/inventory/configurations/service-item/${item.id}/view`}
                     className="inline-flex items-center gap-2 text-sm text-slate-500 transition-colors hover:text-slate-700"
                 >
-                    <ArrowLeft size={16} /> Back to Item
+                    <ArrowLeft size={16} /> Back to Service
                 </Link>
                 <h2 className="mt-3 flex items-center gap-2 text-2xl font-bold text-slate-800 md:text-3xl">
-                    <Package className="text-[#1a9e52]" /> Edit Non-Stock Item
+                    <Wrench className="text-[#1a9e52]" /> Edit Service Item
                 </h2>
             </div>
 
@@ -214,12 +214,12 @@ export default function NonStockItemEditForm({ item }: { item: NonStockEditItem 
                     <section className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
                         <div className="flex items-center gap-2 border-b border-slate-50 bg-slate-50/80 px-4 py-2.5">
                             <Building2 size={13} className="text-[#1a9e52]" />
-                            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Item Info</span>
+                            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Service Info</span>
                         </div>
                         <div className="p-4">
                             <div className="flex items-center gap-3">
                                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-[#1a9e52] to-emerald-700 text-sm font-bold text-white shadow-sm">
-                                    {item.name?.[0]?.toUpperCase() ?? 'I'}
+                                    {item.name?.[0]?.toUpperCase() ?? 'S'}
                                 </div>
                                 <div className="min-w-0">
                                     <p className="truncate text-sm font-semibold text-slate-800">{item.name}</p>
@@ -251,7 +251,7 @@ export default function NonStockItemEditForm({ item }: { item: NonStockEditItem 
 
                     <div className="flex flex-col-reverse gap-2">
                         <Link
-                            href={`/inventory/configurations/non-stock-item/${item.id}/view`}
+                            href={`/inventory/configurations/service-item/${item.id}/view`}
                             className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-center text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
                         >
                             Cancel
@@ -296,7 +296,7 @@ export default function NonStockItemEditForm({ item }: { item: NonStockEditItem 
                         <div className="space-y-5 pt-5">
                             <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
                                 <h3 className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
-                                    <Package size={13} className="text-[#1a9e52]" /> Item Information
+                                    <Wrench size={13} className="text-[#1a9e52]" /> Service Information
                                 </h3>
                                 <div className="grid gap-4 lg:grid-cols-2">
                                     <div>
@@ -304,14 +304,14 @@ export default function NonStockItemEditForm({ item }: { item: NonStockEditItem 
                                         <ReadonlyInput value={item.reference_no ?? ''} placeholder="Auto-generated" />
                                     </div>
                                     <div>
-                                        <FieldLabel required>Item Name</FieldLabel>
+                                        <FieldLabel required>Service Name</FieldLabel>
                                         <EditableInput
                                             type="text"
                                             name="name"
                                             required
                                             value={formData.name}
                                             onChange={handleChange}
-                                            placeholder="e.g. Delivery Service"
+                                            placeholder="e.g. Installation Service"
                                         />
                                     </div>
                                     <div>
@@ -446,7 +446,7 @@ export default function NonStockItemEditForm({ item }: { item: NonStockEditItem 
                         <div className="space-y-5 pt-5">
                             <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
                                 <h3 className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
-                                    <ShieldCheck size={13} className="text-[#1a9e52]" /> Item Properties
+                                    <ShieldCheck size={13} className="text-[#1a9e52]" /> Service Properties
                                 </h3>
                                 <div className="grid gap-3 sm:grid-cols-2">
                                     <ToggleCheckbox
@@ -454,14 +454,14 @@ export default function NonStockItemEditForm({ item }: { item: NonStockEditItem 
                                         onChange={(val) => setFormData((p) => ({ ...p, is_warranty: val }))}
                                         icon={<ShieldCheck size={16} />}
                                         label="Has Warranty"
-                                        description="This item comes with a warranty"
+                                        description="This service comes with a warranty"
                                     />
                                     <ToggleCheckbox
                                         checked={formData.is_discount}
                                         onChange={(val) => setFormData((p) => ({ ...p, is_discount: val }))}
                                         icon={<Percent size={16} />}
                                         label="Discountable"
-                                        description="Allow discounts on this item"
+                                        description="Allow discounts on this service"
                                     />
                                     <ToggleCheckbox
                                         checked={formData.is_returnable}

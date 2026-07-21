@@ -1,6 +1,7 @@
 import { generateSKU } from '@/lib/utils/sequenumbering';
 import { NotFoundError } from '@/service/core/api-response';
 import { BaseRepository } from '@/service/core/base-repository';
+import { behaviorOf } from '@/service/core/item-behavior';
 import { getNextDocumentNumber } from '@/service/core/document-number';
 import {
     type PaginatedResult,
@@ -67,6 +68,7 @@ export class InventoryRepository extends BaseRepository {
         searchable: ['name', 'sku', 'reference_no', 'description'],
         sortable: ['name', 'sku', 'reference_no', 'price', 'cost', 'created_at', 'updated_at'],
         filterable: {
+            item_class: { type: 'text' },
             is_sellable: { type: 'boolean' },
             is_variant: { type: 'boolean' },
             track_serial: { type: 'boolean' },
@@ -116,6 +118,18 @@ export class InventoryRepository extends BaseRepository {
         return this.findAllQuery<InventoryItem>(ctx, query, {
             forced: [{ column: 'item_class', operator: 'eq', value: itemClass }],
         });
+    }
+
+    /**
+     * Unified item lookup across every class — the endpoint sale pickers use,
+     * so non-stock and service items are offered alongside stock. Rows carry
+     * item_class for behavior routing and badges.
+     */
+    async findAllV2(
+        ctx: RequestContext,
+        query: QueryObject,
+    ): Promise<PaginatedResult<InventoryItem>> {
+        return this.findAllQuery<InventoryItem>(ctx, query);
     }
 
     private constructor() {
@@ -192,7 +206,10 @@ export class InventoryRepository extends BaseRepository {
         ctx: RequestContext,
         input: CreateInventoryInput,
     ): Promise<InventoryItem> {
-        if (input.item_class !== 'stock' && input.track_serial) {
+        if (
+            input.track_serial &&
+            !behaviorOf(input.item_class ?? 'stock').supportsSerial
+        ) {
             throw new Error(
                 'Serial tracking is only supported for stock items',
             );
@@ -202,12 +219,15 @@ export class InventoryRepository extends BaseRepository {
         // per company × doc_type counter) — never generated in the repo.
         // Non-stock and service items share the stock counter's shape but keep
         // their own sequence, so numbers stay contiguous per class.
-        const isNonStock = input.item_class === 'non_stock';
-        const referenceNo = await getNextDocumentNumber(
-            ctx,
-            isNonStock ? 'non_stock_item' : 'stock_item',
-            isNonStock ? 'NSTK' : 'STCK',
-        );
+        const docType =
+            input.item_class === 'non_stock' ? 'non_stock_item'
+            : input.item_class === 'service' ? 'service_item'
+            : 'stock_item';
+        const docPrefix =
+            input.item_class === 'non_stock' ? 'NSTK'
+            : input.item_class === 'service' ? 'SRVC'
+            : 'STCK';
+        const referenceNo = await getNextDocumentNumber(ctx, docType, docPrefix);
         const sku = input.sku ? input.sku : generateSKU('SKU');
 
         const { data, error } = await this.scopedDb(Number(ctx.companyId))

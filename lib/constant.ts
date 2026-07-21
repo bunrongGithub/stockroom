@@ -98,8 +98,10 @@ export const API = {
             item: (id: Id) => `/api/inventory/stock-balance/item/${id}`,
         },
 
-        // Item-detail ledger tabs (movement-driven)
+        // Unified item endpoint: class-agnostic lookup (sale pickers) +
+        // detail + item-detail ledger tabs (movement-driven)
         item: {
+            ...resource('/api/inventory/items'),
             stock: (id: Id) => `/api/inventory/items/${id}/stock`,
             movements: (id: Id) => `/api/inventory/items/${id}/movements`,
             transactions: (id: Id) => `/api/inventory/items/${id}/transactions`,

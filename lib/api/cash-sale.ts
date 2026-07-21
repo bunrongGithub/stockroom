@@ -39,7 +39,8 @@ export type CashSalePayload = {
 
 export type CashSaleResult = {
     order: { id: number; order_no: string; grand_total: number };
-    shipment: { id: number; shipment_no: string };
+    /** Null when the sale had no inventory lines — nothing shipped. */
+    shipment: { id: number; shipment_no: string } | null;
     invoice: { id: number; invoice_no: string; grand_total: number };
     payment: { id: number; payment_no: string; amount: number };
 };

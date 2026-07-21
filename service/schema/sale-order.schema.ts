@@ -36,7 +36,9 @@ const orderHeaderBase = {
     customer_phone: z.string().min(1, 'Customer phone is required').trim(),
     order_date: z.string(),
     expected_delivery_date: z.string().optional().nullable(),
-    warehouse_id: z.number().int().positive('Warehouse is required'),
+    // Required only when the order has shippable lines — enforced in the
+    // repo via the item-behavior registry, not here (needs the item classes).
+    warehouse_id: z.number().int().positive().optional().nullable(),
     currency: z.string().default('USD'),
     notes: z.string().optional().nullable(),
 };

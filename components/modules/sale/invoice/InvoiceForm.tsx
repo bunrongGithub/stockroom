@@ -1,5 +1,6 @@
 'use client';
 
+import ItemClassBadge from '@/components/ui/ItemClassBadge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { financesInvoiceApi } from '@/lib/api/finances';
@@ -26,7 +27,10 @@ export type InvoiceLineDraft = {
   id?: number;
   item_id: number;
   sales_order_item_id: number | null;
+  /** Null = order-sourced direct line (non-stock/service, no shipment). */
   shipment_item_id: number | null;
+  /** stock | non_stock | service — shown as a badge on the line. */
+  item_class?: string;
   product_name: string;
   uom: string;
   quantity: number;
@@ -67,7 +71,7 @@ export default function InvoiceForm({
   initialLines,
 }: {
   mode: 'create' | 'edit';
-  shipmentId: number;
+  shipmentId: number | null;
   invoiceId?: number;
   shipmentNo: string;
   orderNo: string;
@@ -397,11 +401,20 @@ export default function InvoiceForm({
                       key={line.key}
                       className="rounded-xl border border-slate-200 p-3 space-y-3"
                     >
-                      <div className="text-xs font-mono font-semibold text-slate-700">
+                      <div className="flex items-center gap-2 text-xs font-mono font-semibold text-slate-700">
                         {line.product_name}
-                        <span className="ml-2 font-normal text-slate-400">
+                        <ItemClassBadge
+                          itemClass={line.item_class}
+                          iconOnly
+                        />
+                        <span className="font-normal text-slate-400">
                           {line.uom || ''}
                         </span>
+                        {line.shipment_item_id == null && (
+                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-normal text-slate-500">
+                            from order — no shipment needed
+                          </span>
+                        )}
                       </div>
                       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                         <div className="space-y-1.5">

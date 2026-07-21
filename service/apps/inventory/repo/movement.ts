@@ -1,5 +1,6 @@
 import { BaseRepository } from '@/service/core/base-repository';
 import { ApiError } from '@/service/core/api-response';
+import { behaviorOf } from '@/service/core/item-behavior';
 import { getNextDocumentNumber } from '@/service/core/document-number';
 import type { RequestContext } from '@/types/request-context';
 import type { InventoryTxnMovementType } from './receipt';
@@ -401,8 +402,9 @@ export class MovementRepository extends BaseRepository {
     }
 
     /**
-     * Reject any movement that references a non-stock (or service) item. Only
-     * `item_class = 'stock'` items are ever tracked in the stock ledger.
+     * Reject any movement that references an item whose class does not
+     * generate inventory movements (behaviorOf is the source of truth). Kept
+     * as defense-in-depth even though callers pre-filter lines by behavior.
      */
     private async ensureStockItems(itemIds: number[]): Promise<void> {
         const uniqueIds = [...new Set(itemIds)];
@@ -416,7 +418,9 @@ export class MovementRepository extends BaseRepository {
         if (error) throw new ApiError(error.message, 500);
 
         const offending = (data ?? []).find(
-            (row) => (row as { item_class: string }).item_class !== 'stock',
+            (row) =>
+                !behaviorOf((row as { item_class: string }).item_class)
+                    .generatesMovement,
         );
         if (offending) {
             throw new ApiError(

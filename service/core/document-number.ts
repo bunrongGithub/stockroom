@@ -22,6 +22,7 @@ export type DocumentType =
     // master data (reference numbers):
     | 'stock_item'
     | 'non_stock_item'
+    | 'service_item'
     | 'item_category'
     | 'item_uom'
     // future modules:

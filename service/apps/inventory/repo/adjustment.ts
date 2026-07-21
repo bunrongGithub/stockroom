@@ -8,6 +8,7 @@ import type {
 import type { RequestContext } from '@/types/request-context';
 import { getNextDocumentNumber } from '@/service/core/document-number';
 import { ApiError, NotFoundError } from '@/service/core/api-response';
+import { behaviorOf } from '@/service/core/item-behavior';
 import { MovementRepository } from './movement';
 import { SerialManagementService } from '@/service/apps/inventory/serial';
 import type {
@@ -539,7 +540,7 @@ export class StockAdjustmentRepository extends BaseRepository {
             if (!item) {
                 throw new ApiError(`Item #${line.item_id} not found`, 404);
             }
-            if (item.item_class !== 'stock') {
+            if (!behaviorOf(item.item_class).requiresInventory) {
                 throw new ApiError(
                     `${item.name} is a non-stock item and cannot be adjusted`,
                     400,

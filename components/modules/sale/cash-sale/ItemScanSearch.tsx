@@ -1,5 +1,6 @@
 'use client';
 
+import ItemClassBadge from '@/components/ui/ItemClassBadge';
 import { API } from '@/lib/constant';
 import { Loader2, Package, ScanLine } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -19,6 +20,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 type ItemRow = {
     id: number;
     name: string;
+    item_class?: string | null;
     sku: string | null;
     reference_no: string | null;
     image_url?: string | null;
@@ -64,7 +66,8 @@ export default function ItemScanSearch({
     }, [disabled]);
 
     const search = useCallback(async (keyword: string): Promise<ItemRow[]> => {
-        const url = new URL(API.inventory.stockItem.root, window.location.origin);
+        // Unified endpoint: every sellable class (stock, non-stock, service).
+        const url = new URL(API.inventory.item.root, window.location.origin);
         url.searchParams.set('sellable', 'true');
         url.searchParams.set('limit', '8');
         if (keyword) url.searchParams.set('search', keyword);
@@ -197,6 +200,10 @@ export default function ItemScanSearch({
                                         >
                                             {row.name}
                                         </span>
+                                        <ItemClassBadge
+                                            itemClass={row.item_class}
+                                            iconOnly
+                                        />
                                     </span>
                                     <span className="mt-0.5 block truncate text-xs text-slate-400">
                                         Category: {row.category?.name ?? '—'}

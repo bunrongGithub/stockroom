@@ -116,11 +116,6 @@ export default function StockForm({
             <div className="truncate font-mono text-xs text-gray-900">
               {row.name}
             </div>
-            <div className="mt-0.5 truncate text-xs text-gray-500">
-              {row.item_class === 'stock'
-                ? 'Stock Item'
-                : 'Non-Stock / Service'}
-            </div>
             <PropertyBadges item={row} />
           </div>
         </div>

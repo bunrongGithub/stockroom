@@ -87,11 +87,20 @@ const dataRegistry = new Map<string, DataLoader>([
     ],
     [
         '/inventory/configurations/non-stock-item',
-        (ctx, { page, limit, search }) =>
-            InventoryRepository.getInstance().findAllByClass(
+        (ctx, args) =>
+            InventoryRepository.getInstance().findAllByClassV2(
                 ctx,
-                { page, limit, search, searchColumn: 'name' },
+                toWireQuery(args),
                 'non_stock',
+            ),
+    ],
+    [
+        '/inventory/configurations/service-item',
+        (ctx, args) =>
+            InventoryRepository.getInstance().findAllByClassV2(
+                ctx,
+                toWireQuery(args),
+                'service',
             ),
     ],
     [

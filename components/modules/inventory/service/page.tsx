@@ -1,6 +1,6 @@
 'use client';
 
-import NonStockItemListForm from '@/components/forms/inventory/non-stock/NonStockItemListForm';
+import ServiceItemListForm from '@/components/forms/inventory/service/ServiceItemListForm';
 import PopUpDeleteTransactionModal from '@/components/ui/PopUpDeleteModal';
 import { useRegisterModule } from '@/hook/useModule';
 import { useTableQuery } from '@/hook/useTableQuery';
@@ -8,7 +8,7 @@ import type { ModuleProps } from '@/lib/registry';
 import type { InventoryItemProps } from '@/types/inventory/item';
 import { useState } from 'react';
 
-export default function InventoryNonStockModule({
+export default function InventoryServiceItemModule({
     currentPath,
     permission,
     currentPathActions,
@@ -72,7 +72,7 @@ export default function InventoryNonStockModule({
                 onConfirm={onConfirmDelete}
             />
 
-            <NonStockItemListForm
+            <ServiceItemListForm
                 items={table.data}
                 serverQuery={table.binding}
                 onDeleteAction={setDeletingId}

@@ -16,12 +16,12 @@ import {
     ChevronRight,
     Clock,
     Loader2,
-    Package,
     Percent,
     RotateCcw,
     ShieldCheck,
     Tag,
     User,
+    Wrench,
     X,
 } from 'lucide-react';
 import { useUserProfile } from '@/context/UserProfileContext';
@@ -116,7 +116,7 @@ function ToggleCheckbox({
     );
 }
 
-export default function NonStockItemCreateForm() {
+export default function ServiceItemCreateForm() {
     const router = useRouter();
     const [activeTab, setActiveTab] = useState<TabId>('details');
     const currentUser = useUserProfile();
@@ -152,7 +152,6 @@ export default function NonStockItemCreateForm() {
         },
     });
 
-
     const price = watch('price');
     const cost = watch('cost');
     const profit = Number(price) - Number(cost);
@@ -164,7 +163,7 @@ export default function NonStockItemCreateForm() {
         try {
             const payload = {
                 name: data.name,
-                item_class: 'non_stock',
+                item_class: 'service',
                 sku: data.sku || null,
                 description: data.description || null,
                 price: Number(data.price),
@@ -181,7 +180,7 @@ export default function NonStockItemCreateForm() {
                 warranty_duration: data.is_warranty ? (data.warranty_duration || null) : null,
             };
 
-            const res = await fetch('/api/inventory/configurations/non-stock-item', {
+            const res = await fetch('/api/inventory/configurations/service-item', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload),
@@ -193,7 +192,7 @@ export default function NonStockItemCreateForm() {
             }
 
             const json = await res.json();
-            router.push(`/inventory/configurations/non-stock-item/${json.data.id}/view`);
+            router.push(`/inventory/configurations/service-item/${json.data.id}/view`);
             router.refresh();
         } catch (err) {
             setSubmitError(err instanceof Error ? err.message : 'Failed to save item');
@@ -204,13 +203,13 @@ export default function NonStockItemCreateForm() {
         <div className="space-y-4 font-mono text-xs">
             <div>
                 <Link
-                    href="/inventory/configurations/non-stock-item"
+                    href="/inventory/configurations/service-item"
                     className="inline-flex items-center gap-2 text-slate-500 transition-colors hover:text-slate-700"
                 >
-                    <ArrowLeft size={16} /> Back to Non-Stock Items
+                    <ArrowLeft size={16} /> Back to Service Items
                 </Link>
                 <h2 className="mt-3 flex items-center gap-2 text-2xl font-bold text-slate-800 md:text-3xl">
-                    <Package className="text-[#1a9e52]" /> New Non-Stock Item
+                    <Wrench className="text-[#1a9e52]" /> New Service Item
                 </h2>
             </div>
 
@@ -267,7 +266,7 @@ export default function NonStockItemCreateForm() {
 
                     <div className="flex flex-col-reverse gap-2">
                         <Link
-                            href="/inventory/configurations/non-stock-item"
+                            href="/inventory/configurations/service-item"
                             className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-center text-slate-600 transition-colors hover:bg-slate-50"
                         >
                             Cancel
@@ -314,7 +313,7 @@ export default function NonStockItemCreateForm() {
                         <div className="space-y-5 pt-5">
                             <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
                                 <h3 className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
-                                    <Package size={13} className="text-[#1a9e52]" /> Item Information
+                                    <Wrench size={13} className="text-[#1a9e52]" /> Service Information
                                 </h3>
                                 <div className="grid gap-4 lg:grid-cols-2">
                                     <div>
@@ -322,11 +321,11 @@ export default function NonStockItemCreateForm() {
                                         <ReadonlyInput placeholder="Auto-generated" />
                                     </div>
                                     <div>
-                                        <FieldLabel required>Item Name</FieldLabel>
+                                        <FieldLabel required>Service Name</FieldLabel>
                                         <EditableInput
                                             type="text"
-                                            placeholder="e.g. Delivery Service"
-                                            {...register('name', { required: 'Item name is required' })}
+                                            placeholder="e.g. Installation Service"
+                                            {...register('name', { required: 'Service name is required' })}
                                         />
                                         {errors.name && <p className="mt-1 text-xs text-red-500">{errors.name.message}</p>}
                                     </div>
@@ -467,14 +466,14 @@ export default function NonStockItemCreateForm() {
                         <div className="space-y-5 pt-5">
                             <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
                                 <h3 className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
-                                    <ShieldCheck size={13} className="text-[#1a9e52]" /> Item Properties
+                                    <ShieldCheck size={13} className="text-[#1a9e52]" /> Service Properties
                                 </h3>
                                 <div className="grid gap-3 sm:grid-cols-2">
                                     <Controller name="is_warranty" control={control} render={({ field }) => (
-                                        <ToggleCheckbox checked={field.value ?? false} onChange={field.onChange} icon={<ShieldCheck size={16} />} label="Has Warranty" description="This item comes with a warranty" />
+                                        <ToggleCheckbox checked={field.value ?? false} onChange={field.onChange} icon={<ShieldCheck size={16} />} label="Has Warranty" description="This service comes with a warranty" />
                                     )} />
                                     <Controller name="is_discount" control={control} render={({ field }) => (
-                                        <ToggleCheckbox checked={field.value ?? false} onChange={field.onChange} icon={<Percent size={16} />} label="Discountable" description="Allow discounts on this item" />
+                                        <ToggleCheckbox checked={field.value ?? false} onChange={field.onChange} icon={<Percent size={16} />} label="Discountable" description="Allow discounts on this service" />
                                     )} />
                                     <Controller name="is_returnable" control={control} render={({ field }) => (
                                         <ToggleCheckbox checked={field.value ?? false} onChange={field.onChange} icon={<RotateCcw size={16} />} label="Returnable" description="Allow customer returns" />

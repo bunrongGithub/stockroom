@@ -89,6 +89,24 @@ export const inventoryRegistry: RegistryEntry[] = [
         () => import('@/components/modules/inventory/non-stock/action/Update'),
     ],
 
+    // ── Service Items ─────────────────────────────────────────────────────────
+    [
+        'InventoryServiceItemModule',
+        () => import('@/components/modules/inventory/service/page'),
+    ],
+    [
+        'InventoryServiceItemCreate',
+        () => import('@/components/modules/inventory/service/action/Create'),
+    ],
+    [
+        'InventoryServiceItemView',
+        () => import('@/components/modules/inventory/service/action/View'),
+    ],
+    [
+        'InventoryServiceItemUpdate',
+        () => import('@/components/modules/inventory/service/action/Update'),
+    ],
+
     // ── Category ──────────────────────────────────────────────────────────────
     [
         'CategoryFormCreate',
