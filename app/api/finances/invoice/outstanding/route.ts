@@ -1,3 +1,4 @@
+import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { NextRequest, NextResponse } from 'next/server';
 import { getRequestContext } from '@/lib/request-context';
 import { SalesInvoiceRepository } from '@/service/apps/sale/repo/invoice';
@@ -12,6 +13,7 @@ const service = SalesInvoiceRepository.getInstance();
 export async function GET(req: NextRequest) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.sales.invoice.view, { req: req });
         const sp = req.nextUrl.searchParams;
         const result = await service.findOutstanding(ctx, {
             page: Number(sp.get('page') || 1),

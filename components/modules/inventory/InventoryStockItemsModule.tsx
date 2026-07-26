@@ -3,12 +3,10 @@
 import StockForm from '@/components/forms/inventory/stock/StockForm';
 import PopUpDeleteTransactionModal from '@/components/ui/PopUpDeleteModal';
 import { useRegisterModule } from '@/hook/useModule';
+import { useTableQuery } from '@/hook/useTableQuery';
 import type { ModuleProps } from '@/lib/registry';
-import type { TMeta } from '@/types/app';
 import type { InventoryItemProps } from '@/types/inventory/item';
 import { useState } from 'react';
-
-const DEFAULT_META: TMeta = { total: 0, page: 1, limit: 10, totalPages: 0 };
 
 export default function InventoryItemsModule({
     currentPath,
@@ -23,24 +21,19 @@ export default function InventoryItemsModule({
         modulePath: currentPath.path,
     });
 
-    const [tableData, setTableData] = useState<InventoryItemProps[]>(
-        (initialData as InventoryItemProps[]) ?? [],
-    );
-    const [tableMeta, setTableMeta] = useState<TMeta>(initialMeta ?? DEFAULT_META);
     const [deletingId, setDeletingId] = useState<number | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
     const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
 
     const apiBase = `/api${currentPath.path}`;
 
-    const fetchPage = async (page: number, limit: number) => {
-        const res = await fetch(`${apiBase}?page=${page}&limit=${limit}`);
-        if (res.ok) {
-            const json = await res.json();
-            setTableData(json.data ?? []);
-            setTableMeta(json.meta ?? DEFAULT_META);
-        }
-    };
+    // Query Framework: search/sort/filter/pagination run server-side and the
+    // full list state lives in the URL.
+    const table = useTableQuery<InventoryItemProps>({
+        endpoint: apiBase,
+        initialData: initialData as InventoryItemProps[] | undefined,
+        initialMeta,
+    });
 
     const onConfirmDelete = async () => {
         if (!deletingId) return;
@@ -49,7 +42,7 @@ export default function InventoryItemsModule({
             const res = await fetch(`${apiBase}/${deletingId}`, { method: 'DELETE' });
             if (!res.ok) throw new Error('Delete failed');
             setToast({ msg: 'Item deleted successfully', type: 'success' });
-            await fetchPage(tableMeta.page, tableMeta.limit);
+            await table.refresh();
         } catch {
             setToast({ msg: 'Failed to delete item', type: 'error' });
         } finally {
@@ -80,9 +73,8 @@ export default function InventoryItemsModule({
             />
 
             <StockForm
-                items={tableData}
-                meta={tableMeta}
-                onFetchPageAction={fetchPage}
+                items={table.data}
+                serverQuery={table.binding}
                 onDeleteAction={setDeletingId}
             />
         </>

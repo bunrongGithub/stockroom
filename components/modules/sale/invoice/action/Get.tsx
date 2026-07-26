@@ -1,9 +1,13 @@
 'use client';
 
 import { useRegisterModule } from '@/hook/useModule';
+import { useCan } from '@/hook/useCan';
+import { PERMISSIONS } from '@/service/core/authz/permissions';
 import type { ModuleProps } from '@/lib/registry';
 import { financesInvoiceApi } from '@/lib/api/finances';
 import { RelatedDocumentsPanel } from '@/components/ui/RelatedDocuments';
+import { AuditInformationCard } from '@/components/ui/AuditInformationCard';
+import type { AuditMeta } from '@/types/audit';
 import type {
   SalesInvoice,
   SalesInvoiceStatus,
@@ -79,6 +83,15 @@ export default function SaleInvoiceDetail({
     type: 'success' | 'error';
   } | null>(null);
   const [busy, setBusy] = useState<'post' | 'cancel' | 'delete' | null>(null);
+
+  // Permission gating (UX): the server still enforces. A button shows only when
+  // BOTH the document status allows it (a.can_*) AND the user holds the grant.
+  const may = {
+    update: useCan(PERMISSIONS.sales.invoice.update),
+    post: useCan(PERMISSIONS.sales.invoice.post),
+    cancel: useCan(PERMISSIONS.sales.invoice.cancel),
+    delete: useCan(PERMISSIONS.sales.invoice.delete),
+  };
 
   function showToast(msg: string, type: 'success' | 'error') {
     setToast({ msg, type });
@@ -306,9 +319,9 @@ export default function SaleInvoiceDetail({
             )}
           </div>
 
-          {(a?.can_update || a?.can_post || a?.can_cancel || a?.can_delete) && (
+          {((a?.can_update && may.update) || (a?.can_post && may.post) || (a?.can_cancel && may.cancel) || (a?.can_delete && may.delete)) && (
             <div className="flex flex-col gap-2">
-              {a?.can_update && (
+              {a?.can_update && may.update && (
                 <button
                   onClick={() =>
                     router.push(`/finances/invoice/${invoice.id}/update`)
@@ -318,7 +331,7 @@ export default function SaleInvoiceDetail({
                   <PencilIcon size={14} /> Edit
                 </button>
               )}
-              {a?.can_post && (
+              {a?.can_post && may.post && (
                 <button
                   onClick={handlePost}
                   disabled={busy !== null}
@@ -332,7 +345,7 @@ export default function SaleInvoiceDetail({
                   Post
                 </button>
               )}
-              {a?.can_cancel && (
+              {a?.can_cancel && may.cancel && (
                 <button
                   onClick={handleCancel}
                   disabled={busy !== null}
@@ -346,7 +359,7 @@ export default function SaleInvoiceDetail({
                   Cancel Invoice
                 </button>
               )}
-              {a?.can_delete && (
+              {a?.can_delete && may.delete && (
                 <button
                   onClick={handleDelete}
                   disabled={busy !== null}
@@ -362,6 +375,8 @@ export default function SaleInvoiceDetail({
               )}
             </div>
           )}
+
+          <AuditInformationCard audit={invoice as Partial<AuditMeta>} />
         </aside>
 
         {/* RIGHT — tabs */}

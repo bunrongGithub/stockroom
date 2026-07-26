@@ -1,3 +1,4 @@
+import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { NextRequest, NextResponse } from 'next/server';
 import { getRequestContext } from '@/lib/request-context';
 import { SalesOrderRepository } from '@/service/apps/sale/repo/order';
@@ -10,6 +11,7 @@ const service = SalesOrderRepository.getInstance();
 export async function PATCH(req: NextRequest, { params }: RequestParam) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.sales.order.close, { req: req });
         const { id } = await params;
         const idParsed = salesOrderIdSchema.safeParse({ id });
         if (!idParsed.success) {

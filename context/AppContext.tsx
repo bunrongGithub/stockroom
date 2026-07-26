@@ -43,8 +43,9 @@ interface AppContextValue {
 // Constants
 // ─────────────────────────────────────────────────────────────────────────────
 
-// v2: payload gained `company` — bumping the key discards stale caches.
-const CACHE_KEY = 'erp_app_init_v2';
+// v3: payload gained per-module `actions[]` + profile.isSuperUser — bumping the
+// key discards stale caches that lack them (so `useCan` gating works at once).
+const CACHE_KEY = 'erp_app_init_v3';
 
 function readCache(): AppInitData | null {
     try {
@@ -124,7 +125,7 @@ export function AppProvider({
         if (fetchedRef.current) return;
         fetchedRef.current = true;
 
-        // Server already provided the payload — cache it and skip the fetch.
+        // Server already provided a fresh payload — cache it, no fetch needed.
         if (initialData) {
             writeCache(initialData);
             return;
@@ -132,10 +133,14 @@ export function AppProvider({
 
         const cached = readCache();
         if (cached) {
+            // Stale-while-revalidate: paint instantly from cache, then refresh
+            // permissions/menu in the background so a role/permission change
+            // reflects without a full logout.
             setData(cached);
             setIsLoading(false);
+            void fetchInit();
         } else {
-            fetchInit();
+            void fetchInit();
         }
     }, [fetchInit, initialData]);
 

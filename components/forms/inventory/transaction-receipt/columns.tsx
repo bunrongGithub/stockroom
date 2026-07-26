@@ -1,8 +1,8 @@
 import { ButtonActionDynamicRender } from '@/components/ui/button-action';
 import { DataTableColumn } from '@/components/ui/DataTable';
+import { auditUserColumns } from '@/components/ui/audit-columns';
 import type {
   InventoryMovemtTypeReasonMeta,
-  ReceiptCreatedBy,
   ReceiptTxnType,
 } from '@/service/apps/inventory/repo/receipt';
 import type { ColumnsOptionsProps } from '@/types/app';
@@ -95,54 +95,7 @@ function ReasonBadge({ reason }: { reason: InventoryMovemtTypeReasonMeta }) {
   );
 }
 
-// ─── Created-by profile cell ─────────────────────────────────────────────────
-
-const AVATAR_COLORS = [
-  'bg-violet-100 text-violet-700',
-  'bg-blue-100   text-blue-700',
-  'bg-emerald-100 text-emerald-700',
-  'bg-amber-100  text-amber-700',
-  'bg-rose-100   text-rose-700',
-  'bg-cyan-100   text-cyan-700',
-  'bg-fuchsia-100 text-fuchsia-700',
-  'bg-indigo-100 text-indigo-700',
-];
-
-function avatarColor(id: string) {
-  let hash = 0;
-  for (let i = 0; i < id.length; i++)
-    hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
-  return AVATAR_COLORS[hash % AVATAR_COLORS.length];
-}
-
-function initials(name: string | null): string {
-  if (!name) return '?';
-  const parts = name.trim().split(/\s+/);
-  return parts.length === 1
-    ? parts[0][0].toUpperCase()
-    : (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-}
-
-function CreatedByCell({ user }: { user: ReceiptCreatedBy | null }) {
-  if (!user) return <span className="text-slate-400">—</span>;
-
-  const color = avatarColor(user.id);
-  const name = user.full_name ?? 'Unknown';
-
-  return (
-    <div className="flex items-center gap-2">
-      <span
-        className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ${color}`}
-        title={name}
-      >
-        {initials(user.full_name)}
-      </span>
-      <span className="truncate text-sm text-slate-700">{name}</span>
-    </div>
-  );
-}
-
-// ─── Status-based action gating ────────────────────────────────────────────────
+// ─── Status-based action gating ────────────────────────────────────────────
 // Receipt rows carry a computed `actions` map ({ can_update, can_post, can_void })
 // derived from their status. Keep only the row buttons the status permits; buttons
 // with no matching capability (e.g. View) always pass through.
@@ -178,17 +131,14 @@ export function getReceiptTxnColumns({
     {
       key: 'reference_no',
       header: 'Reference',
+      sortable: true,
       cell: (row) => (
         <span className="rounded bg-gray-100 px-2.5 py-1 font-mono text-xs text-gray-600">
           {row.reference_no || '—'}
         </span>
       ),
     },
-    {
-      key: 'created_by',
-      header: 'Created By',
-      cell: (row) => <CreatedByCell user={row.created_by} />,
-    },
+    ...auditUserColumns<ReceiptTxnType>(),
     {
       key: 'reason',
       header: 'Reason',
@@ -202,11 +152,13 @@ export function getReceiptTxnColumns({
     {
       key: 'transaction_date',
       header: 'Transaction Date',
+      sortable: true,
       cell: (row) => row.transaction_date,
     },
     {
       key: 'status',
       header: 'Status',
+      sortable: true,
       cell: (row) => <StatusBadge status={row.status} />,
     },
     ...(dynamicActions.length > 0

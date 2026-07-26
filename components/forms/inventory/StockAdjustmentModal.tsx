@@ -1,6 +1,6 @@
 'use client';
 import { EditableInput, FieldLabel } from '@/components/ui/FieldLabel';
-import { StockLocationProps } from '@/types/branch';
+import { WarehouseLocation } from '@/types/branch';
 import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 
@@ -12,11 +12,11 @@ export interface StockAdjustmentData {
 }
 
 interface StockAdjustmentModalProps {
-    isOpen: boolean;
-    onClose: () => void;
-    onSubmit: (data: StockAdjustmentData) => void | Promise<void>;
-    isLoading?: boolean;
-    locations?: StockLocationProps[];
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (data: StockAdjustmentData) => void | Promise<void>;
+  isLoading?: boolean;
+  locations?: WarehouseLocation[];
 }
 
 const DEFAULT_REASON = 'Opening Warehouse Inventory Balance Setup';
@@ -133,26 +133,26 @@ export default function StockAdjustmentModal({
 
                 {/* Form */}
                 <form onSubmit={handleSubmit} className="px-6 py-6 space-y-5">
-                    
+
                     {/* Movement Type */}
                     <div>
                         <FieldLabel>Movement Type *</FieldLabel>
                         <div className="flex gap-4">
                             <label className="flex items-center gap-2 cursor-pointer">
-                                <input 
-                                    type="radio" 
-                                    name="movement_type" 
-                                    checked={formData.movement_type === 'in'} 
+                                <input
+                                    type="radio"
+                                    name="movement_type"
+                                    checked={formData.movement_type === 'in'}
                                     onChange={() => setFormData(prev => ({ ...prev, movement_type: 'in', reason: reasonOptions.in[0].value }))}
                                     className="text-emerald-500 focus:ring-emerald-500"
                                 />
                                 <span className="text-sm font-medium text-slate-700">Stock In (+)</span>
                             </label>
                             <label className="flex items-center gap-2 cursor-pointer">
-                                <input 
-                                    type="radio" 
-                                    name="movement_type" 
-                                    checked={formData.movement_type === 'out'} 
+                                <input
+                                    type="radio"
+                                    name="movement_type"
+                                    checked={formData.movement_type === 'out'}
                                     onChange={() => setFormData(prev => ({ ...prev, movement_type: 'out', reason: reasonOptions.out[0].value }))}
                                     className="text-red-500 focus:ring-red-500"
                                 />

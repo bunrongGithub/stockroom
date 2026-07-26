@@ -46,12 +46,16 @@ export interface SalesOrderItem {
     id: number;
     item_id: number;
     item_uom_id: number | null;
+    /** Behavior snapshot taken at order time — see service/core/item-behavior. */
+    item_class: string;
     track_serial: boolean;
     product_name: string;
     description: string;
     uom: string;
     ordered_qty: number;
     shipped_qty: number;
+    /** Direct-invoice (non-shippable) lines fulfill through this counter. */
+    invoiced_qty: number;
     unit_price: number;
     discount: number; // percent
     tax: number; // percent
@@ -62,11 +66,15 @@ export interface SalesOrder {
     id: number;
     order_no: string;
     reference_no: string | null;
+    /** The Business Partner acting as customer. Null on pre-Master-Data history. */
+    customer_id: number | null;
+    customer_code?: string | null;
     customer_name: string;
     customer_phone: string | null;
     order_date: string;
     expected_delivery_date: string | null;
-    warehouse_id: number;
+    /** Null when the order has no shippable (inventory) lines. */
+    warehouse_id: number | null;
     warehouse_name: string;
     currency: string;
     status: SalesOrderStatus;
@@ -138,11 +146,14 @@ export interface CreateSalesOrderLinePayload {
 
 export interface CreateSalesOrderPayload {
     reference_no?: string;
+    /** The Business Partner acting as customer — required for new orders. */
+    customer_id: number;
     customer_name: string;
     customer_phone?: string;
     order_date: string;
     expected_delivery_date?: string;
-    warehouse_id: number;
+    /** Required only when the order contains stock items. */
+    warehouse_id?: number | null;
     currency: string;
     notes?: string;
     items: CreateSalesOrderLinePayload[];
@@ -181,6 +192,7 @@ export interface SalesInvoiceItem {
     shipment_item_id: number | null;
     product_name: string;
     sku: string | null;
+    item_class?: string;
     reference_no: string | null;
     track_serial: boolean;
     /** Sold serials pulled read-only from inventory_serial (print/detail views) */
@@ -198,7 +210,8 @@ export interface SalesInvoice {
     id: number;
     invoice_no: string;
     reference_no: string | null;
-    shipment_id: number;
+    /** Null for order-sourced invoices (direct-invoice lines only). */
+    shipment_id: number | null;
     shipment_no: string;
     sales_order_id: number | null;
     sales_order_no: string;
@@ -242,7 +255,10 @@ export interface CreateSalesInvoiceLinePayload {
 
 export interface CreateSalesInvoicePayload {
     reference_no?: string;
-    shipment_id: number;
+    /** One source is required: a posted shipment, or an order for
+     *  shipmentless (non-stock/service) invoicing. */
+    shipment_id?: number | null;
+    sales_order_id?: number | null;
     invoice_date: string;
     currency: string;
     exchange_rate?: number;

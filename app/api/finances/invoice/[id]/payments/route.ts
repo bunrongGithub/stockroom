@@ -1,3 +1,4 @@
+import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { NextRequest, NextResponse } from 'next/server';
 import { getRequestContext } from '@/lib/request-context';
 import { SalesInvoiceRepository } from '@/service/apps/sale/repo/invoice';
@@ -11,6 +12,7 @@ const service = SalesInvoiceRepository.getInstance();
 export async function GET(req: NextRequest, { params }: RequestParam) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.sales.invoice.view, { req: req });
         const { id } = await params;
         const idParsed = salesInvoiceIdSchema.safeParse({ id });
         if (!idParsed.success) {

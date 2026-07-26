@@ -98,6 +98,17 @@ const ROLE_HIERARCHY: Record<TAuthUserRole, number> = {
     user: 10,
 };
 
+/** Numeric rank of a role name (unknown/custom roles rank 0). */
+export function rankRole(role: string): number {
+    return ROLE_HIERARCHY[role as TAuthUserRole] ?? 0;
+}
+
+/** Pick the highest-privilege role from a list (for multi-role users). */
+export function highestRole(roles: string[]): string | null {
+    if (!roles.length) return null;
+    return roles.reduce((best, r) => (rankRole(r) > rankRole(best) ? r : best));
+}
+
 /** Returns true if userRole meets the minimum required role */
 export function hasRole(
     userRole: TAuthUserRole,

@@ -1,0 +1,44 @@
+import { PERMISSIONS, requirePermission } from '@/service/core/authz';
+import { getRequestContext } from '@/lib/request-context';
+import { assertRole } from '@/lib/auth';
+import { ApiError } from '@/service/core/api-response';
+import { companyUserService } from '@/service/apps/base/user';
+import {
+    userIdSchema,
+    setStatusSchema,
+} from '@/service/schema/user.schema';
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
+
+type Params = { params: Promise<{ id: string }> };
+
+// PATCH /api/setting/users/[id]/status — activate / deactivate.
+export async function PATCH(request: NextRequest, { params }: Params) {
+    try {
+        const ctx = getRequestContext(request);
+        await requirePermission(ctx, PERMISSIONS.setting.user.update, { req: request });
+        assertRole(ctx, 'admin');
+        const { id } = await params;
+        const idParsed = userIdSchema.safeParse({ id });
+        if (!idParsed.success) {
+            return NextResponse.json({ error: 'Invalid user id' }, { status: 400 });
+        }
+        const bodyParsed = setStatusSchema.safeParse(await request.json());
+        if (!bodyParsed.success) {
+            return NextResponse.json(
+                { error: z.flattenError(bodyParsed.error).fieldErrors },
+                { status: 422 },
+            );
+        }
+        const user = await companyUserService.setStatus(
+            ctx,
+            idParsed.data.id,
+            bodyParsed.data,
+        );
+        return NextResponse.json({ data: user }, { status: 200 });
+    } catch (error) {
+        if (error instanceof ApiError) return error.toResponse();
+        const message = error instanceof Error ? error.message : 'Unexpected error';
+        return NextResponse.json({ error: message }, { status: 500 });
+    }
+}

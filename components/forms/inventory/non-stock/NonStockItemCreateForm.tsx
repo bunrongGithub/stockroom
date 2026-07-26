@@ -106,7 +106,7 @@ function ToggleCheckbox({
             <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                     <span className={checked ? 'text-blue-600' : 'text-slate-400'}>{icon}</span>
-                    <span className={`text-sm font-semibold ${checked ? 'text-blue-800' : 'text-slate-700'}`}>
+                    <span className={`font-semibold ${checked ? 'text-blue-800' : 'text-slate-700'}`}>
                         {label}
                     </span>
                 </div>
@@ -193,7 +193,7 @@ export default function NonStockItemCreateForm() {
             }
 
             const json = await res.json();
-            router.push(`/inventory/configurations/non-stock/${json.data.id}/view`);
+            router.push(`/inventory/configurations/non-stock-item/${json.data.id}/view`);
             router.refresh();
         } catch (err) {
             setSubmitError(err instanceof Error ? err.message : 'Failed to save item');
@@ -201,11 +201,11 @@ export default function NonStockItemCreateForm() {
     };
 
     return (
-        <div className="mx-auto max-w-7xl space-y-6 p-4 md:p-8">
+        <div className="space-y-4 font-mono text-xs">
             <div>
                 <Link
-                    href="/inventory/configurations/non-stock"
-                    className="inline-flex items-center gap-2 text-sm text-slate-500 transition-colors hover:text-slate-700"
+                    href="/inventory/configurations/non-stock-item"
+                    className="inline-flex items-center gap-2 text-slate-500 transition-colors hover:text-slate-700"
                 >
                     <ArrowLeft size={16} /> Back to Non-Stock Items
                 </Link>
@@ -217,14 +217,14 @@ export default function NonStockItemCreateForm() {
             {submitError && (
                 <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
                     <AlertCircle size={18} className="mt-0.5 shrink-0 text-red-500" />
-                    <p className="text-sm text-red-700">{submitError}</p>
+                    <p className="text-red-700">{submitError}</p>
                     <button type="button" onClick={() => setSubmitError('')} className="ml-auto shrink-0 text-red-400 hover:text-red-600">
                         <X size={16} />
                     </button>
                 </div>
             )}
 
-            <form onSubmit={handleSubmit(onSubmit)} className="grid gap-6 xl:grid-cols-[300px_minmax(0,1fr)]">
+            <form onSubmit={handleSubmit(onSubmit)} className="grid gap-6 xl:grid-cols-[350px_minmax(0,1fr)]">
                 {/* LEFT SIDEBAR */}
                 <aside className="space-y-4 self-start xl:sticky xl:top-6">
                     <section className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
@@ -234,11 +234,11 @@ export default function NonStockItemCreateForm() {
                         </div>
                         <div className="p-4">
                             <div className="flex items-center gap-3">
-                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#1a9e52] to-emerald-700 text-sm font-bold text-white shadow-sm">
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-[#1a9e52] to-emerald-700 font-bold text-white shadow-sm">
                                     {currentUser?.email?.[0]?.toUpperCase() ?? '?'}
                                 </div>
                                 <div className="min-w-0">
-                                    <p className="truncate text-sm font-semibold text-slate-800">{currentUser?.email ?? 'Loading...'}</p>
+                                    <p className="truncate font-semibold text-slate-800">{currentUser?.email ?? 'Loading...'}</p>
                                     <span className="inline-flex items-center rounded-full bg-[#1a9e52]/10 px-2 py-0.5 text-[10px] font-semibold capitalize text-[#1a9e52]">
                                         {currentUser?.role ?? 'user'}
                                     </span>
@@ -267,15 +267,15 @@ export default function NonStockItemCreateForm() {
 
                     <div className="flex flex-col-reverse gap-2">
                         <Link
-                            href="/inventory/configurations/non-stock"
-                            className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-center text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
+                            href="/inventory/configurations/non-stock-item"
+                            className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-center text-slate-600 transition-colors hover:bg-slate-50"
                         >
                             Cancel
                         </Link>
                         <button
                             type="submit"
                             disabled={isSubmitting}
-                            className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1a9e52] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#158042] disabled:opacity-50"
+                            className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1a9e52] px-4 py-2.5 font-semibold text-white transition-colors hover:bg-[#158042] disabled:opacity-50"
                         >
                             {isSubmitting && <Loader2 className="animate-spin" size={16} />}
                             {isSubmitting ? 'Saving...' : 'Save Item'}
@@ -291,7 +291,7 @@ export default function NonStockItemCreateForm() {
                                 key={tab.id}
                                 type="button"
                                 onClick={() => setActiveTab(tab.id)}
-                                className={`flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-medium transition-all ${
+                                className={`flex items-center gap-2 border-b-2 px-5 py-3 transition-all ${
                                     activeTab === tab.id
                                         ? 'border-[#1a9e52] text-[#1a9e52]'
                                         : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -366,7 +366,7 @@ export default function NonStockItemCreateForm() {
                                                 <AsyncSearchSelect
                                                     label="Base UOM"
                                                     placeholder="Select unit of measure..."
-                                                    apiUrl="/api/inventory/configurations/uom"
+                                                    apiUrl="/api/inventory/configurations/uom?status=active"
                                                     value={field.value}
                                                     selectedLabel={watch('uom')?.name ?? ''}
                                                     popupTitle="Base UOM"
@@ -390,7 +390,7 @@ export default function NonStockItemCreateForm() {
                                 <button
                                     type="button"
                                     onClick={() => setActiveTab('pricing')}
-                                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
+                                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-slate-600 transition-colors hover:bg-slate-50"
                                 >
                                     Pricing <ChevronRight size={16} />
                                 </button>
@@ -452,10 +452,10 @@ export default function NonStockItemCreateForm() {
                             </section>
 
                             <div className="flex justify-between">
-                                <button type="button" onClick={() => setActiveTab('details')} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50">
+                                <button type="button" onClick={() => setActiveTab('details')} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-slate-600 transition-colors hover:bg-slate-50">
                                     <ArrowLeft size={16} /> Details
                                 </button>
-                                <button type="button" onClick={() => setActiveTab('options')} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50">
+                                <button type="button" onClick={() => setActiveTab('options')} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-slate-600 transition-colors hover:bg-slate-50">
                                     More Options <ChevronRight size={16} />
                                 </button>
                             </div>
@@ -492,7 +492,7 @@ export default function NonStockItemCreateForm() {
                             </section>
 
                             <div className="flex justify-start">
-                                <button type="button" onClick={() => setActiveTab('pricing')} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50">
+                                <button type="button" onClick={() => setActiveTab('pricing')} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-slate-600 transition-colors hover:bg-slate-50">
                                     <ArrowLeft size={16} /> Pricing
                                 </button>
                             </div>

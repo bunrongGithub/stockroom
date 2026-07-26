@@ -17,6 +17,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import PopUpDeleteTransactionModal from '@/components/ui/PopUpDeleteModal';
+import type { TMeta } from '@/types/app';
 import { useRegisterModule } from '@/hook/useModule';
 import { usePageActions } from '@/hook/usePageAction';
 import type { ModuleProps } from '@/lib/registry';
@@ -49,10 +50,9 @@ export default function Page({
   const dynamicActions = pageAction?.actions.filter((a) => a.dynamic) ?? [];
 
   const [data, setData] = useState<TRole[]>((initialData as TRole[]) ?? []);
+  const [meta, setMeta] = useState<TMeta>(initialMeta ?? DEFAUL_META);
 
-  const apiBase = pageAction.actions.find(
-    (item) => item.label.toLocaleLowerCase() === 'create',
-  )?.key!;
+  const apiBase = `/api${currentPath.path}`;
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<EmptyForm>(emptyForm);
@@ -78,13 +78,18 @@ export default function Page({
     setDialogOpen(true);
   };
 
-  const loadData = async () => {
-    const res = await fetch(apiBase);
+  // Server-side pagination: the list holds one page at a time, so page changes
+  // (and refreshes after create/delete) must re-query with page + limit.
+  const fetchPage = async (page: number, limit: number) => {
+    const res = await fetch(`${apiBase}?page=${page}&limit=${limit}`);
     if (res.ok) {
       const json = await res.json();
       setData(json.data ?? []);
+      setMeta(json.meta ?? DEFAUL_META);
     }
   };
+
+  const loadData = () => fetchPage(meta.page, meta.limit);
 
   const handleSave = async () => {
     setSaving(true);
@@ -126,8 +131,9 @@ export default function Page({
         method: 'DELETE',
       });
       if (!res.ok) throw new Error('Delete failed');
-      setData((prev) => prev.filter((role) => role.id !== deletingId));
       showToast('Role deleted', 'success');
+      // Re-fetch so totals/pages stay correct.
+      await fetchPage(meta.page, meta.limit);
     } catch {
       showToast('Delete failed', 'error');
     } finally {
@@ -189,6 +195,15 @@ export default function Page({
           (row.description ?? '').toLowerCase().includes(q)
         }
         searchPlaceholder="Search roles..."
+        pageSize={meta.limit}
+        pageSizeOptions={[10, 20, 50]}
+        serverSide={{
+          total: meta.total,
+          page: meta.page,
+          totalPages: meta.totalPages,
+          onPageChange: (p) => fetchPage(p, meta.limit),
+          onPageSizeChange: (limit) => fetchPage(1, limit),
+        }}
         emptyTitle="No roles yet"
         emptyDescription="Create your first role to get started"
         emptyAction={

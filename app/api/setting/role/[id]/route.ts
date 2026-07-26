@@ -1,3 +1,4 @@
+import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { getRequestContext } from '@/lib/request-context';
 import {
     ApiError,
@@ -19,6 +20,7 @@ export async function GET(
 ) {
     try {
         const context = getRequestContext(request);
+        await requirePermission(context, PERMISSIONS.setting.role.view, { req: request });
         const { id } = await params;
         const data = await Service.findOne(context, Number(id));
         return new ApiResponseSuccess(data, 'Success', 200).toResponse();
@@ -37,6 +39,7 @@ export async function PUT(
 ) {
     try {
         const context = getRequestContext(req);
+        await requirePermission(context, PERMISSIONS.setting.role.update, { req });
         const { id } = await params;
         const body = await req.json();
 
@@ -62,6 +65,7 @@ export async function PATCH(
 ) {
     try {
         const context = getRequestContext(req);
+        await requirePermission(context, PERMISSIONS.setting.role.update, { req });
         const { id } = await params;
         const body = await req.json();
 
@@ -91,6 +95,7 @@ export async function DELETE(
 ) {
     try {
         const context = getRequestContext(req);
+        await requirePermission(context, PERMISSIONS.setting.role.delete, { req });
         const { id } = await params;
         const data = await Service.deleteOne(context, Number(id));
         return new ApiResponseSuccess(data).toResponse();

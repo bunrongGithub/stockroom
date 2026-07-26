@@ -1,10 +1,14 @@
 'use client';
 
 import { useRegisterModule } from '@/hook/useModule';
+import { useCan } from '@/hook/useCan';
+import { PERMISSIONS } from '@/service/core/authz/permissions';
 import type { ModuleProps } from '@/lib/registry';
 import {saleOrderApi, saleShipmentApi } from '@/lib/api/sale';
 import { financesInvoiceApi } from '@/lib/api/finances';
 import { RelatedDocumentsPanel } from '@/components/ui/RelatedDocuments';
+import { AuditInformationCard } from '@/components/ui/AuditInformationCard';
+import type { AuditMeta } from '@/types/audit';
 import type {
   SalesInvoice,
   SalesInvoiceStatus,
@@ -97,6 +101,10 @@ export default function SaleShipmentDetail({
   } | null>(null);
   const [busy, setBusy] = useState<'post' | 'void' | null>(null);
 
+  // UX gating; server enforces. Show only if status allows AND user is granted.
+  const mayPost = useCan(PERMISSIONS.sales.shipment.post);
+  const mayVoid = useCan(PERMISSIONS.sales.shipment.void);
+
   function showToast(msg: string, type: 'success' | 'error') {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 4000);
@@ -107,9 +115,12 @@ export default function SaleShipmentDetail({
     try {
       const s = await saleShipmentApi.get(id);
       setShipment(s);
-      setInvoices(await financesInvoiceApi.byShipment(s.id));
+      // Related documents are best-effort: a user allowed to see shipments but
+      // not invoices/orders still gets the shipment — those sections just stay
+      // empty instead of failing the whole page (or firing a 403 toast).
+      setInvoices(await financesInvoiceApi.byShipment(s.id).catch(() => []));
       if (s.sales_order_id) {
-        setOrder(await saleOrderApi.get(s.sales_order_id));
+        setOrder(await saleOrderApi.get(s.sales_order_id).catch(() => null));
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load shipment');
@@ -258,7 +269,7 @@ export default function SaleShipmentDetail({
                 <PencilIcon size={14} /> Edit
               </button>
             )}
-            {a?.can_void && (
+            {a?.can_void && mayVoid && (
               <button
                 onClick={handleVoid}
                 disabled={busy !== null}
@@ -272,7 +283,7 @@ export default function SaleShipmentDetail({
                 Void
               </button>
             )}
-            {a?.can_post && (
+            {a?.can_post && mayPost && (
               <button
                 onClick={handlePost}
                 disabled={busy !== null}
@@ -302,6 +313,8 @@ export default function SaleShipmentDetail({
               </button>
             )}
           </div>
+
+          <AuditInformationCard audit={shipment as Partial<AuditMeta>} />
         </aside>
 
         {/* RIGHT — tabs */}

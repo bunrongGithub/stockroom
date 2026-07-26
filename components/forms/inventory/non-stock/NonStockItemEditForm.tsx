@@ -95,7 +95,7 @@ function ToggleCheckbox({
             <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                     <span className={checked ? 'text-blue-600' : 'text-slate-400'}>{icon}</span>
-                    <span className={`text-sm font-semibold ${checked ? 'text-blue-800' : 'text-slate-700'}`}>{label}</span>
+                    <span className={`text-xs ${checked ? 'text-blue-800' : 'text-slate-700'}`}>{label}</span>
                 </div>
                 <p className="mt-0.5 text-xs text-slate-400">{description}</p>
             </div>
@@ -172,7 +172,7 @@ export default function NonStockItemEditForm({ item }: { item: NonStockEditItem 
                 throw new Error(json.error?.message ?? json.error ?? 'Update failed');
             }
 
-            router.push(`/inventory/configurations/non-stock/${item.id}/view`);
+            router.push(`/inventory/configurations/non-stock-item/${item.id}/view`);
             router.refresh();
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to save changes');
@@ -185,10 +185,10 @@ export default function NonStockItemEditForm({ item }: { item: NonStockEditItem 
     const profitMargin = Number(formData.price) > 0 ? ((profit / Number(formData.price)) * 100).toFixed(1) : '0.0';
 
     return (
-        <div className="mx-auto max-w-7xl space-y-6 p-4 md:p-8">
+        <div className="space-y-4 font-mono">
             <div>
                 <Link
-                    href={`/inventory/configurations/non-stock/${item.id}/view`}
+                    href={`/inventory/configurations/non-stock-item/${item.id}/view`}
                     className="inline-flex items-center gap-2 text-sm text-slate-500 transition-colors hover:text-slate-700"
                 >
                     <ArrowLeft size={16} /> Back to Item
@@ -208,7 +208,7 @@ export default function NonStockItemEditForm({ item }: { item: NonStockEditItem 
                 </div>
             )}
 
-            <form onSubmit={handleSave} className="grid gap-6 xl:grid-cols-[300px_minmax(0,1fr)]">
+            <form onSubmit={handleSave} className="grid gap-6 xl:grid-cols-[350px_minmax(0,1fr)] text-xs">
                 {/* LEFT SIDEBAR */}
                 <aside className="space-y-4 self-start xl:sticky xl:top-6">
                     <section className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
@@ -218,7 +218,7 @@ export default function NonStockItemEditForm({ item }: { item: NonStockEditItem 
                         </div>
                         <div className="p-4">
                             <div className="flex items-center gap-3">
-                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#1a9e52] to-emerald-700 text-sm font-bold text-white shadow-sm">
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-[#1a9e52] to-emerald-700 text-sm font-bold text-white shadow-sm">
                                     {item.name?.[0]?.toUpperCase() ?? 'I'}
                                 </div>
                                 <div className="min-w-0">
@@ -251,7 +251,7 @@ export default function NonStockItemEditForm({ item }: { item: NonStockEditItem 
 
                     <div className="flex flex-col-reverse gap-2">
                         <Link
-                            href={`/inventory/configurations/non-stock/${item.id}/view`}
+                            href={`/inventory/configurations/non-stock-item/${item.id}/view`}
                             className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-center text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
                         >
                             Cancel
@@ -268,14 +268,14 @@ export default function NonStockItemEditForm({ item }: { item: NonStockEditItem 
                 </aside>
 
                 {/* RIGHT — Tabs */}
-                <div className="min-w-0">
+                <div className="min-w-0 text-xs">
                     <div className="flex gap-0 border-b border-slate-200">
                         {TABS.map((tab) => (
                             <button
                                 key={tab.id}
                                 type="button"
                                 onClick={() => setActiveTab(tab.id)}
-                                className={`flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-medium transition-all ${
+                                className={`flex items-center gap-2 border-b-2 px-5 py-3 transition-all ${
                                     activeTab === tab.id ? 'border-[#1a9e52] text-[#1a9e52]' : 'border-transparent text-slate-500 hover:text-slate-700'
                                 }`}
                             >
@@ -347,7 +347,7 @@ export default function NonStockItemEditForm({ item }: { item: NonStockEditItem 
                                         <AsyncSearchSelect
                                             label="Base UOM"
                                             placeholder="Select unit of measure..."
-                                            apiUrl="/api/inventory/configurations/uom"
+                                            apiUrl="/api/inventory/configurations/uom?status=active"
                                             value={formData.uom_id}
                                             selectedLabel={formData.uom?.name ?? ''}
                                             popupTitle="Base UOM"
@@ -375,7 +375,7 @@ export default function NonStockItemEditForm({ item }: { item: NonStockEditItem 
                             </section>
 
                             <div className="flex justify-end">
-                                <button type="button" onClick={() => setActiveTab('pricing')} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50">
+                                <button type="button" onClick={() => setActiveTab('pricing')} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-slate-600 transition-colors hover:bg-slate-50">
                                     Pricing <ChevronRight size={16} />
                                 </button>
                             </div>
@@ -431,10 +431,10 @@ export default function NonStockItemEditForm({ item }: { item: NonStockEditItem 
                             </section>
 
                             <div className="flex justify-between">
-                                <button type="button" onClick={() => setActiveTab('details')} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50">
+                                <button type="button" onClick={() => setActiveTab('details')} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-slate-600 transition-colors hover:bg-slate-50">
                                     <ArrowLeft size={16} /> Details
                                 </button>
-                                <button type="button" onClick={() => setActiveTab('options')} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50">
+                                <button type="button" onClick={() => setActiveTab('options')} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-slate-600 transition-colors hover:bg-slate-50">
                                     More Options <ChevronRight size={16} />
                                 </button>
                             </div>
@@ -493,7 +493,7 @@ export default function NonStockItemEditForm({ item }: { item: NonStockEditItem 
                             </section>
 
                             <div className="flex justify-start">
-                                <button type="button" onClick={() => setActiveTab('pricing')} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50">
+                                <button type="button" onClick={() => setActiveTab('pricing')} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-slate-600 transition-colors hover:bg-slate-50">
                                     <ArrowLeft size={16} /> Pricing
                                 </button>
                             </div>

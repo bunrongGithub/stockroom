@@ -10,25 +10,61 @@ import type {
 
 // ─── Company Management ──────────────────────────────────────────────────────
 
+export type CompanyListParams = {
+    page?: number;
+    limit?: number;
+    search?: string;
+};
+
+export type CreateCompanyPayload = UpdateCompanyPayload & { name: string };
+
 export const companyApi = {
-    async get(): Promise<Company> {
+    /** Own company when `id` is omitted; a specific company otherwise. */
+    async get(id?: number): Promise<Company> {
+        const url = id
+            ? `${API.setting.company.root}/${id}`
+            : `${API.setting.company.root}?self=1`;
+        const body = await unwrap<{ data: Company }>(await fetch(url));
+        return body.data;
+    },
+
+    async list(params: CompanyListParams = {}): Promise<Paginated<Company>> {
+        const url = new URL(API.setting.company.root, window.location.origin);
+        url.searchParams.set('page', String(params.page ?? 1));
+        url.searchParams.set('limit', String(params.limit ?? 10));
+        if (params.search) url.searchParams.set('search', params.search);
+        return unwrap<Paginated<Company>>(await fetch(url.toString()));
+    },
+
+    async create(payload: CreateCompanyPayload): Promise<Company> {
         const body = await unwrap<{ data: Company }>(
-            await fetch(API.setting.company.root),
+            await fetch(API.setting.company.root, jsonInit('POST', payload)),
         );
         return body.data;
     },
 
-    async update(payload: UpdateCompanyPayload): Promise<Company> {
+    async update(
+        payload: UpdateCompanyPayload,
+        id?: number,
+    ): Promise<Company> {
+        const url = id
+            ? `${API.setting.company.root}/${id}`
+            : API.setting.company.root;
         const body = await unwrap<{ data: Company }>(
-            await fetch(API.setting.company.root, jsonInit('PATCH', payload)),
+            await fetch(url, jsonInit('PATCH', payload)),
         );
         return body.data;
     },
 
-    async listUsers(page = 1, limit = 50): Promise<Paginated<CompanyUser>> {
+    async listUsers(
+        page = 1,
+        limit = 10,
+        companyId?: number,
+    ): Promise<Paginated<CompanyUser>> {
         const url = new URL(API.setting.company.users, window.location.origin);
         url.searchParams.set('page', String(page));
         url.searchParams.set('limit', String(limit));
+        if (companyId) url.searchParams.set('id', String(companyId));
         return unwrap<Paginated<CompanyUser>>(await fetch(url.toString()));
     },
 
@@ -50,14 +86,14 @@ export const companyApi = {
         );
     },
 
-    async uploadLogo(file: File): Promise<string> {
+    async uploadLogo(file: File, companyId?: number): Promise<string> {
         const formData = new FormData();
         formData.append('file', file);
+        const url = companyId
+            ? `${API.setting.company.logo}?id=${companyId}`
+            : API.setting.company.logo;
         const body = await unwrap<{ data: { logo_url: string } }>(
-            await fetch(API.setting.company.logo, {
-                method: 'POST',
-                body: formData,
-            }),
+            await fetch(url, { method: 'POST', body: formData }),
         );
         return body.data.logo_url;
     },

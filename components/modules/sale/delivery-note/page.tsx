@@ -1,11 +1,14 @@
 'use client';
 
 import { DataTable, type DataTableColumn } from '@/components/ui/DataTable';
+import { auditUserColumns } from '@/components/ui/audit-columns';
 import { useRegisterModule } from '@/hook/useModule';
+import { useTableQuery } from '@/hook/useTableQuery';
 import type { ModuleProps } from '@/lib/registry';
 import { saleShipmentApi } from '@/lib/api/sale';
+import { API } from '@/lib/constant';
 import type { SalesShipment, SalesShipmentStatus } from '@/types/sales/order-management';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
     EyeIcon,
@@ -13,7 +16,6 @@ import {
     SendIcon,
     Ban,
     Trash2Icon,
-    Loader2Icon,
 } from 'lucide-react';
 
 function StatusBadge({ status }: { status: SalesShipmentStatus }) {
@@ -27,12 +29,10 @@ function StatusBadge({ status }: { status: SalesShipmentStatus }) {
     return <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-mono font-medium ${map[status]}`}>{status}</span>;
 }
 
-export default function SaleShipmentPage({ currentPath, permission, currentPathActions }: ModuleProps) {
+export default function SaleShipmentPage({ currentPath, permission, currentPathActions, initialData, initialMeta }: ModuleProps) {
     useRegisterModule({ actionModules: currentPathActions, permission, modulePath: currentPath.path });
 
     const router = useRouter();
-    const [shipments, setShipments] = useState<SalesShipment[]>([]);
-    const [loading, setLoading] = useState(true);
     const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
     const [confirm, setConfirm] = useState<{ type: 'post' | 'void' | 'delete'; id: number; no: string } | null>(null);
     const [busy, setBusy] = useState(false);
@@ -42,20 +42,17 @@ export default function SaleShipmentPage({ currentPath, permission, currentPathA
         setTimeout(() => setToast(null), 4000);
     }
 
-    async function refresh() {
-        setLoading(true);
-        try {
-            setShipments(await saleShipmentApi.list());
-        } catch (e) {
-            showToast(e instanceof Error ? e.message : 'Failed to load shipments', 'error');
-        } finally {
-            setLoading(false);
-        }
-    }
+    // Query Framework: search/sort/filter/pagination run server-side and the
+    // full list state lives in the URL.
+    const table = useTableQuery<SalesShipment>({
+        endpoint: API.sale.shipment.root,
+        initialData: initialData as SalesShipment[] | undefined,
+        initialMeta,
+    });
 
-    useEffect(() => {
-        refresh();
-    }, []);
+    async function refreshShipments() {
+        await table.refresh();
+    }
 
     async function runAction() {
         if (!confirm) return;
@@ -68,7 +65,7 @@ export default function SaleShipmentPage({ currentPath, permission, currentPathA
                 confirm.type === 'post' ? 'Shipment posted — stock updated.' : confirm.type === 'void' ? 'Shipment voided.' : 'Shipment deleted.',
                 'success',
             );
-            await refresh();
+            await refreshShipments();
         } catch (e) {
             showToast(e instanceof Error ? e.message : `Cannot ${confirm.type} shipment`, 'error');
         } finally {
@@ -81,6 +78,7 @@ export default function SaleShipmentPage({ currentPath, permission, currentPathA
         {
             key: 'shipment_no',
             header: 'Shipment No',
+            sortable: true,
             cell: (row) => (
                 <button onClick={() => router.push(`/sale/delivery-note/${row.id}/view`)} className="font-mono text-xs font-semibold text-sky-600 hover:underline">
                     {row.shipment_no}
@@ -88,9 +86,10 @@ export default function SaleShipmentPage({ currentPath, permission, currentPathA
             ),
         },
         { key: 'order_no', header: 'Order', cell: (row) => <span className="font-mono text-xs">{row.sales_order_no}</span> },
-        { key: 'customer', header: 'Customer', cell: (row) => <span className="font-mono text-xs">{row.customer_name || '—'}</span> },
-        { key: 'delivery_date', header: 'Delivery Date', cell: (row) => <span className="font-mono text-xs">{row.delivery_date}</span> },
-        { key: 'status', header: 'Status', cell: (row) => <StatusBadge status={row.status} /> },
+        { key: 'customer', header: 'Customer', sortable: true, sortKey: 'customer_name', cell: (row) => <span className="font-mono text-xs">{row.customer_name || '—'}</span> },
+        { key: 'delivery_date', header: 'Delivery Date', sortable: true, cell: (row) => <span className="font-mono text-xs">{row.delivery_date}</span> },
+        { key: 'status', header: 'Status', sortable: true, cell: (row) => <StatusBadge status={row.status} /> },
+        ...auditUserColumns<SalesShipment>(),
         {
             key: 'actions',
             header: 'Actions',
@@ -159,25 +158,32 @@ export default function SaleShipmentPage({ currentPath, permission, currentPathA
                 </div>
             </div>
 
-            {loading ? (
-                <div className="flex items-center justify-center h-64"><Loader2Icon className="animate-spin text-emerald-500" size={26} /></div>
-            ) : (
-                <DataTable<SalesShipment>
-                    columns={columns}
-                    data={shipments}
-                    keyExtractor={(row) => row.id}
-                    searchFn={(row, q) =>
-                        row.shipment_no.toLowerCase().includes(q) ||
-                        row.sales_order_no.toLowerCase().includes(q) ||
-                        (row.customer_name ?? '').toLowerCase().includes(q) ||
-                        row.status.toLowerCase().includes(q)
-                    }
-                    searchPlaceholder="Search by shipment no, order, or status..."
-                    pageSize={10}
-                    emptyTitle="No shipments"
-                    emptyDescription="Create a shipment from a sales order"
-                />
-            )}
+            <DataTable<SalesShipment>
+                columns={columns}
+                data={table.data}
+                keyExtractor={(row) => row.id}
+                searchPlaceholder="Search by shipment no, reference, or customer..."
+                pageSizeOptions={[10, 20, 50]}
+                serverQuery={table.binding}
+                filterDefs={[
+                    {
+                        key: 'status',
+                        label: 'Status',
+                        type: 'select',
+                        options: [
+                            { value: 'DRAFT', label: 'Draft' },
+                            { value: 'POSTED', label: 'Posted' },
+                            { value: 'VOID', label: 'Void' },
+                            { value: 'INVOICED', label: 'Invoiced' },
+                            { value: 'PARTIALLY_INVOICED', label: 'Partially Invoiced' },
+                        ],
+                    },
+                    { key: 'delivery_date', label: 'Delivery Date', type: 'date-range' },
+                ]}
+                enableColumnVisibility
+                emptyTitle="No shipments"
+                emptyDescription="Create a shipment from a sales order"
+            />
         </main>
     );
 }

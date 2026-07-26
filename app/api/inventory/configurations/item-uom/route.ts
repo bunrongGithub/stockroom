@@ -1,3 +1,4 @@
+import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { createUomSchema } from '@/service/schema/uom.schema';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -7,6 +8,7 @@ import { service } from '.';
 export async function GET(request: NextRequest) {
     try {
         const ctx = getRequestContext(request);
+        await requirePermission(ctx, PERMISSIONS.inventory.item.view, { req: request });
         const searchParams = request.nextUrl.searchParams;
 
         const page = Number(searchParams.get('page') || 1);

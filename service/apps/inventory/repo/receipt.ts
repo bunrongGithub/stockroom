@@ -5,6 +5,8 @@ import {
     NotFoundError,
 } from '@/service/core/api-response';
 import { BaseRepository } from '@/service/core/base-repository';
+import type { QueryConfig } from '@/service/core/query/config.ts';
+import type { QueryObject } from '@/service/core/query/types.ts';
 import type {
     PaginatedResult,
     PaginationParams,
@@ -15,9 +17,10 @@ import type {
     UpdateReceiptInput,
 } from '@/service/schema/receipt.schema';
 import type { RequestContext } from '@/types/request-context';
+import type { AuditMeta } from '@/types/audit';
 import { ItemUomRepository } from './item-uom';
 import { MovementRepository } from './movement';
-import { InventorySerialRepository } from './serial';
+import { SerialManagementService } from '@/service/apps/inventory/serial';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export type InventoryTxnMovementType =
@@ -108,9 +111,14 @@ type PostReceiptResult = { ok: boolean; receipt_id?: number; error?: string };
 
 const HEADER_TABLE = 'receipt_transaction' as const;
 const LINE_TABLE = 'receipt_items' as const;
-const SELECT_LIST = '*, company(id, name), created_by:profiles(id, full_name)';
+// Note: no `created_by:profiles(...)` embed here. Since the audit framework
+// added created_by + updated_by FKs to profiles there are now THREE relationships
+// between receipt_transaction and profiles, so a bare `profiles` embed is
+// ambiguous (PGRST201). The creator is resolved through the shared batched
+// enricher (enrichAudit) instead, which also yields created_by_user/updated_by_user.
+const SELECT_LIST = '*, company(id, name)';
 const SELECT_DETAIL =
-    '*, company(id, name), created_by:profiles(id, full_name), items:receipt_items(*, item:inventory_item(id, name), warehouse:warehouse(id, name), location:warehouse_location(id, name), item_uom:inventory_item_uom(id, name, display_name))';
+    '*, company(id, name), items:receipt_items(*, item:inventory_item(id, name), warehouse:warehouse(id, name), location:warehouse_location(id, name), item_uom:inventory_item_uom(id, name, display_name))';
 
 // ─── Repository ───────────────────────────────────────────────────────────────
 
@@ -178,6 +186,50 @@ export class ReceiptItemRepository extends BaseRepository {
 export class ReceiptRepository extends BaseRepository {
     private static instance: ReceiptRepository;
 
+    /** Query Framework registry. */
+    protected readonly queryConfig: QueryConfig = {
+        table: HEADER_TABLE,
+        searchable: ['reference_no', 'source_reference_no'],
+        sortable: [
+            'reference_no',
+            'received_date',
+            'transaction_date',
+            'status',
+            'created_at',
+        ],
+        filterable: {
+            status: { type: 'enum', values: ['DRAFT', 'POSTED', 'VOID'] },
+            received_date: { type: 'date' },
+            transaction_date: { type: 'date' },
+            created_at: { type: 'date' },
+        },
+        relations: {
+            company: { table: 'company', columns: ['id', 'name'], always: true },
+        },
+        defaultSort: [{ field: 'id', direction: 'desc' }],
+    };
+
+    /** Standardized list path (Query Framework). */
+    async findAllV2(
+        ctx: RequestContext,
+        query: QueryObject,
+    ): Promise<PaginatedResult<ReceiptTxnType>> {
+        const result = await this.findAllQuery<
+            ReceiptTxnType & { created_by?: string | null }
+        >(ctx, query);
+        // Resolve created_by → creator profile for the list's "Created By"
+        // column in ONE batched query (no N+1).
+        const enriched = await this.enrichAudit(result.data);
+        return {
+            ...result,
+            data: enriched.map((row) => ({
+                ...row,
+                created_by: row.created_by_user,
+                actions: computeReceiptActions(row.status),
+            })),
+        };
+    }
+
     static getInstance(): ReceiptRepository {
         if (!ReceiptRepository.instance) {
             ReceiptRepository.instance = new ReceiptRepository();
@@ -206,10 +258,18 @@ export class ReceiptRepository extends BaseRepository {
             search: undefined,
             searchColumn: undefined,
         });
+        // Resolve created_by → creator profile for the list's "Created By"
+        // column in ONE batched query (no N+1).
+        const enriched = await this.enrichAudit(
+            result.data as Array<
+                ReceiptTxnType & { created_by?: string | null }
+            >,
+        );
         return {
             ...result,
-            data: result.data.map((row) => ({
+            data: enriched.map((row) => ({
                 ...row,
+                created_by: row.created_by_user,
                 actions: computeReceiptActions(row.status),
             })),
         };
@@ -218,7 +278,7 @@ export class ReceiptRepository extends BaseRepository {
     async findOne(
         ctx: RequestContext,
         id: number,
-    ): Promise<ReceiptTxnType | null> {
+    ): Promise<(ReceiptTxnType & Partial<AuditMeta>) | null> {
         const isSuperUser = await this.isSupperUser(ctx);
         const { data, error } = await this.applyFilter(
             this.db.from(HEADER_TABLE).select(SELECT_DETAIL).eq('id', id),
@@ -228,8 +288,19 @@ export class ReceiptRepository extends BaseRepository {
 
         if (error) throw new ApiError(error.message, 500);
         if (!data) return null;
-        const receipt = data as ReceiptTxnType;
-        return { ...receipt, actions: computeReceiptActions(receipt.status) };
+        const receipt = data as ReceiptTxnType & {
+            created_by?: string | null;
+            updated_by?: string | null;
+        };
+        const enriched = await this.enrichAuditOne({
+            ...receipt,
+            actions: computeReceiptActions(receipt.status),
+            created_by: receipt.created_by ?? null,
+            updated_by: receipt.updated_by ?? null,
+        });
+        // Keep the legacy `created_by` shape (creator profile object) that the
+        // receipt detail UI reads; the card uses created_by_user/updated_by_user.
+        return { ...enriched, created_by: enriched.created_by_user };
     }
 
     async insertOne(
@@ -245,13 +316,15 @@ export class ReceiptRepository extends BaseRepository {
 
         const { data: headerData, error: headerError } = await this.db
             .from(HEADER_TABLE)
-            .insert({
-                ...header,
-                reference_no,
-                status: 'DRAFT',
-                company_id: Number(ctx.companyId),
-                user_id: ctx.userId,
-            })
+            .insert(
+                this.stampCreate(ctx, {
+                    ...header,
+                    reference_no,
+                    status: 'DRAFT',
+                    company_id: Number(ctx.companyId),
+                    user_id: ctx.userId,
+                }),
+            )
             .select()
             .single();
 
@@ -290,7 +363,7 @@ export class ReceiptRepository extends BaseRepository {
 
         const { error: headerError } = await this.db
             .from(HEADER_TABLE)
-            .update({ ...header })
+            .update(this.stampUpdate(ctx, { ...header }))
             .eq('id', id)
             .eq('company_id', Number(ctx.companyId));
 
@@ -398,7 +471,7 @@ export class ReceiptRepository extends BaseRepository {
         // ── 3. Create serial records for serial-tracked lines ─────────────
         // Now that stock exists, materialise one inventory_serial (Available)
         // per entered serial + its initial history row.
-        const serialRepo = InventorySerialRepository.getInstance();
+        const serialRepo = SerialManagementService.getInstance();
         const trackItemIds = [...new Set(receipt.items.map((i) => i.item_id))];
         const { data: trackRows } = await this.db
             .from('inventory_item')
@@ -426,7 +499,7 @@ export class ReceiptRepository extends BaseRepository {
         // ── 4. Mark receipt as POSTED ─────────────────────────────────────
         const { error: postErr } = await this.db
             .from(HEADER_TABLE)
-            .update({ status: 'POSTED' })
+            .update(this.stampUpdate(ctx, { status: 'POSTED' }))
             .eq('id', id)
             .eq('company_id', companyId);
 
@@ -455,7 +528,7 @@ export class ReceiptRepository extends BaseRepository {
 
         const { error } = await this.db
             .from(HEADER_TABLE)
-            .update({ status: 'VOID' })
+            .update(this.stampUpdate(ctx, { status: 'VOID' }))
             .eq('id', id)
             .eq('company_id', Number(ctx.companyId));
 

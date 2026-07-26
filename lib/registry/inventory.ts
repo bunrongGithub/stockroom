@@ -12,6 +12,10 @@ export const inventoryRegistry: RegistryEntry[] = [
         () => import('@/components/modules/inventory/InventoryConfigModule'),
     ],
     [
+        'InventorySerialSetting',
+        () => import('@/components/modules/inventory/setting/SerialSettingPage'),
+    ],
+    [
         'InventoryCategoryModule',
         () => import('@/components/modules/inventory/InventoryCategoryModule'),
     ],
@@ -30,6 +34,22 @@ export const inventoryRegistry: RegistryEntry[] = [
     [
         'InventoryStockAdjUpdate',
         () => import('@/components/modules/inventory/adjustment/action/Update'),
+    ],
+    [
+        'InventoryStockCountModule',
+        () => import('@/components/modules/inventory/stock_count/page'),
+    ],
+    [
+        'InventoryStockCountCreate',
+        () => import('@/components/modules/inventory/stock_count/action/Create'),
+    ],
+    [
+        'InventoryStockCountDetail',
+        () => import('@/components/modules/inventory/stock_count/action/Detail'),
+    ],
+    [
+        'InventoryStockCountUpdate',
+        () => import('@/components/modules/inventory/stock_count/action/Update'),
     ],
 
     // ── Stock Items ───────────────────────────────────────────────────────────
@@ -67,6 +87,24 @@ export const inventoryRegistry: RegistryEntry[] = [
     [
         'InventoryNonStockUpdate',
         () => import('@/components/modules/inventory/non-stock/action/Update'),
+    ],
+
+    // ── Service Items ─────────────────────────────────────────────────────────
+    [
+        'InventoryServiceItemModule',
+        () => import('@/components/modules/inventory/service/page'),
+    ],
+    [
+        'InventoryServiceItemCreate',
+        () => import('@/components/modules/inventory/service/action/Create'),
+    ],
+    [
+        'InventoryServiceItemView',
+        () => import('@/components/modules/inventory/service/action/View'),
+    ],
+    [
+        'InventoryServiceItemUpdate',
+        () => import('@/components/modules/inventory/service/action/Update'),
     ],
 
     // ── Category ──────────────────────────────────────────────────────────────

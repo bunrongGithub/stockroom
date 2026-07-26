@@ -1,3 +1,4 @@
+import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { getRequestContext } from '@/lib/request-context';
 import { assertRole } from '@/lib/auth';
 import { ApiError, ApiResponseSuccess } from '@/service/core/api-response';
@@ -9,8 +10,10 @@ import {
 import { NextRequest } from 'next/server';
 
 // GET /api/setting/company/users — paginated members of the caller's company.
+// `?id=` targets another company (super admin only, enforced in the repo).
 export async function GET(request: NextRequest) {
     const context = getRequestContext(request);
+    await requirePermission(context, PERMISSIONS.setting.user.view, { req: request });
     try {
         const { searchParams } = request.nextUrl;
         const page = Math.max(1, Number(searchParams.get('page') ?? 1));
@@ -18,7 +21,8 @@ export async function GET(request: NextRequest) {
             100,
             Math.max(1, Number(searchParams.get('limit') ?? 10)),
         );
-        const data = await listCompanyUsers(context, { page, limit });
+        const overrideId = Number(searchParams.get('id')) || undefined;
+        const data = await listCompanyUsers(context, { page, limit }, overrideId);
         return new ApiResponseSuccess(data).toResponse();
     } catch (exception) {
         if (exception instanceof ApiError) return exception.toResponse();
@@ -29,6 +33,7 @@ export async function GET(request: NextRequest) {
 // POST /api/setting/company/users — assign (replace) a member's role.
 export async function POST(request: NextRequest) {
     const context = getRequestContext(request);
+    await requirePermission(context, PERMISSIONS.setting.user.create, { req: request });
     try {
         assertRole(context, 'admin');
         const body = await request.json();
@@ -43,6 +48,7 @@ export async function POST(request: NextRequest) {
 // DELETE /api/setting/company/users — remove a member from the company.
 export async function DELETE(request: NextRequest) {
     const context = getRequestContext(request);
+    await requirePermission(context, PERMISSIONS.setting.user.delete, { req: request });
     try {
         assertRole(context, 'admin');
         const body = await request.json();

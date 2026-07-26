@@ -1,3 +1,4 @@
+import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { idParamSchema, branchUpdateSchema } from '@/service/schema/branch.schema';
 import { NextRequest, NextResponse } from 'next/server';
 import { getRequestContext } from '@/lib/request-context';
@@ -11,6 +12,7 @@ type Params = { params: Promise<{ id: string }> };
 export async function GET(req: NextRequest, { params }: Params) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.inventory.warehouse.view, { req: req });
         const { id } = await params;
         const parsed = idParamSchema.safeParse({ id });
         if (!parsed.success) {
@@ -30,6 +32,7 @@ export async function GET(req: NextRequest, { params }: Params) {
 export async function PATCH(req: NextRequest, { params }: Params) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.inventory.warehouse.update, { req: req });
         const { id } = await params;
         const parsed = idParamSchema.safeParse({ id });
         if (!parsed.success) {
@@ -57,6 +60,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 export async function DELETE(req: NextRequest, { params }: Params) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.inventory.warehouse.delete, { req: req });
         const { id } = await params;
         const parsed = idParamSchema.safeParse({ id });
         if (!parsed.success) {

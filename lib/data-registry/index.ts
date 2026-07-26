@@ -1,6 +1,9 @@
 import type { RequestContext } from '@/types/request-context';
 import type { PaginatedResult } from '@/service/core/pagination';
+import { parseListQuery } from '@/service/core/query/parse.ts';
+import type { QueryObject } from '@/service/core/query/types.ts';
 
+import { BusinessPartnerRepository } from '@/service/apps/master-data/business-partner';
 import { CategoryRepository } from '@/service/apps/inventory/repo/category';
 import { InventoryRepository } from '@/service/apps/inventory/repo/stock';
 import { InventoryUomRepository } from '@/service/apps/inventory/repo/uom';
@@ -8,6 +11,11 @@ import { WarehouseRepository } from '@/service/apps/inventory/repo/warehouse';
 import { ReceiptRepository } from '@/service/apps/inventory/repo/receipt';
 import { ModuleRepository } from '@/service/apps/setting/repo/module';
 import { Role } from '@/service/apps/base/core/role';
+import { SalesOrderRepository } from '@/service/apps/sale/repo/order';
+import { SalesShipmentRepository } from '@/service/apps/sale/repo/shipment';
+import { StockAdjustmentRepository } from '@/service/apps/inventory/repo/adjustment';
+import { StockCountRepository } from '@/service/apps/inventory/repo/stock-count';
+import { CashSaleService } from '@/service/apps/sale/cash-sale';
 
 // ─── Server-side initial-data registry ──────────────────────────────────────
 // Maps a module path (the `modules.path` pattern) to the repository call that
@@ -25,6 +33,24 @@ export interface LoaderArgs {
     search?: string;
     /** Values captured from dynamic path segments, e.g. { id: '32' }. */
     pathParams: Record<string, string>;
+    /**
+     * The full URL search params, for loaders on the Query Framework — sort,
+     * filter[...], include etc. ride here so a bookmarked URL restores the
+     * complete list state on the server render.
+     */
+    searchParams?: Record<string, string | string[] | undefined>;
+}
+
+/** Build the framework QueryObject from loader args (wire-format parse). */
+function toWireQuery(args: LoaderArgs): QueryObject {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(args.searchParams ?? {})) {
+        if (typeof value === 'string') params.set(key, value);
+    }
+    params.set('page', String(args.page));
+    params.set('limit', String(args.limit));
+    if (args.search) params.set('search', args.search);
+    return parseListQuery(params);
 }
 
 export interface LoaderResult {
@@ -40,6 +66,16 @@ export type DataLoader = (
 const roleService = new Role();
 
 const dataRegistry = new Map<string, DataLoader>([
+    // ── Master Data ─────────────────────────────────────────────────────────
+    [
+        '/master-data/business-partner',
+        (ctx, args) =>
+            BusinessPartnerRepository.getInstance().findAllV2(
+                ctx,
+                toWireQuery(args),
+            ),
+    ],
+
     // ── Inventory · configurations (lists) ──────────────────────────────────
     [
         '/inventory/configurations/category',
@@ -53,31 +89,38 @@ const dataRegistry = new Map<string, DataLoader>([
     ],
     [
         '/inventory/configurations/stock-item',
-        (ctx, { page, limit, search }) =>
-            InventoryRepository.getInstance().findAllByClass(
+        (ctx, args) =>
+            InventoryRepository.getInstance().findAllByClassV2(
                 ctx,
-                { page, limit, search, searchColumn: 'name' },
+                toWireQuery(args),
                 'stock',
             ),
     ],
     [
         '/inventory/configurations/non-stock-item',
-        (ctx, { page, limit, search }) =>
-            InventoryRepository.getInstance().findAllByClass(
+        (ctx, args) =>
+            InventoryRepository.getInstance().findAllByClassV2(
                 ctx,
-                { page, limit, search, searchColumn: 'name' },
+                toWireQuery(args),
                 'non_stock',
             ),
     ],
     [
+        '/inventory/configurations/service-item',
+        (ctx, args) =>
+            InventoryRepository.getInstance().findAllByClassV2(
+                ctx,
+                toWireQuery(args),
+                'service',
+            ),
+    ],
+    [
         '/inventory/configurations/uom',
-        (ctx, { page, limit, search }) =>
-            InventoryUomRepository.getInstance().findAll(ctx, {
-                page,
-                limit,
-                search,
-                searchColumn: 'name',
-            }),
+        (ctx, args) =>
+            InventoryUomRepository.getInstance().findAllV2(
+                ctx,
+                toWireQuery(args),
+            ),
     ],
     [
         '/inventory/configurations/warehouse',
@@ -93,13 +136,46 @@ const dataRegistry = new Map<string, DataLoader>([
     // ── Inventory · transactions ────────────────────────────────────────────
     [
         '/inventory/receipts',
-        (ctx, { page, limit, search }) =>
-            ReceiptRepository.getInstance().findAll(ctx, {
-                page,
-                limit,
-                search,
-                searchColumn: 'reference_no',
-            }),
+        (ctx, args) =>
+            ReceiptRepository.getInstance().findAllV2(ctx, toWireQuery(args)),
+    ],
+    [
+        // Module path ≠ API path (/api/inventory/adjustment), so the loopback
+        // fallback would 404 — it must load through this in-process loader.
+        '/inventory/stock_adjust',
+        (ctx, args) =>
+            StockAdjustmentRepository.getInstance().findAllV2(
+                ctx,
+                toWireQuery(args),
+            ),
+    ],
+    [
+        // Module path ≠ API path (/api/inventory/stock-count) — in-process
+        // loader required, same as stock_adjust.
+        '/inventory/stock_count',
+        (ctx, args) =>
+            StockCountRepository.getInstance().findAllV2(
+                ctx,
+                toWireQuery(args),
+            ),
+    ],
+    [
+        '/inventory/stock_count/:id/view',
+        async (ctx, { pathParams }) => ({
+            data: await StockCountRepository.getInstance().findOne(
+                ctx,
+                Number(pathParams.id),
+            ),
+        }),
+    ],
+    [
+        '/inventory/stock_count/:id/update',
+        async (ctx, { pathParams }) => ({
+            data: await StockCountRepository.getInstance().findOne(
+                ctx,
+                Number(pathParams.id),
+            ),
+        }),
     ],
     [
         '/inventory/receipts/:id/view',
@@ -118,6 +194,36 @@ const dataRegistry = new Map<string, DataLoader>([
                 Number(pathParams.id),
             ),
         }),
+    ],
+
+    // ── Sale ────────────────────────────────────────────────────────────────
+    // Without these the catch-all falls back to an HTTP loopback on
+    // `apiUrl(path)`, which 404s for Delivery (module path ≠ API path) and
+    // silently renders an empty list.
+    [
+        '/sale/order',
+        // Counter sales live on the Cash Sale list, not the order pipeline.
+        (ctx, args) =>
+            SalesOrderRepository.getInstance().findAllV2(
+                ctx,
+                toWireQuery(args),
+                'sales_order',
+            ),
+    ],
+    [
+        '/sale/delivery-note',
+        (ctx, args) =>
+            SalesShipmentRepository.getInstance().findAllV2(
+                ctx,
+                toWireQuery(args),
+            ),
+    ],
+    [
+        // History list — module path ≠ API path (/api/sale/cash-sale), so it
+        // must load through this loader rather than the HTTP loopback.
+        '/sale/cash-sale/history',
+        (ctx, args) =>
+            CashSaleService.getInstance().listSalesV2(ctx, toWireQuery(args)),
     ],
 
     // ── Setting ─────────────────────────────────────────────────────────────

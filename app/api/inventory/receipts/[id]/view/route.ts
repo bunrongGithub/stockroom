@@ -1,3 +1,4 @@
+import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { RequestParam } from '@/app/api/http';
 import { getRequestContext } from '@/lib/request-context';
 import { receiptIdSchema } from '@/service/schema/receipt.schema';
@@ -12,6 +13,7 @@ import {
 export async function GET(req: NextRequest, { params }: RequestParam) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.inventory.receipt.view, { req: req });
         const { id } = await params;
         const parsed = receiptIdSchema.safeParse({ id });
 

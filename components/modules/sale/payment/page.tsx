@@ -1,16 +1,18 @@
 'use client';
 
 import { DataTable, type DataTableColumn } from '@/components/ui/DataTable';
+import { auditUserColumns } from '@/components/ui/audit-columns';
 import { useRegisterModule } from '@/hook/useModule';
+import { useTableQuery } from '@/hook/useTableQuery';
 import type { ModuleProps } from '@/lib/registry';
 import { financesPaymentApi } from '@/lib/api/finances';
+import { API } from '@/lib/constant';
 import type { CustomerPayment, PaymentStatus } from '@/types/sales/payment';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Ban,
   EyeIcon,
-  Loader2Icon,
   PencilIcon,
   PlusIcon,
   SendIcon,
@@ -37,6 +39,7 @@ const METHOD_LABEL: Record<string, string> = {
   BANK_TRANSFER: 'Bank Transfer',
   CARD: 'Card',
   CHEQUE: 'Cheque',
+  KHQR: 'ABA KHQR',
   OTHER: 'Other',
 };
 
@@ -51,6 +54,8 @@ export default function SalePaymentPage({
   currentPath,
   permission,
   currentPathActions,
+  initialData,
+  initialMeta,
 }: ModuleProps) {
   useRegisterModule({
     actionModules: currentPathActions,
@@ -59,8 +64,6 @@ export default function SalePaymentPage({
   });
 
   const router = useRouter();
-  const [payments, setPayments] = useState<CustomerPayment[]>([]);
-  const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{
     msg: string;
     type: 'success' | 'error';
@@ -77,23 +80,17 @@ export default function SalePaymentPage({
     setTimeout(() => setToast(null), 4000);
   }
 
-  async function refresh() {
-    setLoading(true);
-    try {
-      setPayments(await financesPaymentApi.list());
-    } catch (e) {
-      showToast(
-        e instanceof Error ? e.message : 'Failed to load payments',
-        'error',
-      );
-    } finally {
-      setLoading(false);
-    }
-  }
+  // Query Framework: search/sort/filter/pagination run server-side and the
+  // full list state lives in the URL.
+  const table = useTableQuery<CustomerPayment>({
+    endpoint: API.finances.payment.root,
+    initialData: initialData as CustomerPayment[] | undefined,
+    initialMeta,
+  });
 
-  useEffect(() => {
-    refresh();
-  }, []);
+  async function refreshPayments() {
+    await table.refresh();
+  }
 
   async function runAction() {
     if (!confirm) return;
@@ -111,7 +108,7 @@ export default function SalePaymentPage({
             : 'Payment deleted.',
         'success',
       );
-      await refresh();
+      await refreshPayments();
     } catch (e) {
       showToast(
         e instanceof Error ? e.message : `Cannot ${confirm.type} payment`,
@@ -127,6 +124,7 @@ export default function SalePaymentPage({
     {
       key: 'payment_no',
       header: 'Payment No',
+      sortable: true,
       cell: (row) => (
         <button
           onClick={() => router.push(`/finances/payment/${row.id}/view`)}
@@ -139,6 +137,8 @@ export default function SalePaymentPage({
     {
       key: 'customer',
       header: 'Customer',
+      sortable: true,
+      sortKey: 'customer_name',
       cell: (row) => (
         <span className="font-mono text-xs">{row.customer_name}</span>
       ),
@@ -146,6 +146,7 @@ export default function SalePaymentPage({
     {
       key: 'payment_date',
       header: 'Date',
+      sortable: true,
       cell: (row) => (
         <span className="font-mono text-xs">{row.payment_date}</span>
       ),
@@ -162,6 +163,7 @@ export default function SalePaymentPage({
     {
       key: 'amount',
       header: 'Amount',
+      sortable: true,
       cell: (row) => (
         <span className="font-mono text-xs font-semibold">
           {row.currency} {fmt(row.amount)}
@@ -173,6 +175,7 @@ export default function SalePaymentPage({
       header: 'Status',
       cell: (row) => <StatusBadge status={row.status} />,
     },
+    ...auditUserColumns<CustomerPayment>(),
     {
       key: 'actions',
       header: 'Actions',
@@ -301,27 +304,39 @@ export default function SalePaymentPage({
         )}
       </div>
 
-      {loading ? (
-        <div className="flex items-center justify-center h-64">
-          <Loader2Icon className="animate-spin text-emerald-500" size={26} />
-        </div>
-      ) : (
-        <DataTable<CustomerPayment>
-          columns={columns}
-          data={payments}
-          keyExtractor={(row) => row.id}
-          searchFn={(row, q) =>
-            row.payment_no.toLowerCase().includes(q) ||
-            row.customer_name.toLowerCase().includes(q) ||
-            (row.reference_no ?? '').toLowerCase().includes(q) ||
-            row.status.toLowerCase().includes(q)
-          }
-          searchPlaceholder="Search by payment no, customer, reference, or status..."
-          pageSize={10}
-          emptyTitle="No payments"
-          emptyDescription="Record a customer payment to settle invoices"
-        />
-      )}
+      <DataTable<CustomerPayment>
+        columns={columns}
+        data={table.data}
+        keyExtractor={(row) => row.id}
+        searchPlaceholder="Search by payment no, reference, or customer..."
+        pageSizeOptions={[10, 20, 50]}
+        serverQuery={table.binding}
+        filterDefs={[
+          {
+            key: 'status',
+            label: 'Status',
+            type: 'select',
+            options: [
+              { value: 'DRAFT', label: 'Draft' },
+              { value: 'POSTED', label: 'Posted' },
+              { value: 'CANCELLED', label: 'Cancelled' },
+            ],
+          },
+          {
+            key: 'payment_method',
+            label: 'Method',
+            type: 'select',
+            options: Object.entries(METHOD_LABEL).map(([value, label]) => ({
+              value,
+              label,
+            })),
+          },
+          { key: 'payment_date', label: 'Payment Date', type: 'date-range' },
+        ]}
+        enableColumnVisibility
+        emptyTitle="No payments"
+        emptyDescription="Record a customer payment to settle invoices"
+      />
     </main>
   );
 }

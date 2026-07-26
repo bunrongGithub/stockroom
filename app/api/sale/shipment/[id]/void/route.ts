@@ -1,3 +1,4 @@
+import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { NextRequest, NextResponse } from 'next/server';
 import { getRequestContext } from '@/lib/request-context';
 import { SalesShipmentRepository } from '@/service/apps/sale/repo/shipment';
@@ -10,6 +11,7 @@ const service = SalesShipmentRepository.getInstance();
 export async function POST(req: NextRequest, { params }: RequestParam) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.sales.shipment.void, { req: req });
         const { id } = await params;
         const idParsed = salesShipmentIdSchema.safeParse({ id });
         if (!idParsed.success) {

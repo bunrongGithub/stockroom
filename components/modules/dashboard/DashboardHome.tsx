@@ -23,11 +23,8 @@ import {
     WalletIcon,
 } from 'lucide-react';
 import KpiCard from './widgets/KpiCard';
-import SalesOverviewWidget from './widgets/SalesOverviewWidget';
-import PaymentOverviewWidget from './widgets/PaymentOverviewWidget';
-import InventoryOverviewWidget from './widgets/InventoryOverviewWidget';
-import BusinessProcessWidget from './widgets/BusinessProcessWidget';
-import ReceivablesWidget from './widgets/ReceivablesWidget';
+import SalesTrendChart from './analytics/SalesTrendChart';
+import PaymentTrendChart from './analytics/PaymentTrendChart';
 import RecentActivityWidget from './widgets/RecentActivityWidget';
 import QuickActionsWidget from './widgets/QuickActionsWidget';
 
@@ -125,14 +122,6 @@ export default function DashboardHome({
         ? (summary?.warehouses.find((w) => String(w.id) === warehouseId)?.name ??
           'Warehouse')
         : 'All Warehouses';
-    const locationName = locationId
-        ? (summary?.locations.find((l) => String(l.id) === locationId)?.name ??
-          'Location')
-        : '';
-    const scopeName = locationName
-        ? `${warehouseName} · ${locationName}`
-        : warehouseName;
-
     if (loading) {
         return (
             <div className="space-y-4 p-1">
@@ -251,26 +240,13 @@ export default function DashboardHome({
                 <KpiCard label="Outstanding Amount" value={`$ ${money(k.outstanding_amount)}`} href="/finances/invoice" icon={HourglassIcon} tone={k.outstanding_amount > 0 ? 'warning' : 'default'} />
             </div>
 
-            {/* 2. Sales / Payment overview */}
+            {/* 2. Analytics — interactive trend charts, each with its own range filter */}
             <div className="grid gap-4 xl:grid-cols-2">
-                <SalesOverviewWidget sales={summary.sales} />
-                <PaymentOverviewWidget payments={summary.payments} />
+                <SalesTrendChart />
+                <PaymentTrendChart />
             </div>
 
-            {/* 3. Business process pipeline (SO → SHP → INV → PAY) */}
-            <BusinessProcessWidget summary={summary} />
-
-            {/* 4. Receivables / Inventory */}
-            <div className="grid gap-4 xl:grid-cols-2">
-                <ReceivablesWidget receivables={summary.receivables} />
-                <InventoryOverviewWidget
-                    inventory={summary.inventory}
-                    impact={summary.low_stock_impact}
-                    warehouseName={scopeName}
-                />
-            </div>
-
-            {/* 5+6. Recent activity / Quick actions */}
+            {/* 3+4. Recent activity / Quick actions */}
             <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_290px]">
                 <RecentActivityWidget recent={summary.recent} />
                 <QuickActionsWidget />

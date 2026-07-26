@@ -128,19 +128,25 @@ export class ModuleRepository extends BaseRepository {
             is_initial_data?: boolean;
         },
     ): Promise<AppModule> {
+        const { permission, ...newInput } = input;
+        console.log(permission);
         const { data, error } = await this.db
             .from(TABLE)
             .insert({
-                ...input,
+                ...newInput,
                 is_initial_data: input.is_initial_data ?? false,
             })
             .select('*')
             .single();
 
-        if (error) throw new Error(error.message);
+        if (error) {
+            throw new Error(error.message);
+        }
+
+        // create assign the perm to the created user
+
         return data as AppModule;
     }
-
     async updateOne(
         _ctx: RequestContext,
         id: number,

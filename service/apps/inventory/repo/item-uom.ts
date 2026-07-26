@@ -2,7 +2,7 @@ import type { CreateItemUomInput } from '@/service/schema/uom.schema';
 import { type PaginationParams, type PaginatedResult } from '@/service/core/pagination';
 import { BaseRepository } from '@/service/core/base-repository';
 import type { RequestContext } from '@/types/request-context';
-import { generateSequenNumbering } from '@/lib/utils/sequenumbering';
+import { getNextDocumentNumber } from '@/service/core/document-number';
 
 export type ItemUom = {
     id: number;
@@ -81,7 +81,7 @@ export class ItemUomRepository extends BaseRepository {
     }
 
     async insertOne(ctx: RequestContext, input: CreateItemUomInput): Promise<ItemUom> {
-        const reference_no = generateSequenNumbering('IUOM');
+        const reference_no = await getNextDocumentNumber(ctx, 'item_uom', 'IUOM');
         const { data, error } = await this.db
             .from(TABLE)
             .insert({

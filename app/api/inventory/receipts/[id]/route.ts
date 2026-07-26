@@ -1,3 +1,4 @@
+import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { NextRequest, NextResponse } from 'next/server';
 import { getRequestContext } from '@/lib/request-context';
 import { ReceiptRepository } from '@/service/apps/inventory/repo/receipt';
@@ -13,6 +14,7 @@ export const service = ReceiptRepository.getInstance();
 export async function PATCH(req: NextRequest, { params }: RequestParam) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.inventory.receipt.update, { req: req });
         const { id } = await params;
         const body = await req.json();
 

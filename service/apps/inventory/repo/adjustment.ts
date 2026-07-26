@@ -1,4 +1,6 @@
 import { BaseRepository } from '@/service/core/base-repository';
+import type { QueryConfig } from '@/service/core/query/config.ts';
+import type { QueryObject } from '@/service/core/query/types.ts';
 import type {
     PaginationParams,
     PaginatedResult,
@@ -6,8 +8,9 @@ import type {
 import type { RequestContext } from '@/types/request-context';
 import { getNextDocumentNumber } from '@/service/core/document-number';
 import { ApiError, NotFoundError } from '@/service/core/api-response';
+import { behaviorOf } from '@/service/core/item-behavior';
 import { MovementRepository } from './movement';
-import { InventorySerialRepository } from './serial';
+import { SerialManagementService } from '@/service/apps/inventory/serial';
 import type {
     CreateStockAdjustmentInput,
     UpdateStockAdjustmentInput,
@@ -109,6 +112,37 @@ function mapAdjustment(r: any): StockAdjustment {
 
 export class StockAdjustmentRepository extends BaseRepository {
     private static instance: StockAdjustmentRepository;
+
+    /**
+     * Query Framework registry. The list keeps SELECT_DETAIL as its default
+     * select (items are needed for the total_in/total_out columns), so no
+     * relations map — all filterable fields live on the header row.
+     */
+    protected readonly queryConfig: QueryConfig = {
+        table: HEADER_TABLE,
+        defaultSelect: SELECT_DETAIL,
+        searchable: ['adjustment_no', 'reference_no'],
+        sortable: ['adjustment_no', 'adjustment_date', 'status', 'created_at'],
+        filterable: {
+            status: { type: 'enum', values: ['DRAFT', 'POSTED', 'VOID'] },
+            warehouse_id: { type: 'foreign-key' },
+            reason_code: { type: 'text', operators: ['eq', 'in'] },
+            adjustment_date: { type: 'date' },
+            created_at: { type: 'date' },
+        },
+        defaultSort: [{ field: 'id', direction: 'desc' }],
+    };
+
+    /** Standardized list path (Query Framework). */
+    async findAllV2(
+        ctx: RequestContext,
+        query: QueryObject,
+    ): Promise<PaginatedResult<StockAdjustment>> {
+        return this.findAllQuery<StockAdjustment>(ctx, query, {
+            enrichAudit: true,
+            map: mapAdjustment,
+        });
+    }
 
     static getInstance(): StockAdjustmentRepository {
         if (!StockAdjustmentRepository.instance) {
@@ -311,7 +345,7 @@ export class StockAdjustmentRepository extends BaseRepository {
             throw new ApiError('Nothing to post: no items', 400);
         }
 
-        const serialRepo = InventorySerialRepository.getInstance();
+        const serialRepo = SerialManagementService.getInstance();
         const terminalStatus = terminalStatusFor(adjustment.reason_code);
 
         // ── Validate every line against LIVE stock & serial state ──────────
@@ -463,7 +497,21 @@ export class StockAdjustmentRepository extends BaseRepository {
         ctx: RequestContext,
         input: CreateStockAdjustmentInput,
     ): Promise<void> {
-        // Location must belong to the chosen warehouse.
+        // Object-level security: the warehouse must belong to the caller's
+        // company. warehouse_location has no company_id, so tenant ownership is
+        // established through its warehouse — verify that first. 404 (not 403)
+        // so we don't reveal another company's warehouse exists.
+        const { data: wh } = await this.db
+            .from('warehouse')
+            .select('id')
+            .eq('id', input.warehouse_id)
+            .eq('company_id', Number(ctx.companyId))
+            .maybeSingle();
+        if (!wh) {
+            throw new NotFoundError('Warehouse not found');
+        }
+
+        // Location must belong to the chosen (now company-verified) warehouse.
         const { data: loc, error } = await this.db
             .from('warehouse_location')
             .select('id, warehouse_id')
@@ -492,7 +540,7 @@ export class StockAdjustmentRepository extends BaseRepository {
             if (!item) {
                 throw new ApiError(`Item #${line.item_id} not found`, 404);
             }
-            if (item.item_class !== 'stock') {
+            if (!behaviorOf(item.item_class).requiresInventory) {
                 throw new ApiError(
                     `${item.name} is a non-stock item and cannot be adjusted`,
                     400,

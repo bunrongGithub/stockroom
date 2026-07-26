@@ -64,6 +64,7 @@ type FormValues = {
   is_returnable: boolean;
   is_warranty: boolean;
   track_serial: boolean;
+  serial_generation: 'manual' | 'auto' | 'both';
   warranty_duration: string;
   default_warehouse_id: number | null;
   default_warehouse: Warehose | null;
@@ -169,6 +170,7 @@ export default function StockCreateForm() {
       is_returnable: false,
       is_warranty: false,
       track_serial: false,
+      serial_generation: 'both',
       warranty_duration: '',
       default_warehouse_id: null,
       default_warehouse: null,
@@ -207,6 +209,7 @@ export default function StockCreateForm() {
         is_returnable: data.is_returnable,
         is_warranty: data.is_warranty,
         track_serial: data.track_serial,
+        serial_generation: data.serial_generation,
         warranty_duration: data.is_warranty
           ? data.warranty_duration || null
           : null,
@@ -464,7 +467,7 @@ export default function StockCreateForm() {
                         <AsyncSearchSelect
                           label="Base UOM"
                           placeholder="Select unit of measure..."
-                          apiUrl="/api/inventory/configurations/uom"
+                          apiUrl="/api/inventory/configurations/uom?status=active"
                           value={field.value}
                           selectedLabel={watch('uom')?.name ?? ''}
                           popupTitle="Base UOM"
@@ -711,13 +714,38 @@ export default function StockCreateForm() {
                     name="track_serial"
                     control={control}
                     render={({ field }) => (
-                      <ToggleCheckbox
-                        checked={field.value ?? false}
-                        onChange={field.onChange}
-                        icon={<Package size={16} />}
-                        label="Track Serial Numbers"
-                        description="Require serial number entry for receipts and shipments"
-                      />
+                      <div className="space-y-2">
+                        <ToggleCheckbox
+                          checked={field.value ?? false}
+                          onChange={field.onChange}
+                          icon={<Package size={16} />}
+                          label="Track Serial Numbers"
+                          description="Require serial number entry for receipts and shipments"
+                        />
+                        {field.value && (
+                          <Controller
+                            name="serial_generation"
+                            control={control}
+                            render={({ field: gen }) => (
+                              <select
+                                value={gen.value}
+                                onChange={(e) => gen.onChange(e.target.value)}
+                                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 font-mono text-xs text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                              >
+                                <option value="both">
+                                  Serial entry: Manual or Generate
+                                </option>
+                                <option value="manual">
+                                  Serial entry: Manual only
+                                </option>
+                                <option value="auto">
+                                  Serial entry: Generate only
+                                </option>
+                              </select>
+                            )}
+                          />
+                        )}
+                      </div>
                     )}
                   />
                   <Controller

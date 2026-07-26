@@ -1,9 +1,12 @@
 import { BaseRepository } from '@/service/core/base-repository';
+import type { QueryConfig } from '@/service/core/query/config.ts';
+import type { QueryObject } from '@/service/core/query/types.ts';
 import type {
     PaginationParams,
     PaginatedResult,
 } from '@/service/core/pagination';
 import type { RequestContext } from '@/types/request-context';
+import type { AuditMeta } from '@/types/audit';
 import { getNextDocumentNumber } from '@/service/core/document-number';
 import { ApiError, NotFoundError } from '@/service/core/api-response';
 import { AllocationRepository } from './allocation';
@@ -61,6 +64,43 @@ export class CustomerPaymentRepository extends BaseRepository {
     private static instance: CustomerPaymentRepository;
     private allocationRepo = AllocationRepository.getInstance();
 
+    /**
+     * Query Framework registry. No `selectableFields`: list rows run through
+     * mapPayment(), which needs complete rows.
+     */
+    protected readonly queryConfig: QueryConfig = {
+        table: TABLE,
+        searchable: ['payment_no', 'reference_no', 'customer_name'],
+        sortable: [
+            'payment_no',
+            'customer_name',
+            'payment_date',
+            'payment_method',
+            'amount',
+            'status',
+            'created_at',
+        ],
+        filterable: {
+            status: { type: 'enum', values: ['DRAFT', 'POSTED', 'CANCELLED'] },
+            payment_method: { type: 'text', operators: ['eq', 'in'] },
+            payment_date: { type: 'date' },
+            created_at: { type: 'date' },
+            amount: { type: 'number' },
+        },
+        defaultSort: [{ field: 'id', direction: 'desc' }],
+    };
+
+    /** Standardized list path (Query Framework). */
+    async findAllV2(
+        ctx: RequestContext,
+        query: QueryObject,
+    ): Promise<PaginatedResult<CustomerPayment>> {
+        return this.findAllQuery<CustomerPayment>(ctx, query, {
+            enrichAudit: true,
+            map: (r) => mapPayment(r),
+        });
+    }
+
     static getInstance(): CustomerPaymentRepository {
         if (!CustomerPaymentRepository.instance) {
             CustomerPaymentRepository.instance = new CustomerPaymentRepository();
@@ -95,7 +135,7 @@ export class CustomerPaymentRepository extends BaseRepository {
     async findOne(
         ctx: RequestContext,
         id: number,
-    ): Promise<CustomerPayment | null> {
+    ): Promise<(CustomerPayment & Partial<AuditMeta>) | null> {
         const isSuperUser = await this.isSupperUser(ctx);
         const { data, error } = await this.applyFilter(
             this.db.from(TABLE).select('*').eq('id', id),
@@ -106,7 +146,11 @@ export class CustomerPaymentRepository extends BaseRepository {
         if (!data) return null;
 
         const allocations = await this.loadAllocations(ctx, id);
-        return mapPayment(data, allocations);
+        return this.enrichAuditOne({
+            ...mapPayment(data, allocations),
+            created_by: data.created_by ?? null,
+            updated_by: data.updated_by ?? null,
+        });
     }
 
     /** Allocation lines joined to their invoice for display. */
@@ -149,24 +193,27 @@ export class CustomerPaymentRepository extends BaseRepository {
 
         const { data: header, error } = await this.db
             .from(TABLE)
-            .insert({
-                company_id: companyId,
-                user_id: ctx.userId,
-                payment_no: await getNextDocumentNumber(
-                    ctx,
-                    'customer_payment',
-                    'PAY',
-                ),
-                reference_no: input.reference_no ?? null,
-                payment_date: input.payment_date,
-                customer_name: input.customer_name,
-                customer_phone: input.customer_phone ?? null,
-                payment_method: input.payment_method,
-                currency: input.currency ?? 'USD',
-                amount: input.amount,
-                status: 'DRAFT',
-                remarks: input.remarks ?? null,
-            })
+            .insert(
+                this.stampCreate(ctx, {
+                    company_id: companyId,
+                    user_id: ctx.userId,
+                    payment_no: await getNextDocumentNumber(
+                        ctx,
+                        'customer_payment',
+                        'PAY',
+                    ),
+                    reference_no: input.reference_no ?? null,
+                    payment_date: input.payment_date,
+                    customer_id: input.customer_id ?? null,
+                    customer_name: input.customer_name,
+                    customer_phone: input.customer_phone ?? null,
+                    payment_method: input.payment_method,
+                    currency: input.currency ?? 'USD',
+                    amount: input.amount,
+                    status: 'DRAFT',
+                    remarks: input.remarks ?? null,
+                }),
+            )
             .select()
             .single();
         if (error) throw new ApiError(error.message, 500);
@@ -194,7 +241,7 @@ export class CustomerPaymentRepository extends BaseRepository {
         const { error } = await this.applyFilter(
             this.db
                 .from(TABLE)
-                .update({
+                .update(this.stampUpdate(ctx, {
                     reference_no: input.reference_no ?? null,
                     payment_date: input.payment_date,
                     customer_name: input.customer_name,
@@ -203,7 +250,7 @@ export class CustomerPaymentRepository extends BaseRepository {
                     currency: input.currency ?? existing.currency,
                     amount: input.amount,
                     remarks: input.remarks ?? null,
-                })
+                }))
                 .eq('id', id),
             ctx,
             await this.isSupperUser(ctx),
@@ -257,7 +304,10 @@ export class CustomerPaymentRepository extends BaseRepository {
         }
 
         const { error } = await this.applyFilter(
-            this.db.from(TABLE).update({ status: 'POSTED' }).eq('id', id),
+            this.db
+                .from(TABLE)
+                .update(this.stampUpdate(ctx, { status: 'POSTED' }))
+                .eq('id', id),
             ctx,
             await this.isSupperUser(ctx),
         );
@@ -283,7 +333,10 @@ export class CustomerPaymentRepository extends BaseRepository {
             );
         }
         const { error } = await this.applyFilter(
-            this.db.from(TABLE).update({ status: 'CANCELLED' }).eq('id', id),
+            this.db
+                .from(TABLE)
+                .update(this.stampUpdate(ctx, { status: 'CANCELLED' }))
+                .eq('id', id),
             ctx,
             await this.isSupperUser(ctx),
         );

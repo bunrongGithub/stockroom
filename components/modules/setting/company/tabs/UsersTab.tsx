@@ -34,9 +34,11 @@ function Avatar({ user }: { user: CompanyUser }) {
 }
 
 export default function UsersTab({
+    companyId,
     canManage,
     onToast,
 }: {
+    companyId?: number;
     canManage: boolean;
     onToast: (message: string) => void;
 }) {
@@ -57,14 +59,14 @@ export default function UsersTab({
 
     const load = useCallback(async () => {
         try {
-            const res = await companyApi.listUsers(1, 100);
+            const res = await companyApi.listUsers(1, 100, companyId);
             setUsers(res.data ?? []);
         } catch (e) {
             setError(e instanceof Error ? e.message : 'Failed to load users');
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [companyId]);
 
     useEffect(() => {
         load();

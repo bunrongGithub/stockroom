@@ -1,11 +1,16 @@
 'use client';
 
 import AsyncSearchSelect from '@/components/ui/AsyncSearchSelect';
+import BusinessPartnerLookup from '@/components/master-data/BusinessPartnerLookup';
+import ItemClassBadge from '@/components/ui/ItemClassBadge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { API } from '@/lib/constant';
 import { saleOrderApi } from '@/lib/api/sale';
+import { useItemAutoFill } from '@/hook/useItemAutoFill';
+import { behaviorOf } from '@/service/core/item-behavior';
 import type { SalesOrder } from '@/types/sales/order-management';
+import type { BusinessPartnerOption } from '@/types/master-data/business-partner';
 import {
   AlertCircle,
   ArrowLeftIcon,
@@ -30,6 +35,8 @@ type LineDraft = {
   key: string;
   id?: number; // DB id of an existing line (edit mode); absent for new lines
   item_id: number | null;
+  /** stock | non_stock | service — null until the item resolves. */
+  item_class: string | null;
   product_name: string;
   item_uom_id: number | null;
   uom: string;
@@ -44,6 +51,7 @@ function emptyLine(): LineDraft {
   return {
     key: `l${keySeq++}`,
     item_id: null,
+    item_class: null,
     product_name: '',
     item_uom_id: null,
     uom: '',
@@ -79,6 +87,19 @@ export default function OrderForm({
   const [customerPhone, setCustomerPhone] = useState(
     initial?.customer_phone ?? '',
   );
+  // Editing pre-Master-Data history: the order has a name but no link yet, so
+  // the lookup starts empty and prompts for one.
+  const [partner, setPartner] = useState<BusinessPartnerOption | null>(
+    initial?.customer_id
+      ? {
+          id: initial.customer_id,
+          code: initial.customer_code ?? '',
+          name: initial.customer_name,
+          phone: initial.customer_phone ?? null,
+          roles: ['customer'],
+        }
+      : null,
+  );
   const [orderDate, setOrderDate] = useState(
     initial?.order_date?.slice(0, 10) ?? today,
   );
@@ -99,6 +120,7 @@ export default function OrderForm({
           key: `l${keySeq++}`,
           id: i.id,
           item_id: i.item_id,
+          item_class: i.item_class ?? 'stock',
           product_name: i.product_name,
           item_uom_id: i.item_uom_id,
           uom: i.uom,
@@ -112,10 +134,68 @@ export default function OrderForm({
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
+  const { resolveItemDefaults } = useItemAutoFill();
+
+  function focusQty(key: string) {
+    requestAnimationFrame(() => {
+      const el = document.querySelector<HTMLInputElement>(
+        `input[data-qty="${key}"]`,
+      );
+      el?.focus();
+      el?.select();
+    });
+  }
+
   function setLine(idx: number, patch: Partial<LineDraft>) {
     setItems((prev) =>
       prev.map((l, i) => (i === idx ? { ...l, ...patch } : l)),
     );
+  }
+
+  // Auto-populate a line from the item master on selection. Fills price + UOM
+  // and defaults the (header) warehouse when empty; preserves qty/discount/tax
+  // already entered. A stale response for a superseded selection is ignored.
+  async function onPickItem(
+    idx: number,
+    key: string,
+    sel: { id: string | number | null; name: string } | null,
+  ) {
+    const id = sel?.id ? Number(sel.id) : null;
+    // Immediate: set the item + reset the dependent UOM select.
+    setLine(idx, {
+      item_id: id,
+      item_class: null,
+      product_name: sel?.name ?? '',
+      item_uom_id: null,
+      uom: '',
+    });
+    if (!id) return;
+
+    try {
+      const d = await resolveItemDefaults(id);
+      setItems((prev) =>
+        prev.map((l) =>
+          l.key === key && l.item_id === id
+            ? {
+                ...l,
+                item_class: d.itemClass,
+                unit_price: d.price ?? l.unit_price,
+                item_uom_id: d.itemUomId ?? l.item_uom_id,
+                uom: d.uomName || l.uom,
+              }
+            : l,
+        ),
+      );
+      // Default the header warehouse only when the user hasn't chosen one.
+      if (d.defaultWarehouseId) {
+        setWarehouseId((w) => w ?? d.defaultWarehouseId);
+        setWarehouseName((n) => n || d.defaultWarehouseName);
+      }
+      // Move focus to quantity for fast entry.
+      focusQty(key);
+    } catch {
+      // Auto-fill is best-effort; the user can still enter values manually.
+    }
   }
 
   const subtotal = items.reduce((s, i) => s + i.ordered_qty * i.unit_price, 0);
@@ -129,19 +209,24 @@ export default function OrderForm({
   }, 0);
   const grandTotal = subtotal - discountTotal + taxTotal;
 
+  // A warehouse only matters when something will ship. Unresolved lines are
+  // treated as stock (the safe default) until their class arrives.
+  const needsWarehouse = items.some(
+    (l) =>
+      l.item_id != null && behaviorOf(l.item_class ?? 'stock').requiresWarehouse,
+  );
+
   async function handleSubmit() {
     setError('');
-    if (!customerName.trim()) {
+    if (!partner) {
       setActiveTab('details');
-      return setError('Customer name is required');
+      return setError(
+        'Select a business partner — use "Create partner" in the search box if they are new',
+      );
     }
-    if (!customerPhone.trim()) {
+    if (needsWarehouse && !warehouseId) {
       setActiveTab('details');
-      return setError('Customer phone is required');
-    }
-    if (!warehouseId) {
-      setActiveTab('details');
-      return setError('Warehouse is required');
+      return setError('Warehouse is required when the order has stock items');
     }
     if (items.length === 0) {
       setActiveTab('items');
@@ -166,11 +251,12 @@ export default function OrderForm({
     try {
       const payload = {
         reference_no: referenceNo.trim() || undefined,
-        customer_name: customerName.trim(),
-        customer_phone: customerPhone || undefined,
+        customer_id: partner.id,
+        customer_name: (customerName || partner.name).trim(),
+        customer_phone: customerPhone || partner.phone || undefined,
         order_date: orderDate,
         expected_delivery_date: expectedDate || undefined,
-        warehouse_id: warehouseId,
+        warehouse_id: warehouseId ?? undefined,
         currency,
         notes: notes || undefined,
         items: items.map((l) => ({
@@ -331,36 +417,42 @@ export default function OrderForm({
                       className="text-xs font-mono"
                     />
                   </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Customer Name *</Label>
-                    <Input
-                      value={customerName}
-                      onChange={(e) => setCustomerName(e.target.value)}
-                      placeholder="Customer name"
-                      className="text-xs font-mono"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Customer Phone *</Label>
-                    <Input
-                      value={customerPhone ?? ''}
-                      onChange={(e) => setCustomerPhone(e.target.value)}
-                      placeholder="e.g. 012 345 678"
-                      className="text-xs font-mono"
-                    />
-                  </div>
-                  <AsyncSearchSelect
-                    label="Warehouse *"
-                    placeholder="Select warehouse..."
-                    apiUrl={API.inventory.warehouse.root}
-                    value={warehouseId}
-                    selectedLabel={warehouseName}
-                    enablePopupSearch
-                    onChangeAction={(sel) => {
-                      setWarehouseId(sel?.id ? Number(sel.id) : null);
-                      setWarehouseName(sel?.name ?? '');
+                  <BusinessPartnerLookup
+                    label="Customer"
+                    required
+                    role="customer"
+                    value={partner}
+                    onChange={(p) => {
+                      setPartner(p);
+                      // The document keeps its own snapshot of the name/phone so
+                      // a later rename never rewrites an issued order.
+                      if (p) {
+                        setCustomerName(p.name);
+                        setCustomerPhone(p.phone ?? '');
+                      }
                     }}
                   />
+                  {needsWarehouse ? (
+                    <AsyncSearchSelect
+                      label="Warehouse *"
+                      placeholder="Select warehouse..."
+                      apiUrl={API.inventory.warehouse.root}
+                      value={warehouseId}
+                      selectedLabel={warehouseName}
+                      enablePopupSearch
+                      onChangeAction={(sel) => {
+                        setWarehouseId(sel?.id ? Number(sel.id) : null);
+                        setWarehouseName(sel?.name ?? '');
+                      }}
+                    />
+                  ) : (
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Warehouse</Label>
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-400">
+                        Not needed — no stock items on this order
+                      </div>
+                    </div>
+                  )}
                   <div className="space-y-1.5">
                     <Label className="text-xs">Currency</Label>
                     <Input
@@ -442,22 +534,24 @@ export default function OrderForm({
                         className="rounded-xl border border-slate-200 p-3 space-y-3"
                       >
                         <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3">
-                          <AsyncSearchSelect
-                            label="Product *"
-                            placeholder="Select product..."
-                            apiUrl={API.inventory.stockItem.root}
-                            value={line.item_id}
-                            selectedLabel={line.product_name}
-                            enablePopupSearch
-                            onChangeAction={(sel) =>
-                              setLine(idx, {
-                                item_id: sel?.id ? Number(sel.id) : null,
-                                product_name: sel?.name ?? '',
-                                item_uom_id: null,
-                                uom: '',
-                              })
-                            }
-                          />
+                          <div className="relative">
+                            <AsyncSearchSelect
+                              label="Product *"
+                              placeholder="Select product..."
+                              apiUrl={`${API.inventory.item.root}?sellable=true`}
+                              value={line.item_id}
+                              selectedLabel={line.product_name}
+                              enablePopupSearch
+                              onChangeAction={(sel) =>
+                                onPickItem(idx, line.key, sel)
+                              }
+                            />
+                            {line.item_class && (
+                              <span className="absolute right-0 top-0">
+                                <ItemClassBadge itemClass={line.item_class} />
+                              </span>
+                            )}
+                          </div>
                           {items.length > 1 && (
                             <button
                               type="button"
@@ -499,6 +593,7 @@ export default function OrderForm({
                           <div className="space-y-1.5">
                             <Label className="text-xs">Qty *</Label>
                             <Input
+                              data-qty={line.key}
                               type="number"
                               min={0}
                               step="0.001"

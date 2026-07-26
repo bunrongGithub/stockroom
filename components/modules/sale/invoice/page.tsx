@@ -1,14 +1,17 @@
 'use client';
 
 import { DataTable, type DataTableColumn } from '@/components/ui/DataTable';
+import { auditUserColumns } from '@/components/ui/audit-columns';
 import { useRegisterModule } from '@/hook/useModule';
+import { useTableQuery } from '@/hook/useTableQuery';
 import type { ModuleProps } from '@/lib/registry';
 import { financesInvoiceApi } from '@/lib/api/finances';
+import { API } from '@/lib/constant';
 import type {
   SalesInvoice,
   SalesInvoiceStatus,
 } from '@/types/sales/order-management';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   EyeIcon,
@@ -16,7 +19,6 @@ import {
   SendIcon,
   Ban,
   Trash2Icon,
-  Loader2Icon,
 } from 'lucide-react';
 import PaymentStatusBadge from './PaymentStatusBadge';
 
@@ -46,6 +48,8 @@ export default function SaleInvoicePage({
   currentPath,
   permission,
   currentPathActions,
+  initialData,
+  initialMeta,
 }: ModuleProps) {
   useRegisterModule({
     actionModules: currentPathActions,
@@ -54,8 +58,6 @@ export default function SaleInvoicePage({
   });
 
   const router = useRouter();
-  const [invoices, setInvoices] = useState<SalesInvoice[]>([]);
-  const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{
     msg: string;
     type: 'success' | 'error';
@@ -72,23 +74,17 @@ export default function SaleInvoicePage({
     setTimeout(() => setToast(null), 4000);
   }
 
-  async function refresh() {
-    setLoading(true);
-    try {
-      setInvoices(await financesInvoiceApi.list());
-    } catch (e) {
-      showToast(
-        e instanceof Error ? e.message : 'Failed to load invoices',
-        'error',
-      );
-    } finally {
-      setLoading(false);
-    }
-  }
+  // Query Framework: search/sort/filter/pagination run server-side and the
+  // full list state lives in the URL.
+  const table = useTableQuery<SalesInvoice>({
+    endpoint: API.finances.invoice.root,
+    initialData: initialData as SalesInvoice[] | undefined,
+    initialMeta,
+  });
 
-  useEffect(() => {
-    refresh();
-  }, []);
+  async function refreshInvoices() {
+    await table.refresh();
+  }
 
   async function runAction() {
     if (!confirm) return;
@@ -106,7 +102,7 @@ export default function SaleInvoicePage({
             : 'Invoice deleted.',
         'success',
       );
-      await refresh();
+      await refreshInvoices();
     } catch (e) {
       showToast(
         e instanceof Error ? e.message : `Cannot ${confirm.type} invoice`,
@@ -122,6 +118,7 @@ export default function SaleInvoicePage({
     {
       key: 'invoice_no',
       header: 'Invoice No',
+      sortable: true,
       cell: (row) => (
         <button
           onClick={() => router.push(`/finances/invoice/${row.id}/view`)}
@@ -134,6 +131,8 @@ export default function SaleInvoicePage({
     {
       key: 'customer',
       header: 'Customer',
+      sortable: true,
+      sortKey: 'customer_name',
       cell: (row) => (
         <span className="font-mono text-xs">{row.customer_name || '—'}</span>
       ),
@@ -141,6 +140,7 @@ export default function SaleInvoicePage({
     {
       key: 'invoice_date',
       header: 'Date',
+      sortable: true,
       cell: (row) => (
         <span className="font-mono text-xs">{row.invoice_date}</span>
       ),
@@ -155,6 +155,7 @@ export default function SaleInvoicePage({
     {
       key: 'grand_total',
       header: 'Grand Total',
+      sortable: true,
       cell: (row) => (
         <span className="font-mono text-xs font-semibold">
           {row.currency} {fmt(row.grand_total)}
@@ -182,6 +183,7 @@ export default function SaleInvoicePage({
       header: 'Status',
       cell: (row) => <StatusBadge status={row.status} />,
     },
+    ...auditUserColumns<SalesInvoice>(),
     {
       key: 'actions',
       header: 'Actions',
@@ -300,27 +302,30 @@ export default function SaleInvoicePage({
         </div>
       </div>
 
-      {loading ? (
-        <div className="flex items-center justify-center h-64">
-          <Loader2Icon className="animate-spin text-emerald-500" size={26} />
-        </div>
-      ) : (
-        <DataTable<SalesInvoice>
-          columns={columns}
-          data={invoices}
-          keyExtractor={(row) => row.id}
-          searchFn={(row, q) =>
-            row.invoice_no.toLowerCase().includes(q) ||
-            (row.customer_name ?? '').toLowerCase().includes(q) ||
-            row.shipment_no.toLowerCase().includes(q) ||
-            row.status.toLowerCase().includes(q)
-          }
-          searchPlaceholder="Search by invoice no, customer, shipment, or status..."
-          pageSize={10}
-          emptyTitle="No invoices"
-          emptyDescription="Create an invoice from a posted shipment"
-        />
-      )}
+      <DataTable<SalesInvoice>
+        columns={columns}
+        data={table.data}
+        keyExtractor={(row) => row.id}
+        searchPlaceholder="Search by invoice no, reference, or customer..."
+        pageSizeOptions={[10, 20, 50]}
+        serverQuery={table.binding}
+        filterDefs={[
+          {
+            key: 'status',
+            label: 'Status',
+            type: 'select',
+            options: [
+              { value: 'DRAFT', label: 'Draft' },
+              { value: 'POSTED', label: 'Posted' },
+              { value: 'CANCELLED', label: 'Cancelled' },
+            ],
+          },
+          { key: 'invoice_date', label: 'Invoice Date', type: 'date-range' },
+        ]}
+        enableColumnVisibility
+        emptyTitle="No invoices"
+        emptyDescription="Create an invoice from a posted shipment"
+      />
     </main>
   );
 }

@@ -2,7 +2,16 @@
   "permissions": {
     "allow": [
       "Bash(npx tsc *)",
-      "Bash(docker exec *)"
+      "Bash(docker exec *)",
+      "Bash(SCREENSHOT_DIR=/private/tmp/claude-501/-Users-mac-develop-2026-pos/574175da-55a7-40ae-b29a-684d2c0d1232/scratchpad node .claude/skills/run-pos/driver.mjs navigate /inventory/configurations/service-item service-list.png)",
+      "Bash(curl -s -b /tmp/pos-cookies.txt -X POST http://localhost:3000/api/inventory/configurations/service-item -H 'Content-Type: application/json' -d '{\"name\":\"Installation Service\",\"price\":25,\"cost\":10,\"category_id\":__CMDSUB_OUTPUT__}')",
+      "Bash(curl -s -b /tmp/pos-cookies.txt -X POST http://localhost:3000/api/inventory/configurations/service-item -H 'Content-Type: application/json' -d '{\"name\":\"Installation Service\",\"price\":25,\"cost\":10,\"category_id\":1,\"uom_id\":__CMDSUB_OUTPUT__,\"min_price\":null,\"max_price\":null}')",
+      "Bash(SCREENSHOT_DIR=/private/tmp/claude-501/-Users-mac-develop-2026-pos/574175da-55a7-40ae-b29a-684d2c0d1232/scratchpad node .claude/skills/run-pos/driver.mjs navigate /inventory/configurations/service-item/32/view service-view.png)",
+      "Bash(SCREENSHOT_DIR=/private/tmp/claude-501/-Users-mac-develop-2026-pos/574175da-55a7-40ae-b29a-684d2c0d1232/scratchpad node .claude/skills/run-pos/driver.mjs navigate /inventory/configurations/non-stock-item nonstock-list.png)",
+      "Skill(artifact-design)",
+      "Bash(grep -o \"title=[{\\\\\"][^,}]*\")",
+      "Bash(SCREENSHOT_DIR=/private/tmp/claude-501/-Users-mac-develop-2026-pos/650cc4cc-be3c-40f4-8f25-71352cb2c41c/scratchpad node .claude/skills/run-pos/driver.mjs navigate /dashboard dash.png)",
+      "Bash(SCREENSHOT_DIR=/private/tmp/claude-501/-Users-mac-develop-2026-pos/650cc4cc-be3c-40f4-8f25-71352cb2c41c/scratchpad node .claude/skills/run-pos/driver.mjs navigate /sale/cash-sale cash.png)"
     ]
   }
 }

@@ -32,6 +32,9 @@ export interface AppModule {
     type: AppModuleType;
     is_initial_data: boolean;
     permission: AppPermission;
+    /** Granted action verbs on this module (view/create/update/delete/export +
+     *  extended: post/approve/void/…). Drives `useCan()` UI gating. */
+    actions?: string[];
 }
 
 export interface AppProfile {
@@ -39,6 +42,8 @@ export interface AppProfile {
     companyId: string;
     role: string;
     email: string;
+    /** Vendor super users bypass permission checks — mirror that in the UI. */
+    isSuperUser?: boolean;
 }
 
 export interface AppCompanyBrief {

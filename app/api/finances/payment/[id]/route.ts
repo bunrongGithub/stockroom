@@ -1,3 +1,4 @@
+import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { NextRequest, NextResponse } from 'next/server';
 import { getRequestContext } from '@/lib/request-context';
 import { CustomerPaymentRepository } from '@/service/apps/sale/repo/payment';
@@ -18,6 +19,7 @@ const service = CustomerPaymentRepository.getInstance();
 export async function GET(req: NextRequest, { params }: RequestParam) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.sales.payment.view, { req: req });
         const { id } = await params;
         const idParsed = customerPaymentIdSchema.safeParse({ id });
         if (!idParsed.success) {
@@ -37,6 +39,7 @@ export async function GET(req: NextRequest, { params }: RequestParam) {
 export async function PATCH(req: NextRequest, { params }: RequestParam) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.sales.payment.update, { req: req });
         const { id } = await params;
         const idParsed = customerPaymentIdSchema.safeParse({ id });
         if (!idParsed.success) {
@@ -62,6 +65,7 @@ export async function PATCH(req: NextRequest, { params }: RequestParam) {
 export async function DELETE(req: NextRequest, { params }: RequestParam) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.sales.payment.delete, { req: req });
         const { id } = await params;
         const idParsed = customerPaymentIdSchema.safeParse({ id });
         if (!idParsed.success) {

@@ -1,20 +1,22 @@
 'use client';
 
 import { DataTable, type DataTableColumn } from '@/components/ui/DataTable';
+import { auditUserColumns } from '@/components/ui/audit-columns';
 import { useRegisterModule } from '@/hook/useModule';
+import { useTableQuery } from '@/hook/useTableQuery';
 import type { ModuleProps } from '@/lib/registry';
 import { stockAdjustmentApi } from '@/lib/api/adjustment';
+import { API } from '@/lib/constant';
 import type {
     StockAdjustment,
     StockAdjustmentStatus,
 } from '@/types/inventory/adjustment';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
     ArrowLeftRight,
     Ban,
     EyeIcon,
-    Loader2Icon,
     PencilIcon,
     PlusIcon,
     SendIcon,
@@ -40,6 +42,8 @@ export default function InventoryStockAdjModule({
     currentPath,
     permission,
     currentPathActions,
+    initialData,
+    initialMeta,
 }: ModuleProps) {
     useRegisterModule({
         actionModules: currentPathActions,
@@ -48,8 +52,6 @@ export default function InventoryStockAdjModule({
     });
 
     const router = useRouter();
-    const [adjustments, setAdjustments] = useState<StockAdjustment[]>([]);
-    const [loading, setLoading] = useState(true);
     const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(
         null,
     );
@@ -65,23 +67,17 @@ export default function InventoryStockAdjModule({
         setTimeout(() => setToast(null), 4000);
     }
 
-    async function refresh() {
-        setLoading(true);
-        try {
-            setAdjustments(await stockAdjustmentApi.list());
-        } catch (e) {
-            showToast(
-                e instanceof Error ? e.message : 'Failed to load adjustments',
-                'error',
-            );
-        } finally {
-            setLoading(false);
-        }
-    }
+    // Query Framework: search/sort/filter/pagination run server-side and the
+    // full list state lives in the URL.
+    const table = useTableQuery<StockAdjustment>({
+        endpoint: API.inventory.adjustment.root,
+        initialData: initialData as StockAdjustment[] | undefined,
+        initialMeta,
+    });
 
-    useEffect(() => {
-        refresh();
-    }, []);
+    async function refreshAdjustments() {
+        await table.refresh();
+    }
 
     async function runAction() {
         if (!confirm) return;
@@ -98,7 +94,7 @@ export default function InventoryStockAdjModule({
                       : 'Adjustment deleted.',
                 'success',
             );
-            await refresh();
+            await refreshAdjustments();
         } catch (e) {
             showToast(
                 e instanceof Error ? e.message : `Cannot ${confirm.type} adjustment`,
@@ -114,6 +110,7 @@ export default function InventoryStockAdjModule({
         {
             key: 'adjustment_no',
             header: 'Adjustment No',
+            sortable: true,
             cell: (row) => (
                 <button
                     onClick={() => router.push(`/inventory/stock_adjust/${row.id}/view`)}
@@ -126,6 +123,8 @@ export default function InventoryStockAdjModule({
         {
             key: 'date',
             header: 'Date',
+            sortable: true,
+            sortKey: 'adjustment_date',
             cell: (row) => <span className="font-mono text-xs">{row.adjustment_date}</span>,
         },
         {
@@ -157,7 +156,8 @@ export default function InventoryStockAdjModule({
                 </span>
             ),
         },
-        { key: 'status', header: 'Status', cell: (row) => <StatusBadge status={row.status} /> },
+        { key: 'status', header: 'Status', sortable: true, cell: (row) => <StatusBadge status={row.status} /> },
+        ...auditUserColumns<StockAdjustment>(),
         {
             key: 'actions',
             header: 'Actions',
@@ -286,32 +286,39 @@ export default function InventoryStockAdjModule({
                         onClick={() => router.push('/inventory/stock_adjust/create')}
                         className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-sm text-white hover:bg-emerald-500 font-mono shadow-sm"
                     >
-                        <PlusIcon size={15} /> New Adjustment
+                        <PlusIcon size={15} /> Create
                     </button>
                 )}
             </div>
 
-            {loading ? (
-                <div className="flex items-center justify-center h-64">
-                    <Loader2Icon className="animate-spin text-emerald-500" size={26} />
-                </div>
-            ) : (
-                <DataTable<StockAdjustment>
-                    columns={columns}
-                    data={adjustments}
-                    keyExtractor={(row) => row.id}
-                    searchFn={(row, q) =>
-                        row.adjustment_no.toLowerCase().includes(q) ||
-                        (row.reference_no ?? '').toLowerCase().includes(q) ||
-                        row.reason_label.toLowerCase().includes(q) ||
-                        row.status.toLowerCase().includes(q)
-                    }
-                    searchPlaceholder="Search by adjustment no, reference, reason, or status..."
-                    pageSize={10}
-                    emptyTitle="No stock adjustments"
-                    emptyDescription="Record an adjustment to correct inventory discrepancies"
-                />
-            )}
+            <DataTable<StockAdjustment>
+                columns={columns}
+                data={table.data}
+                keyExtractor={(row) => row.id}
+                searchPlaceholder="Search by adjustment no or reference..."
+                pageSizeOptions={[10, 20, 50]}
+                serverQuery={table.binding}
+                filterDefs={[
+                    {
+                        key: 'status',
+                        label: 'Status',
+                        type: 'select',
+                        options: [
+                            { value: 'DRAFT', label: 'Draft' },
+                            { value: 'POSTED', label: 'Posted' },
+                            { value: 'VOID', label: 'Void' },
+                        ],
+                    },
+                    {
+                        key: 'adjustment_date',
+                        label: 'Adjustment Date',
+                        type: 'date-range',
+                    },
+                ]}
+                enableColumnVisibility
+                emptyTitle="No stock adjustments"
+                emptyDescription="Record an adjustment to correct inventory discrepancies"
+            />
         </main>
     );
 }

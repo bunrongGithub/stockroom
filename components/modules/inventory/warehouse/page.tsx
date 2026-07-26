@@ -10,13 +10,17 @@ import PopUpDeleteTransactionModal from '@/components/ui/PopUpDeleteModal';
 import { useRegisterModule } from '@/hook/useModule';
 import { usePageActions } from '@/hook/usePageAction';
 import type { ModuleProps } from '@/lib/registry';
+import type { TMeta } from '@/types/app';
 import { useState } from 'react';
 import { getWarehouseCols, TWarehouse } from './columns';
+
+const DEFAULT_META: TMeta = { total: 0, page: 1, limit: 10, totalPages: 0 };
 
 export default function WarehousePage({
   currentPath,
   permission,
   initialData,
+  initialMeta,
   currentPathActions,
 }: ModuleProps) {
   useRegisterModule({
@@ -29,13 +33,12 @@ export default function WarehousePage({
   const staticActions = pageAction?.actions.filter((a) => !a.dynamic) ?? [];
   const dynamicActions = pageAction?.actions.filter((a) => a.dynamic) ?? [];
 
-  const apiBase = pageAction.actions.find(
-    (item) => item.label.toLocaleLowerCase() === 'create',
-  )?.key!;
+  const apiBase = `/api${currentPath.path}`;
 
   const [data, setData] = useState<TWarehouse[]>(
     (initialData as TWarehouse[]) ?? [],
   );
+  const [meta, setMeta] = useState<TMeta>(initialMeta ?? DEFAULT_META);
 
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -49,6 +52,17 @@ export default function WarehousePage({
     setTimeout(() => setToast(null), 3000);
   };
 
+  // Server-side pagination: the list only ever holds one page, so page changes
+  // must re-fetch instead of slicing what's already in memory.
+  const fetchPage = async (page: number, limit: number) => {
+    const res = await fetch(`${apiBase}?page=${page}&limit=${limit}`);
+    if (res.ok) {
+      const json = await res.json();
+      setData(json.data ?? []);
+      setMeta(json.meta ?? DEFAULT_META);
+    }
+  };
+
   const handleDelete = async () => {
     if (!deletingId) return;
     setDeleting(true);
@@ -57,8 +71,9 @@ export default function WarehousePage({
         method: 'DELETE',
       });
       if (!res.ok) throw new Error('Delete failed');
-      setData((prev) => prev.filter((w) => w.id !== deletingId));
       showToast('Warehouse deleted', 'success');
+      // Re-fetch so the totals/pages stay correct.
+      await fetchPage(meta.page, meta.limit);
     } catch {
       showToast('Delete failed', 'error');
     } finally {
@@ -110,6 +125,15 @@ export default function WarehousePage({
           row.name.toLowerCase().includes(q)
         }
         searchPlaceholder="Search warehouses..."
+        pageSize={meta.limit}
+        pageSizeOptions={[10, 20, 50]}
+        serverSide={{
+          total: meta.total,
+          page: meta.page,
+          totalPages: meta.totalPages,
+          onPageChange: (p) => fetchPage(p, meta.limit),
+          onPageSizeChange: (limit) => fetchPage(1, limit),
+        }}
         emptyTitle="No warehouses yet"
       />
     </div>

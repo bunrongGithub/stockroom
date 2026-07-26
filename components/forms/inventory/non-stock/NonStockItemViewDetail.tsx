@@ -2,6 +2,8 @@
 
 import { FieldLabel } from '@/components/ui/FieldLabel';
 import { ReadonlyInput } from '@/components/ui/Readonly';
+import { AuditInformationCard } from '@/components/ui/AuditInformationCard';
+import type { AuditMeta } from '@/types/audit';
 import {
     ArrowLeft,
     BarChart3,
@@ -10,7 +12,6 @@ import {
     ChevronRight,
     Clock,
     Edit2,
-    Package,
     Percent,
     RotateCcw,
     ScanBarcode,
@@ -47,9 +48,9 @@ export type NonStockViewItem = {
 };
 
 const TABS = [
-    { id: 'details' as const, label: 'Details', num: 1 },
-    { id: 'pricing' as const, label: 'Pricing Details', num: 2 },
-    { id: 'options' as const, label: 'More Options', num: 3 },
+    { id: 'details' as const, label: 'Details' },
+    { id: 'pricing' as const, label: 'Pricing Details' },
+    { id: 'options' as const, label: 'More Options' },
 ];
 type TabId = (typeof TABS)[number]['id'];
 
@@ -113,20 +114,18 @@ export default function NonStockItemViewDetail({ item }: { item: NonStockViewIte
     const createdAt = new Date(item.created_at);
 
     return (
-        <div className="mx-auto max-w-7xl space-y-6 p-4 md:p-8">
-            <div>
+        <div className="mx-auto space-y-2 font-mono">
+            {/* Header */}
+            <div className="font-bold">
                 <Link
-                    href="/inventory/configurations/non-stock"
+                    href="/inventory/configurations/non-stock-item"
                     className="inline-flex items-center gap-2 text-sm text-slate-500 transition-colors hover:text-slate-700"
                 >
-                    <ArrowLeft size={16} /> Back to Non-Stock Items
+                    <ArrowLeft size={16} /> Back
                 </Link>
-                <h2 className="mt-3 flex items-center gap-2 text-2xl font-bold text-slate-800 md:text-3xl">
-                    <Package className="text-[#1a9e52]" /> Non-Stock Item Detail
-                </h2>
             </div>
 
-            <div className="grid gap-6 xl:grid-cols-[300px_minmax(0,1fr)]">
+            <div className="grid gap-6 xl:grid-cols-[350px_minmax(0,1fr)]">
                 {/* LEFT SIDEBAR */}
                 <aside className="space-y-4 self-start xl:sticky xl:top-6">
                     <section className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
@@ -136,7 +135,7 @@ export default function NonStockItemViewDetail({ item }: { item: NonStockViewIte
                         </div>
                         <div className="p-4">
                             <div className="flex items-center gap-3">
-                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#1a9e52] to-emerald-700 text-sm font-bold text-white shadow-sm">
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-[#1a9e52] to-emerald-700 text-sm font-bold text-white shadow-sm">
                                     {item.name?.[0]?.toUpperCase() ?? 'I'}
                                 </div>
                                 <div className="min-w-0">
@@ -182,45 +181,37 @@ export default function NonStockItemViewDetail({ item }: { item: NonStockViewIte
                         </div>
                     </section>
 
+                    {/* Action Buttons */}
                     <div className="flex flex-col-reverse gap-2">
                         <Link
-                            href="/inventory/configurations/non-stock"
+                            href="/inventory/configurations/non-stock-item"
                             className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-center text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
                         >
                             Back
                         </Link>
                         <Link
-                            href={`/inventory/configurations/non-stock/${item.id}/edit`}
+                            href={`/inventory/configurations/non-stock-item/${item.id}/update`}
                             className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1a9e52] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#158042]"
                         >
-                            <Edit2 size={15} /> Edit Item
+                            <Edit2 size={15} /> Update
                         </Link>
                     </div>
                 </aside>
 
-                {/* RIGHT — Tabs */}
-                <div className="min-w-0">
-                    <div className="flex gap-0 border-b border-slate-200">
+                {/* RIGHT — Tabs + Content */}
+                <div>
+                    <div className="flex gap-0 border-b border-slate-200 text-xs">
                         {TABS.map((tab) => (
                             <button
                                 key={tab.id}
                                 type="button"
                                 onClick={() => setActiveTab(tab.id)}
-                                className={`flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-medium transition-all ${
+                                className={`flex items-center gap-2 border-b-2 px-5 py-3 transition-all ${
                                     activeTab === tab.id
                                         ? 'border-[#1a9e52] text-[#1a9e52]'
                                         : 'border-transparent text-slate-500 hover:text-slate-700'
                                 }`}
                             >
-                                <span
-                                    className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold transition-all ${
-                                        activeTab === tab.id
-                                            ? 'bg-[#1a9e52] text-white'
-                                            : 'bg-slate-100 text-slate-500'
-                                    }`}
-                                >
-                                    {tab.num}
-                                </span>
                                 {tab.label}
                             </button>
                         ))}
@@ -228,11 +219,8 @@ export default function NonStockItemViewDetail({ item }: { item: NonStockViewIte
 
                     {/* Tab 1: Details */}
                     {activeTab === 'details' && (
-                        <div className="space-y-5 pt-5">
+                        <div className="space-y-5 pt-5 text-xs">
                             <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-                                <h3 className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
-                                    <Package size={13} className="text-[#1a9e52]" /> Item Information
-                                </h3>
                                 <div className="grid gap-4 lg:grid-cols-2">
                                     <div>
                                         <FieldLabel>Reference No</FieldLabel>
@@ -247,7 +235,7 @@ export default function NonStockItemViewDetail({ item }: { item: NonStockViewIte
                                         <ReadonlyInput value={item.category?.name ?? ''} placeholder="—" />
                                     </div>
                                     <div>
-                                        <FieldLabel>Base UOM</FieldLabel>
+                                        <FieldLabel>Default UOM</FieldLabel>
                                         <ReadonlyInput value={item.uom?.name ?? ''} placeholder="—" />
                                     </div>
                                     <div>
@@ -264,6 +252,15 @@ export default function NonStockItemViewDetail({ item }: { item: NonStockViewIte
                                         <FieldLabel>Item Class</FieldLabel>
                                         <ReadonlyInput value={item.item_class} />
                                     </div>
+                                </div>
+                            </section>
+
+                            <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+                                <FieldLabel>Additional Notes</FieldLabel>
+                                <div className="mt-1 min-h-24 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 whitespace-pre-wrap">
+                                    {item.description || (
+                                        <span className="text-slate-300">—</span>
+                                    )}
                                 </div>
                             </section>
 
@@ -392,15 +389,6 @@ export default function NonStockItemViewDetail({ item }: { item: NonStockViewIte
                                 )}
                             </section>
 
-                            <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-                                <FieldLabel>Additional Notes</FieldLabel>
-                                <div className="mt-1 min-h-24 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 whitespace-pre-wrap">
-                                    {item.description || (
-                                        <span className="text-slate-300">—</span>
-                                    )}
-                                </div>
-                            </section>
-
                             <div className="flex justify-start">
                                 <button
                                     type="button"
@@ -414,6 +402,8 @@ export default function NonStockItemViewDetail({ item }: { item: NonStockViewIte
                     )}
                 </div>
             </div>
+
+            <AuditInformationCard audit={item as Partial<AuditMeta>} />
         </div>
     );
 }

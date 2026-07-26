@@ -35,6 +35,10 @@ const inventoryBaseSchema = {
     is_warranty: z.boolean().default(false),
     track_serial: z.boolean().default(false),
 
+    // How serials are entered for this item: manual typing/scanning,
+    // framework auto-generation, or both (default).
+    serial_generation: z.enum(['manual', 'auto', 'both']).default('both'),
+
     warranty_duration: z.string().max(100).optional().nullable(),
 
     category_id: z.number({ error: msgRequiredField }).int(),
@@ -66,6 +70,7 @@ export const updateInventorySchema = z.object({
     is_returnable: inventoryBaseSchema.is_returnable.optional(),
     is_warranty: inventoryBaseSchema.is_warranty.optional(),
     track_serial: inventoryBaseSchema.track_serial.optional(),
+    serial_generation: inventoryBaseSchema.serial_generation.optional(),
     warranty_duration: inventoryBaseSchema.warranty_duration,
     category_id: inventoryBaseSchema.category_id.optional(),
     uom_id: inventoryBaseSchema.uom_id,

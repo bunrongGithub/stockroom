@@ -1,8 +1,10 @@
+import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { NextRequest, NextResponse } from 'next/server';
 import { getRequestContext } from '@/lib/request-context';
 import { SalesOrderRepository } from '@/service/apps/sale/repo/order';
 import { createSalesOrderSchema } from '@/service/schema/sale-order.schema';
 import { ApiError, ApiResponseSuccess } from '@/service/core/api-response';
+import { parseListParams } from '@/service/core/query/http.ts';
 import { z } from 'zod';
 
 export const service = SalesOrderRepository.getInstance();
@@ -10,13 +12,11 @@ export const service = SalesOrderRepository.getInstance();
 export async function GET(req: NextRequest) {
     try {
         const ctx = getRequestContext(req);
-        const sp = req.nextUrl.searchParams;
-        const result = await service.findAll(ctx, {
-            page: Number(sp.get('page') || 1),
-            limit: Number(sp.get('limit') || 10),
-            search: sp.get('search') ?? undefined,
-            searchColumn: 'order_no',
-        });
+        await requirePermission(ctx, PERMISSIONS.sales.order.view, { req: req });
+        const query = parseListParams(req);
+        // Counter sales are sales orders too, but they belong on the Cash
+        // Sale list — this is the order pipeline the sales desk works.
+        const result = await service.findAllV2(ctx, query, 'sales_order');
         return new ApiResponseSuccess(result, 'Success').toResponse();
     } catch (error) {
         if (error instanceof ApiError) return error.toResponse();
@@ -29,6 +29,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.sales.order.create, { req: req });
         const body = await req.json();
         const parsed = createSalesOrderSchema.safeParse(body);
         if (!parsed.success) {

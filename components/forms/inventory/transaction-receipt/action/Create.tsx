@@ -221,7 +221,7 @@ export default function Create() {
         return;
       }
 
-      router.push(`/inventory/transaction/receipt/${json.data.id}/view`);
+      router.push(`/inventory/receipts/${json.data.id}/view`);
       router.refresh();
     } catch {
       setSubmitError('An unexpected error occurred. Please try again.');

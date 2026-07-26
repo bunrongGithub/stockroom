@@ -19,6 +19,13 @@ export type DocumentType =
     | 'inventory_receipt'
     | 'inventory_movement'
     | 'customer_payment'
+    // master data (reference numbers):
+    | 'stock_item'
+    | 'non_stock_item'
+    | 'service_item'
+    | 'item_category'
+    | 'item_uom'
+    | 'business_partner'
     // future modules:
     | 'purchase_order'
     | 'purchase_invoice'
@@ -26,7 +33,8 @@ export type DocumentType =
     | 'sales_return'
     | 'purchase_return'
     | 'inventory_transfer'
-    | 'stock_adjustment';
+    | 'stock_adjustment'
+    | 'stock_count';
 
 export async function getNextDocumentNumber(
     ctx: RequestContext,

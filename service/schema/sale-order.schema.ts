@@ -32,11 +32,19 @@ export type UpdateSalesOrderLineInput = z.infer<
 const orderHeaderBase = {
     // User-entered reference (customer PO, tracking no…) — never generated.
     reference_no: z.string().max(100).trim().optional().nullable(),
+    // Sales Orders resolve a Business Partner rather than free text. The name
+    // and phone are still stored as a SNAPSHOT (a printed order must not change
+    // when a partner is renamed), but the link is what reports and statements
+    // aggregate on. Nullable in the DB so pre-Master-Data history stays
+    // editable; required here for every new order.
+    customer_id: z.number().int().positive('Select a business partner'),
     customer_name: z.string().min(1, 'Customer is required').trim(),
-    customer_phone: z.string().min(1, 'Customer phone is required').trim(),
+    customer_phone: z.string().trim().optional().nullable(),
     order_date: z.string(),
     expected_delivery_date: z.string().optional().nullable(),
-    warehouse_id: z.number().int().positive('Warehouse is required'),
+    // Required only when the order has shippable lines — enforced in the
+    // repo via the item-behavior registry, not here (needs the item classes).
+    warehouse_id: z.number().int().positive().optional().nullable(),
     currency: z.string().default('USD'),
     notes: z.string().optional().nullable(),
 };

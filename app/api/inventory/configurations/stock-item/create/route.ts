@@ -1,3 +1,4 @@
+import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { createInventorySchema } from '@/service/schema/inventory.schema';
 import { NextRequest } from 'next/server';
 import { getRequestContext } from '@/lib/request-context';
@@ -11,6 +12,7 @@ import { ApiError } from '@/service/core/api-response';
 export async function POST(req: NextRequest) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.inventory.item.create, { req: req });
         const body = await req.json();
 
         const parsed = createInventorySchema.safeParse({

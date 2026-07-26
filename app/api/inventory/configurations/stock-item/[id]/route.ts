@@ -1,3 +1,4 @@
+import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { getRequestContext } from '@/lib/request-context';
 import { getServerClient } from '@/lib/supabase/server';
 import {
@@ -33,6 +34,7 @@ function firstRelation<T>(value: T | T[] | null | undefined): T | null {
 export async function GET(req: NextRequest, { params }: Params) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.inventory.item.view, { req: req });
         const { id } = await params;
 
         const parsed = itemIdSchema.safeParse({ id });
@@ -112,6 +114,7 @@ export async function GET(req: NextRequest, { params }: Params) {
 export async function PATCH(req: NextRequest, { params }: Params) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.inventory.item.update, { req: req });
         const { id } = await params;
 
         const parsed = itemIdSchema.safeParse({ id });
@@ -152,6 +155,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 export async function DELETE(req: NextRequest, { params }: Params) {
     try {
         const ctx = getRequestContext(req);
+        await requirePermission(ctx, PERMISSIONS.inventory.item.delete, { req: req });
         const { id } = await params;
 
         const parsed = itemIdSchema.safeParse({ id });

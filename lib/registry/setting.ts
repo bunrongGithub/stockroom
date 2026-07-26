@@ -8,6 +8,18 @@ export const settingRegistry: RegistryEntry[] = [
         'User',
         () => import('@/components/modules/setting/user/page'),
     ],
+    [
+        'UserCreate',
+        () => import('@/components/modules/setting/user/actions/Create'),
+    ],
+    [
+        'UserView',
+        () => import('@/components/modules/setting/user/actions/View'),
+    ],
+    [
+        'UserUpdate',
+        () => import('@/components/modules/setting/user/actions/Update'),
+    ],
 
     // ── Role ──────────────────────────────────────────────────────────────────
     [
@@ -44,6 +56,18 @@ export const settingRegistry: RegistryEntry[] = [
     // ── Company ───────────────────────────────────────────────────────────────
     [
         'Company',
-        () => import('@/components/modules/setting/company/Company'),
+        () => import('@/components/modules/setting/company/page'),
+    ],
+    [
+        'CompanyCreate',
+        () => import('@/components/modules/setting/company/actions/Create'),
+    ],
+    [
+        'CompanyView',
+        () => import('@/components/modules/setting/company/actions/View'),
+    ],
+    [
+        'CompanyUpdate',
+        () => import('@/components/modules/setting/company/actions/Update'),
     ],
 ];

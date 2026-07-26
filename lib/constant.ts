@@ -46,6 +46,7 @@ export const API = {
 
     dashboard: {
         summary: '/api/dashboard/summary',
+        analytics: (metric: string) => `/api/dashboard/analytics/${metric}`,
     },
 
     inventory: {
@@ -75,13 +76,32 @@ export const API = {
             onhand: '/api/inventory/adjustment/onhand',
         },
 
+        stockCount: {
+            ...resource('/api/inventory/stock-count'),
+            prepare: (id: Id) => `/api/inventory/stock-count/${id}/prepare`,
+            start: (id: Id) => `/api/inventory/stock-count/${id}/start`,
+            submit: (id: Id) => `/api/inventory/stock-count/${id}/submit`,
+            approve: (id: Id) => `/api/inventory/stock-count/${id}/approve`,
+            approvePreview: (id: Id) =>
+                `/api/inventory/stock-count/${id}/approve/preview`,
+            reopen: (id: Id) => `/api/inventory/stock-count/${id}/reopen`,
+            cancel: (id: Id) => `/api/inventory/stock-count/${id}/cancel`,
+            summary: (id: Id) => `/api/inventory/stock-count/${id}/summary`,
+            lines: (id: Id) => `/api/inventory/stock-count/${id}/lines`,
+            scan: (id: Id) => `/api/inventory/stock-count/${id}/scan`,
+            lineSerials: (id: Id, lineId: Id) =>
+                `/api/inventory/stock-count/${id}/lines/${lineId}/serials`,
+        },
+
         stockBalance: {
             root: '/api/inventory/stock-balance',
             item: (id: Id) => `/api/inventory/stock-balance/item/${id}`,
         },
 
-        // Item-detail ledger tabs (movement-driven)
+        // Unified item endpoint: class-agnostic lookup (sale pickers) +
+        // detail + item-detail ledger tabs (movement-driven)
         item: {
+            ...resource('/api/inventory/items'),
             stock: (id: Id) => `/api/inventory/items/${id}/stock`,
             movements: (id: Id) => `/api/inventory/items/${id}/movements`,
             transactions: (id: Id) => `/api/inventory/items/${id}/transactions`,
@@ -92,7 +112,11 @@ export const API = {
         serial: {
             root: '/api/inventory/serial',
             history: (id: Id) => `/api/inventory/serial/${id}/history`,
+            generate: '/api/inventory/serial/generate',
+            validate: '/api/inventory/serial/validate',
+            search: '/api/inventory/serial/search',
         },
+        serialSetting: '/api/inventory/configurations/serial-setting',
 
         stockLocation: resource('/api/inventory/stock-location'),
     },
@@ -104,7 +128,11 @@ export const API = {
         },
         role: resource(`${SETTING}/role`),
         rolePermissions: resource(`${SETTING}/role-permissions`),
-        users: `${SETTING}/users`,
+        users: {
+            ...resource(`${SETTING}/users`),
+            status: (id: Id) => `${SETTING}/users/${id}/status`,
+            avatar: (id: Id) => `${SETTING}/users/${id}/avatar`,
+        },
         company: {
             root: `${SETTING}/company`,
             users: `${SETTING}/company/users`,
@@ -138,6 +166,12 @@ export const API = {
             post: (id: Id) => `/api/sale/shipment/${id}/post`,
             void: (id: Id) => `/api/sale/shipment/${id}/void`,
         },
+        cashSale: {
+            root: '/api/sale/cash-sale',
+            validate: '/api/sale/cash-sale/validate',
+        },
+        customer: resource('/api/sale/customer'),
+        setting: '/api/sale/configurations/setting',
     },
 
     stockTransfer: {

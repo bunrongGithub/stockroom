@@ -27,15 +27,28 @@ function jsonInit(method: string, payload: unknown): RequestInit {
     };
 }
 
+export type Paginated<T> = {
+    data: T[];
+    meta: { total: number; page: number; limit: number; totalPages: number };
+};
+
 export const stockAdjustmentApi = {
-    async list(search = ''): Promise<StockAdjustment[]> {
+    /** One page WITH its meta — the list needs `total` to paginate at all. */
+    async listPage(
+        params: { page?: number; limit?: number; search?: string } = {},
+    ): Promise<Paginated<StockAdjustment>> {
         const url = new URL(API.inventory.adjustment.root, window.location.origin);
-        url.searchParams.set('limit', '100');
-        if (search) url.searchParams.set('search', search);
-        const body = await unwrap<{ data: StockAdjustment[] }>(
+        url.searchParams.set('page', String(params.page ?? 1));
+        url.searchParams.set('limit', String(params.limit ?? 10));
+        if (params.search) url.searchParams.set('search', params.search);
+        const body = await unwrap<Paginated<StockAdjustment>>(
             await fetch(url.toString()),
         );
-        return body.data ?? [];
+        return { data: body.data ?? [], meta: body.meta };
+    },
+    async list(search = ''): Promise<StockAdjustment[]> {
+        const { data } = await this.listPage({ search, limit: 10 });
+        return data;
     },
     async get(id: number | string): Promise<StockAdjustment> {
         const body = await unwrap<{ data: StockAdjustment }>(

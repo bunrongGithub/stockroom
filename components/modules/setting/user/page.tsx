@@ -1,35 +1,27 @@
 'use client';
 
+import { Button } from '@/components/ui/button';
+import { ButtonActionStaticRender } from '@/components/ui/button-action';
 import { DataTable } from '@/components/ui/DataTable';
-import { Badge } from '@/components/ui/badge';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { useToast } from '@/components/ui/Toast';
 import { useRegisterModule } from '@/hook/useModule';
-import type { ModuleProps } from '@/lib/registry';
-import { Users } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { getUserColumns } from './columns';
 import { usePageActions } from '@/hook/usePageAction';
-import PopUpDeleteTransactionModal from '@/components/ui/PopUpDeleteModal';
-import { TMeta } from '@/types/app';
+import type { ModuleProps } from '@/lib/registry';
+import { usersApi } from '@/lib/api/users';
+import type { CompanyUser } from '@/service/apps/base/user/repo/user.repo';
+import { Plus, Users } from 'lucide-react';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { getUserColumns } from './columns';
 
-export type User = {
-  id: string;
-  email: string;
-  full_name: string | null;
-  company_id: number | null;
-  company: { id: number; name: string } | null;
-  company_name: string | null;
-  avatar_url: string | null;
-  roles: string[] | null;
-  created_at: string;
-};
-const DEFAULT_META: TMeta = { total: 0, page: 1, limit: 10, totalPages: 0 };
-
-export default function Page({
+export default function UserModule({
   currentPath,
   permission,
   currentPathActions,
   initialData,
-  initialMeta,
 }: ModuleProps) {
   useRegisterModule({
     actionModules: currentPathActions,
@@ -37,142 +29,101 @@ export default function Page({
     modulePath: currentPath.path,
   });
 
-  const apiBase = `/api${currentPath.path}`;
-
   const pageAction = usePageActions();
   const staticActions = pageAction?.actions.filter((a) => !a.dynamic) ?? [];
   const dynamicActions = pageAction?.actions.filter((a) => a.dynamic) ?? [];
 
-  const [users, setUsers] = useState<User[]>([]);
-  const [tableMeta, setTableMeta] = useState<TMeta>(
-    initialMeta ?? DEFAULT_META,
+  const router = useRouter();
+  const toast = useToast();
+  const [users, setUsers] = useState<CompanyUser[]>(
+    (initialData as CompanyUser[]) ?? [],
   );
+  const [confirm, setConfirm] = useState<CompanyUser | null>(null);
 
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [deletingId, setDeletingId] = useState<number | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
-
-  const [toast, setToast] = useState<{
-    msg: string;
-    type: 'success' | 'error';
-  } | null>(null);
-
-  const columns = getUserColumns({
-    dynamicActions,
-    onDelete: setDeletingId,
-  });
-
-  useEffect(() => {
-    fetchUsers();
-  }, []);
-
-  async function fetchUsers(page: number = 1, limit: number = 10) {
-    setLoading(true);
-    if (!currentPathActions) return;
-
-    if (
-      initialData === null ||
-      initialData === undefined ||
-      initialData.length === 0
-    ) {
-      fetch(`${apiBase}?page=${page}&limit=${limit}`)
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.error) {
-            setError(data.error);
-            return;
-          }
-          const usersData = data.data as User[];
-          setUsers(usersData);
-        })
-        .catch((err) => {
-          setError(err.message || 'Failed to fetch users');
-        })
-        .finally(() => setLoading(false));
-    } else {
-      setUsers(initialData as User[]);
-      setLoading(false);
+  async function refreshUsers() {
+    try {
+      setUsers(await usersApi.list());
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to load users');
     }
   }
 
-  const onConfirmDelete = async () => {
-    if (!deletingId) return;
+  async function handleDeactivate() {
+    if (!confirm) return;
     try {
-      setIsDeleting(true);
-      const res = await fetch(`${apiBase}/${deletingId}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Delete failed');
-      setToast({ msg: 'Module deleted successfully', type: 'success' });
-      await fetchUsers(tableMeta.page, tableMeta.limit);
-    } catch {
-      setToast({ msg: 'Failed to delete module', type: 'error' });
+      await usersApi.setStatus(String(confirm.id), 'inactive');
+      toast.success(`${confirm.full_name ?? confirm.email} deactivated.`);
+      await refreshUsers();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Could not deactivate user');
+      throw e;
     } finally {
-      setIsDeleting(false);
-      setDeletingId(null);
+      setConfirm(null);
     }
-  };
+  }
+
   return (
-    <main className=" mx-auto animate-in fade-in duration-300">
-      {toast && (
-        <div
-          className={`fixed right-4 top-4 z-50 rounded-xl px-4 py-3 text-sm font-medium shadow-lg transition-all ${
-            toast.type === 'success'
-              ? 'bg-emerald-500 text-white'
-              : 'bg-rose-500 text-white'
-          }`}
-        >
-          {toast.msg}
-        </div>
-      )}
-
-      <PopUpDeleteTransactionModal
-        open={!!deletingId}
-        loading={isDeleting}
-        onClose={() => setDeletingId(null)}
-        onConfirm={onConfirmDelete}
-      />
-
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
-          <Users size={20} className="text-emerald-600" />
-        </div>
-        <div>
-          <h2 className="text-xl font-bold text-slate-800">Users</h2>
-          <p className="text-sm text-slate-500">
-            All registered system users and their roles
-          </p>
-        </div>
-        {!loading && (
-          <Badge variant="secondary" className="ml-auto">
-            {users.length} user{users.length !== 1 ? 's' : ''}
-          </Badge>
-        )}
-      </div>
-
-      {error && (
-        <div className="rounded-xl bg-rose-50 border border-rose-200 px-4 py-3 text-sm text-rose-700">
-          {error}
-        </div>
-      )}
-
-      {loading ? (
-        <div className="flex justify-center py-16">
-          <div className="w-6 h-6 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin" />
-        </div>
-      ) : (
-        <DataTable
-          columns={columns}
-          data={users}
-          keyExtractor={(r) => r.id}
-          searchFn={(row, q) =>
-            row.email.toLowerCase().includes(q) ||
-            (row.full_name ?? '').toLowerCase().includes(q)
+    <div className="space-y-4">
+      {staticActions.length > 0 && (
+        <PageHeader
+          title="Users"
+          description="Manage the people who belong to your company."
+          actions={
+            staticActions.map((action) => (
+              <span key={action.href}>
+                {ButtonActionStaticRender(action)}
+              </span>
+            ))[0]
           }
-          searchPlaceholder="Search by email or name..."
-          emptyTitle="No users found"
-          emptyDescription="Users appear here after they sign up"
         />
       )}
-    </main>
+
+      <ConfirmDialog
+        open={confirm !== null}
+        onOpenChange={(o) => !o && setConfirm(null)}
+        title={`Deactivate ${confirm?.full_name ?? confirm?.email}?`}
+        description="The user will be blocked from logging in until reactivated. Their history is preserved."
+        confirmLabel="Deactivate"
+        tone="danger"
+        onConfirm={handleDeactivate}
+      />
+
+      {users.length === 0 ? (
+        <EmptyState
+          icon={Users}
+          title="No users yet"
+          description="Add your team by creating their accounts."
+          action={
+            permission.can_create ? (
+              <Button
+                size="sm"
+                className="gap-1.5 bg-emerald-600 hover:bg-emerald-500"
+                onClick={() => router.push('/setting/users/create')}
+              >
+                <Plus size={14} /> Add User
+              </Button>
+            ) : undefined
+          }
+        />
+      ) : (
+        <DataTable
+          columns={getUserColumns({
+            dynamicActions,
+            onDelete: (id: number) => {
+              const user = users.find((u) => Number(u.id) === id);
+              if (user) setConfirm(user);
+            },
+          })}
+          data={users}
+          keyExtractor={(u) => u.id}
+          searchFn={(row, q) =>
+            (row.full_name ?? '').toLowerCase().includes(q) ||
+            row.email.toLowerCase().includes(q) ||
+            row.roles.some((r) => r.name.toLowerCase().includes(q))
+          }
+          searchPlaceholder="Search by name, email, or role..."
+        />
+      )}
+    </div>
   );
 }

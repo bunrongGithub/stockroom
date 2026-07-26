@@ -1,5 +1,6 @@
 import { dashboardRegistry } from './dashboard';
 import { inventoryRegistry } from './inventory';
+import { masterDataRegistry } from './master-data';
 import { settingRegistry } from './setting';
 import { saleRegistry } from './sale';
 import type { LazyLoader } from './types';
@@ -14,6 +15,7 @@ export type { ModuleProps } from './types';
 const registry = new Map<string, LazyLoader>([
     ...dashboardRegistry,
     ...inventoryRegistry,
+    ...masterDataRegistry,
     ...settingRegistry,
     ...saleRegistry,
     ...financeRegistry,

@@ -1,9 +1,13 @@
 'use client';
 
 import { API } from '@/lib/constant';
+import { useCan } from '@/hook/useCan';
+import { PERMISSIONS } from '@/service/core/authz/permissions';
 import { FieldLabel } from '@/components/ui/FieldLabel';
 import { ReadonlyInput } from '@/components/ui/Readonly';
+import { AuditInformationCard } from '@/components/ui/AuditInformationCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import type { AuditMeta } from '@/types/audit';
 import type {
   InventoryMovemtTypeReasonMeta,
   ReceiptTxnType,
@@ -82,6 +86,10 @@ export default function View({ receiptData }: { receiptData: ReceiptTxnType }) {
   const [posting, setPosting] = useState(false);
   const [voiding, setVoiding] = useState(false);
 
+  // Hooks must run before any early return — keep the permission checks here.
+  const mayPost = useCan(PERMISSIONS.inventory.receipt.post);
+  const mayVoid = useCan(PERMISSIONS.inventory.receipt.void);
+
   const loadReceipt = useCallback(async () => {
     if (!id) return;
     setError('');
@@ -153,8 +161,10 @@ export default function View({ receiptData }: { receiptData: ReceiptTxnType }) {
       sum + (Number(item.receipt_qty) || 0) * (Number(item.unit_cost) || 0),
     0,
   );
-  const canPost = receipt.actions?.can_post ?? receipt.status === 'DRAFT';
-  const canVoid = receipt.actions?.can_void ?? receipt.status === 'DRAFT';
+  const canPost =
+    (receipt.actions?.can_post ?? receipt.status === 'DRAFT') && mayPost;
+  const canVoid =
+    (receipt.actions?.can_void ?? receipt.status === 'DRAFT') && mayVoid;
 
   return (
     <div className="space-y-6 font-mono text-xs">
@@ -332,6 +342,8 @@ export default function View({ receiptData }: { receiptData: ReceiptTxnType }) {
           </div>
         </CardContent>
       </Card>
+
+      <AuditInformationCard audit={receipt as Partial<AuditMeta>} />
     </div>
   );
 }

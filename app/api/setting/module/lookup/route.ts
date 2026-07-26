@@ -1,3 +1,4 @@
+import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { NextRequest, NextResponse } from 'next/server';
 import { getRequestContext } from '@/lib/request-context';
 import { service } from '..';
@@ -5,6 +6,7 @@ import { service } from '..';
 export async function GET(request: NextRequest) {
     try {
         const ctx = getRequestContext(request);
+        await requirePermission(ctx, PERMISSIONS.setting.module.view, { req: request });
         const searchParams = request.nextUrl.searchParams;
 
         const page = Number(searchParams.get('page') || 1);
