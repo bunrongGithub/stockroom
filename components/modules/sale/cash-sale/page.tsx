@@ -10,27 +10,27 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import BusinessPartnerLookup from '@/components/master-data/BusinessPartnerLookup';
 import ItemClassBadge from '@/components/ui/ItemClassBadge';
 import SerialLookupPanel from '@/components/ui/serial/SerialLookupPanel';
 import { useItemAutoFill } from '@/hook/useItemAutoFill';
 import { behaviorOf } from '@/service/core/item-behavior';
 import { useRegisterModule } from '@/hook/useModule';
-import { cashSaleApi, type Customer, type SalesSettings } from '@/lib/api/cash-sale';
+import { cashSaleApi, type SalesSettings } from '@/lib/api/cash-sale';
 import { API } from '@/lib/constant';
 import type { ModuleProps } from '@/lib/registry';
+import type { BusinessPartnerOption } from '@/types/master-data/business-partner';
 import ItemScanSearch from './ItemScanSearch';
 import {
     Banknote,
     CreditCard,
     Landmark,
     Loader2,
-    Plus,
     QrCode,
     ScanLine,
     Trash2,
     UserRound,
     Warehouse,
-    X,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -91,15 +91,8 @@ export default function CashSaleModule({
 
     const [settings, setSettings] = useState<SalesSettings | null>(null);
     const [lines, setLines] = useState<CartLine[]>([]);
-    const [customer, setCustomer] = useState<Customer | null>(null);
-    const [customerSearch, setCustomerSearch] = useState('');
-    const [customerResults, setCustomerResults] = useState<Customer[]>([]);
-    const [customerOpen, setCustomerOpen] = useState(false);
-    const [registerForm, setRegisterForm] = useState<{
-        name: string;
-        phone: string;
-    } | null>(null);
-    const [registering, setRegistering] = useState(false);
+    // The selected Business Partner, or null for an anonymous walk-in.
+    const [customer, setCustomer] = useState<BusinessPartnerOption | null>(null);
 
     // Where this sale takes stock from. Seeded from Sales Settings; the cashier
     // can switch counter for one sale without changing the company default.
@@ -142,18 +135,6 @@ export default function CashSaleModule({
             .then((json) => setLocations(json.data ?? []))
             .catch(() => setLocations([]));
     }, [warehouseId]);
-
-    // Customer lookup: one box, matched server-side against name OR phone.
-    useEffect(() => {
-        if (!customerOpen) return;
-        const t = setTimeout(() => {
-            cashSaleApi
-                .searchCustomers(customerSearch)
-                .then(setCustomerResults)
-                .catch(() => setCustomerResults([]));
-        }, 250);
-        return () => clearTimeout(t);
-    }, [customerSearch, customerOpen]);
 
     const grandTotal = useMemo(
         () => lines.reduce((s, l) => s + l.quantity * l.unit_price, 0),
@@ -236,33 +217,9 @@ export default function CashSaleModule({
     const reset = () => {
         setLines([]);
         setCustomer(null);
-        setCustomerSearch('');
-        setRegisterForm(null);
         setTendered('');
         setMethod('CASH');
         setError(null);
-    };
-
-    const registerCustomer = async () => {
-        if (!registerForm?.name.trim() || registering) return;
-        setRegistering(true);
-        setError(null);
-        try {
-            const created = await cashSaleApi.createCustomer({
-                name: registerForm.name.trim(),
-                phone: registerForm.phone.trim() || null,
-            });
-            setCustomer(created);
-            setRegisterForm(null);
-            setCustomerOpen(false);
-            setCustomerSearch('');
-        } catch (e) {
-            setError(
-                e instanceof Error ? e.message : 'Could not register customer',
-            );
-        } finally {
-            setRegistering(false);
-        }
     };
 
     // ── Complete ────────────────────────────────────────────────────────────
@@ -467,143 +424,18 @@ export default function CashSaleModule({
                             <span>Customer</span>
                         </div>
 
-                        {customer ? (
-                            <div className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2">
-                                <div className="min-w-0">
-                                    <p className="truncate font-semibold text-slate-800">
-                                        {customer.name}
-                                    </p>
-                                    <p className="text-slate-400">
-                                        {customer.phone ?? 'No phone'}
-                                    </p>
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={() => setCustomer(null)}
-                                    className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200"
-                                    aria-label="Clear customer"
-                                >
-                                    <X size={14} />
-                                </button>
-                            </div>
-                        ) : registerForm ? (
-                            /* Register a walk-in on the spot. A customer is
-                               identified by name + phone, so both are captured
-                               here — the phone is what finds them next time. */
-                            <div className="space-y-2 rounded-xl border border-emerald-100 bg-emerald-50/40 p-3">
-                                <div className="space-y-1">
-                                    <Label>Name</Label>
-                                    <Input
-                                        autoFocus
-                                        value={registerForm.name}
-                                        onChange={(e) =>
-                                            setRegisterForm((f) => ({
-                                                ...f!,
-                                                name: e.target.value,
-                                            }))
-                                        }
-                                    />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label>Phone</Label>
-                                    <Input
-                                        type="tel"
-                                        inputMode="tel"
-                                        placeholder="012 345 678"
-                                        value={registerForm.phone}
-                                        onChange={(e) =>
-                                            setRegisterForm((f) => ({
-                                                ...f!,
-                                                phone: e.target.value,
-                                            }))
-                                        }
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter')
-                                                void registerCustomer();
-                                        }}
-                                    />
-                                </div>
-                                <div className="flex gap-2 pt-1">
-                                    <Button
-                                        onClick={registerCustomer}
-                                        disabled={
-                                            registering ||
-                                            !registerForm.name.trim()
-                                        }
-                                        className="h-9 flex-1 bg-emerald-600 hover:bg-emerald-500"
-                                    >
-                                        {registering ? (
-                                            <Loader2
-                                                size={14}
-                                                className="animate-spin"
-                                            />
-                                        ) : (
-                                            'Register'
-                                        )}
-                                    </Button>
-                                    <Button
-                                        variant="outline"
-                                        onClick={() => setRegisterForm(null)}
-                                        className="h-9 border-none bg-white"
-                                    >
-                                        Cancel
-                                    </Button>
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="relative">
-                                <Input
-                                    placeholder="Walk-in — search name or phone…"
-                                    value={customerSearch}
-                                    onFocus={() => setCustomerOpen(true)}
-                                    onChange={(e) => {
-                                        setCustomerSearch(e.target.value);
-                                        setCustomerOpen(true);
-                                    }}
-                                />
-                                {customerOpen && customerSearch && (
-                                    <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
-                                        {customerResults.map((c) => (
-                                            <button
-                                                key={c.id}
-                                                type="button"
-                                                onClick={() => {
-                                                    setCustomer(c);
-                                                    setCustomerOpen(false);
-                                                }}
-                                                className="block w-full px-3 py-2 text-left hover:bg-slate-50"
-                                            >
-                                                <span className="font-medium text-slate-700">
-                                                    {c.name}
-                                                </span>
-                                                <span className="ml-2 text-slate-400">
-                                                    {c.phone ?? ''}
-                                                </span>
-                                            </button>
-                                        ))}
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                // Typing digits means they gave a
-                                                // phone; anything else is a name.
-                                                const typed =
-                                                    customerSearch.trim();
-                                                const isPhone =
-                                                    /^[\d\s+()-]+$/.test(typed);
-                                                setRegisterForm({
-                                                    name: isPhone ? '' : typed,
-                                                    phone: isPhone ? typed : '',
-                                                });
-                                            }}
-                                            className="flex w-full items-center gap-1.5 border-t border-slate-100 px-3 py-2 text-left text-[#1a9e52] hover:bg-emerald-50"
-                                        >
-                                            <Plus size={14} /> Register new
-                                            customer
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-                        )}
+                        {/* The partner picker: one box that matches a
+                            code, a name or a phone, with inline registration
+                            when the person is new. The cashier never leaves
+                            this screen, and an anonymous walk-in can still be
+                            served by simply leaving it empty. */}
+                        <BusinessPartnerLookup
+                            label=""
+                            role="customer"
+                            placeholder="Walk-in — search name, phone or code…"
+                            value={customer}
+                            onChange={setCustomer}
+                        />
 
                         {/* The counter this sale sells from. Seeded from Sales
                             Settings; switchable for one sale without touching

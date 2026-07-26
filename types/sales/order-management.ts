@@ -66,6 +66,9 @@ export interface SalesOrder {
     id: number;
     order_no: string;
     reference_no: string | null;
+    /** The Business Partner acting as customer. Null on pre-Master-Data history. */
+    customer_id: number | null;
+    customer_code?: string | null;
     customer_name: string;
     customer_phone: string | null;
     order_date: string;
@@ -143,6 +146,8 @@ export interface CreateSalesOrderLinePayload {
 
 export interface CreateSalesOrderPayload {
     reference_no?: string;
+    /** The Business Partner acting as customer — required for new orders. */
+    customer_id: number;
     customer_name: string;
     customer_phone?: string;
     order_date: string;

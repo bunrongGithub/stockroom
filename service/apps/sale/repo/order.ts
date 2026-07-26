@@ -29,9 +29,10 @@ const HEADER_TABLE = 'sales_order' as const;
 const LINE_TABLE = 'sales_order_items' as const;
 const SHIPMENT_TABLE = 'sales_shipment' as const;
 
-const SELECT_LIST = '*, warehouse:warehouse(id, name)';
+const SELECT_LIST =
+    '*, warehouse:warehouse(id, name), customer:business_partner(id, code, name)';
 const SELECT_DETAIL =
-    '*, warehouse:warehouse(id, name), items:sales_order_items(*, item:inventory_item(id, name, track_serial), item_uom:inventory_item_uom(id, name, display_name))';
+    '*, warehouse:warehouse(id, name), customer:business_partner(id, code, name), items:sales_order_items(*, item:inventory_item(id, name, track_serial), item_uom:inventory_item_uom(id, name, display_name))';
 
 // ─── Pure helpers ───────────────────────────────────────────────────────────
 
@@ -112,6 +113,8 @@ function mapOrder(r: any): SalesOrder {
         id: r.id,
         order_no: r.order_no,
         reference_no: r.reference_no ?? null,
+        customer_id: r.customer_id ?? null,
+        customer_code: r.customer?.code ?? null,
         customer_name: r.customer_name,
         customer_phone: r.customer_phone ?? null,
         order_date: r.order_date,
@@ -134,14 +137,15 @@ function mapOrder(r: any): SalesOrder {
 
 /**
  * What the repository accepts, as opposed to what the HTTP schema accepts. The
- * zod schema is the API contract for the Sales Order form (which requires a
- * customer phone); an in-process caller — the Cash Sale orchestrator — sells to
- * walk-in customers with no phone, and stamps the channel/customer/idempotency
+ * zod schema is the API contract for the Sales Order form, which requires a
+ * Business Partner and a phone. An in-process caller — the Cash Sale
+ * orchestrator — serves anonymous walk-ins who have neither: a counter sale must
+ * never stop to ask who someone is. It also stamps the channel/idempotency
  * fields the form has no notion of.
  */
 export type CreateSalesOrderRepoInput = Omit<
     CreateSalesOrderInput,
-    'customer_phone'
+    'customer_phone' | 'customer_id'
 > & {
     customer_phone?: string | null;
     customer_id?: number | null;
@@ -427,6 +431,12 @@ export class SalesOrderRepository extends BaseRepository {
                     reference_no: input.reference_no ?? null,
                     customer_name: input.customer_name,
                     customer_phone: input.customer_phone ?? null,
+                    // Keeping the link in sync on update: it used to be written
+                    // only on insert, so re-saving an order silently detached it
+                    // from the partner master.
+                    ...(input.customer_id !== undefined && {
+                        customer_id: input.customer_id ?? null,
+                    }),
                     order_date: input.order_date,
                     expected_delivery_date:
                         input.expected_delivery_date ?? null,

@@ -244,6 +244,7 @@ export class SalesShipmentRepository extends BaseRepository {
                     shipment_no,
                     reference_no: input.reference_no ?? null,
                     sales_order_id: input.sales_order_id,
+                    customer_id: input.customer_id ?? order.customer_id ?? null,
                     customer_name: input.customer_name ?? order.customer_name,
                     customer_phone:
                         input.customer_phone ?? order.customer_phone,

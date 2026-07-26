@@ -25,6 +25,7 @@ export type DocumentType =
     | 'service_item'
     | 'item_category'
     | 'item_uom'
+    | 'business_partner'
     // future modules:
     | 'purchase_order'
     | 'purchase_invoice'

@@ -59,6 +59,13 @@ function res<A extends PermissionAction>(
 export const PERMISSIONS = {
     dashboard: res('/dashboard', 'dashboard', ['view']),
 
+    masterData: {
+        // The relationship hub every other module resolves against. Sales roles
+        // are seeded view+create so a cashier can find and register a partner
+        // mid-sale without holding edit rights on the master.
+        partner: res('/master-data/business-partner', 'master_data.partner', CRUD),
+    },
+
     inventory: {
         item: res('/inventory/configurations/stock-item', 'inventory.item', CRUD),
         category: res('/inventory/configurations/category', 'inventory.category', CRUD),

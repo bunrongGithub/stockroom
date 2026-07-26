@@ -418,6 +418,9 @@ export class SalesInvoiceRepository extends BaseRepository {
         const header = await this.insertInvoice(ctx, {
             shipment_id: shipmentId,
             sales_order_id: shipment.sales_order_id ?? null,
+            // The partner link follows the order, so an invoice is traceable to
+            // the master even though its name/phone stay a snapshot.
+            customer_id: input.customer_id ?? order?.customer_id ?? null,
             customer_name: input.customer_name ?? shipment.customer_name,
             customer_phone: input.customer_phone ?? shipment.customer_phone,
             customer_address:
@@ -523,6 +526,7 @@ export class SalesInvoiceRepository extends BaseRepository {
         const header = await this.insertInvoice(ctx, {
             shipment_id: null,
             sales_order_id: orderId,
+            customer_id: input.customer_id ?? order.customer_id ?? null,
             customer_name: input.customer_name ?? order.customer_name,
             customer_phone: input.customer_phone ?? order.customer_phone,
             customer_address: input.customer_address ?? null,
@@ -543,6 +547,7 @@ export class SalesInvoiceRepository extends BaseRepository {
         args: {
             shipment_id: number | null;
             sales_order_id: number | null;
+            customer_id: number | null;
             customer_name: string | null;
             customer_phone: string | null;
             customer_address: string | null;
@@ -575,6 +580,7 @@ export class SalesInvoiceRepository extends BaseRepository {
                     reference_no: args.input.reference_no ?? null,
                     shipment_id: args.shipment_id,
                     sales_order_id: args.sales_order_id,
+                    customer_id: args.customer_id ?? null,
                     customer_name: args.customer_name,
                     customer_phone: args.customer_phone,
                     customer_address: args.customer_address,

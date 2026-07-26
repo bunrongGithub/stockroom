@@ -3,6 +3,7 @@ import type { PaginatedResult } from '@/service/core/pagination';
 import { parseListQuery } from '@/service/core/query/parse.ts';
 import type { QueryObject } from '@/service/core/query/types.ts';
 
+import { BusinessPartnerRepository } from '@/service/apps/master-data/business-partner';
 import { CategoryRepository } from '@/service/apps/inventory/repo/category';
 import { InventoryRepository } from '@/service/apps/inventory/repo/stock';
 import { InventoryUomRepository } from '@/service/apps/inventory/repo/uom';
@@ -65,6 +66,16 @@ export type DataLoader = (
 const roleService = new Role();
 
 const dataRegistry = new Map<string, DataLoader>([
+    // ── Master Data ─────────────────────────────────────────────────────────
+    [
+        '/master-data/business-partner',
+        (ctx, args) =>
+            BusinessPartnerRepository.getInstance().findAllV2(
+                ctx,
+                toWireQuery(args),
+            ),
+    ],
+
     // ── Inventory · configurations (lists) ──────────────────────────────────
     [
         '/inventory/configurations/category',

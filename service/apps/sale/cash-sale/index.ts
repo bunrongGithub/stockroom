@@ -519,6 +519,7 @@ export class CashSaleService extends BaseRepository {
                 }
                 const draftShipment = await this.shipments.insertOne(ctx, {
                     sales_order_id: order.id,
+                    customer_id: sale.customer.customer_id,
                     customer_name: sale.customer.name,
                     customer_phone: sale.customer.phone,
                     delivery_date: today,
@@ -556,6 +557,7 @@ export class CashSaleService extends BaseRepository {
             // Shipment-sourced when stock moved (direct lines auto-included →
             // one combined invoice); order-sourced when nothing shipped.
             const invoiceHeader = {
+                customer_id: sale.customer.customer_id,
                 customer_name: sale.customer.name,
                 customer_phone: sale.customer.phone,
                 invoice_date: today,
@@ -614,6 +616,7 @@ export class CashSaleService extends BaseRepository {
 
             const draftPayment = await this.payments.create(ctx, {
                 payment_date: today,
+                customer_id: sale.customer.customer_id,
                 customer_name: sale.customer.name,
                 customer_phone: sale.customer.phone,
                 payment_method: input.payment_method,
@@ -806,7 +809,12 @@ export class CashSaleService extends BaseRepository {
         };
     }
 
-    /** Walk-in by default; a registered customer is verified against the master. */
+    /**
+     * Walk-in by default; a selected Business Partner is verified against the
+     * master. The counter may hand over a partner id (picked or quick-created
+     * in the register) or nothing at all — an anonymous walk-in must never be
+     * forced to identify themselves to buy something.
+     */
     private async resolveCustomer(
         ctx: RequestContext,
         input: CashSaleInput,
@@ -821,14 +829,14 @@ export class CashSaleService extends BaseRepository {
         }
 
         const { data, error } = await this.db
-            .from('customer')
+            .from('business_partner')
             .select('id, name, phone')
             .eq('id', requested.customer_id)
             .eq('company_id', Number(ctx.companyId))
             .eq('is_active', true)
             .maybeSingle();
         if (error) throw new ApiError(error.message, 500);
-        if (!data) throw new NotFoundError('Customer not found');
+        if (!data) throw new NotFoundError('Business partner not found');
 
         // The document snapshots the master's values, not the client's.
         return { customer_id: data.id, name: data.name, phone: data.phone };

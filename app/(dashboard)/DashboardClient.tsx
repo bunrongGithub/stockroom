@@ -36,6 +36,8 @@ import {
   Weight,
   Menu,
   Barcode,
+  BookUser,
+  Contact,
   X,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -78,6 +80,8 @@ const ICON_MAP: Record<string, LucideIcon> = {
   LayoutGrid,
   Barcode,
   Weight,
+  BookUser,
+  Contact,
 };
 
 function ModuleIcon({

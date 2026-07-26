@@ -204,6 +204,7 @@ export class CustomerPaymentRepository extends BaseRepository {
                     ),
                     reference_no: input.reference_no ?? null,
                     payment_date: input.payment_date,
+                    customer_id: input.customer_id ?? null,
                     customer_name: input.customer_name,
                     customer_phone: input.customer_phone ?? null,
                     payment_method: input.payment_method,

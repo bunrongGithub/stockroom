@@ -1,6 +1,7 @@
 'use client';
 
 import AsyncSearchSelect from '@/components/ui/AsyncSearchSelect';
+import BusinessPartnerLookup from '@/components/master-data/BusinessPartnerLookup';
 import ItemClassBadge from '@/components/ui/ItemClassBadge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,6 +10,7 @@ import { saleOrderApi } from '@/lib/api/sale';
 import { useItemAutoFill } from '@/hook/useItemAutoFill';
 import { behaviorOf } from '@/service/core/item-behavior';
 import type { SalesOrder } from '@/types/sales/order-management';
+import type { BusinessPartnerOption } from '@/types/master-data/business-partner';
 import {
   AlertCircle,
   ArrowLeftIcon,
@@ -84,6 +86,19 @@ export default function OrderForm({
   );
   const [customerPhone, setCustomerPhone] = useState(
     initial?.customer_phone ?? '',
+  );
+  // Editing pre-Master-Data history: the order has a name but no link yet, so
+  // the lookup starts empty and prompts for one.
+  const [partner, setPartner] = useState<BusinessPartnerOption | null>(
+    initial?.customer_id
+      ? {
+          id: initial.customer_id,
+          code: initial.customer_code ?? '',
+          name: initial.customer_name,
+          phone: initial.customer_phone ?? null,
+          roles: ['customer'],
+        }
+      : null,
   );
   const [orderDate, setOrderDate] = useState(
     initial?.order_date?.slice(0, 10) ?? today,
@@ -203,13 +218,11 @@ export default function OrderForm({
 
   async function handleSubmit() {
     setError('');
-    if (!customerName.trim()) {
+    if (!partner) {
       setActiveTab('details');
-      return setError('Customer name is required');
-    }
-    if (!customerPhone.trim()) {
-      setActiveTab('details');
-      return setError('Customer phone is required');
+      return setError(
+        'Select a business partner — use "Create partner" in the search box if they are new',
+      );
     }
     if (needsWarehouse && !warehouseId) {
       setActiveTab('details');
@@ -238,8 +251,9 @@ export default function OrderForm({
     try {
       const payload = {
         reference_no: referenceNo.trim() || undefined,
-        customer_name: customerName.trim(),
-        customer_phone: customerPhone || undefined,
+        customer_id: partner.id,
+        customer_name: (customerName || partner.name).trim(),
+        customer_phone: customerPhone || partner.phone || undefined,
         order_date: orderDate,
         expected_delivery_date: expectedDate || undefined,
         warehouse_id: warehouseId ?? undefined,
@@ -403,24 +417,21 @@ export default function OrderForm({
                       className="text-xs font-mono"
                     />
                   </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Customer Name *</Label>
-                    <Input
-                      value={customerName}
-                      onChange={(e) => setCustomerName(e.target.value)}
-                      placeholder="Customer name"
-                      className="text-xs font-mono"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Customer Phone *</Label>
-                    <Input
-                      value={customerPhone ?? ''}
-                      onChange={(e) => setCustomerPhone(e.target.value)}
-                      placeholder="e.g. 012 345 678"
-                      className="text-xs font-mono"
-                    />
-                  </div>
+                  <BusinessPartnerLookup
+                    label="Customer"
+                    required
+                    role="customer"
+                    value={partner}
+                    onChange={(p) => {
+                      setPartner(p);
+                      // The document keeps its own snapshot of the name/phone so
+                      // a later rename never rewrites an issued order.
+                      if (p) {
+                        setCustomerName(p.name);
+                        setCustomerPhone(p.phone ?? '');
+                      }
+                    }}
+                  />
                   {needsWarehouse ? (
                     <AsyncSearchSelect
                       label="Warehouse *"

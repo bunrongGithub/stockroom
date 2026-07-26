@@ -26,6 +26,8 @@ const invoiceHeaderBase = {
     invoice_date: z.string(),
     currency: z.string().default('USD'),
     exchange_rate: z.number().positive().optional(),
+    // Link to the Business Partner acting as customer (snapshot kept too).
+    customer_id: z.number().int().positive().optional().nullable(),
     customer_name: z.string().optional().nullable(),
     customer_phone: z.string().optional().nullable(),
     customer_address: z.string().optional().nullable(),
