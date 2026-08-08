@@ -7,7 +7,9 @@ import {
 } from '@/components/ui/FieldLabel';
 import {
   FieldGrid,
+  FormHeader,
   FormLayout,
+  HeaderAction,
   SectionCard,
   SidebarCard,
 } from '@/components/ui/FormShell';
@@ -139,16 +141,41 @@ export default function PaymentForm({
 
   return (
     <div className="space-y-4 font-mono text-xs">
+      <FormHeader
+        backHref="/finances/payment"
+        backLabel="Back to Payments"
+        icon={<WalletIcon />}
+        title={
+          mode === 'create'
+            ? 'New Payment'
+            : `Edit ${header.payment_no || 'Payment'}`
+        }
+        actions={
+          <>
+            <HeaderAction label="Discard" href="/finances/payment" />
+            <HeaderAction
+              tone="primary"
+              label={saving ? 'Saving…' : 'Save'}
+              icon={
+                saving ? (
+                  <Loader2Icon className="animate-spin" size={16} />
+                ) : (
+                  <SaveIcon size={16} />
+                )
+              }
+              disabled={saving}
+              onClick={handleSubmit}
+            />
+          </>
+        }
+      />
+
       <FormLayout
         sidebar={
           <>
             <SidebarCard
               icon={<WalletIcon size={13} />}
-              title={
-                mode === 'create'
-                  ? 'Create Payment'
-                  : header.payment_no || 'Update Payment'
-              }
+              title="Payment Summary"
             >
               <dl className="space-y-2">
                 <div className="flex justify-between">
@@ -184,28 +211,7 @@ export default function PaymentForm({
               </div>
             )}
 
-            <div className="flex flex-col-reverse gap-2">
-              <button
-                type="button"
-                onClick={() => router.push('/finances/payment')}
-                className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-center text-slate-600 transition-colors hover:bg-slate-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleSubmit}
-                disabled={saving}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1a9e52] px-4 py-2.5 font-semibold text-white transition-colors hover:bg-[#158042] disabled:opacity-50"
-              >
-                {saving ? (
-                  <Loader2Icon className="animate-spin" size={16} />
-                ) : (
-                  <SaveIcon size={16} />
-                )}
-                {saving ? 'Saving…' : 'Save'}
-              </button>
-            </div>
+            {/* Save / Discard live in the page header, not under the summary. */}
           </>
         }
       >

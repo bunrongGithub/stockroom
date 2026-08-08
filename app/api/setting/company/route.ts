@@ -1,6 +1,5 @@
 import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { getRequestContext } from '@/lib/request-context';
-import { assertRole } from '@/lib/auth';
 import { ApiError, ApiResponseSuccess } from '@/service/core/api-response';
 import {
     createCompany,
@@ -45,7 +44,6 @@ export async function POST(request: NextRequest) {
     const context = getRequestContext(request);
     await requirePermission(context, PERMISSIONS.setting.company.create, { req: request });
     try {
-        assertRole(context, 'admin');
         const body = await request.json();
         const data = await createCompany(context, body);
         return new ApiResponseSuccess({ data }, 'Created', 201).toResponse();
@@ -60,7 +58,6 @@ export async function PATCH(request: NextRequest) {
     const context = getRequestContext(request);
     await requirePermission(context, PERMISSIONS.setting.company.update, { req: request });
     try {
-        assertRole(context, 'admin');
         const body = await request.json();
         const idParam = request.nextUrl.searchParams.get('id');
         const overrideId = idParam ? Number(idParam) : undefined;

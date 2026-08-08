@@ -11,7 +11,9 @@ import { FieldLabel } from '@/components/ui/FieldLabel';
 import { ReadonlyInput } from '@/components/ui/Readonly';
 import {
   FieldGrid,
+  FormHeader,
   FormLayout,
+  HeaderAction,
   SectionCard,
   SidebarCard,
   TabNav,
@@ -217,20 +219,90 @@ export default function SaleInvoiceDetail({
         </div>
       )}
 
-      <div>
-        <button
-          onClick={() => router.push('/finances/invoice')}
-          className="inline-flex items-center gap-2 text-slate-500 transition-colors hover:text-slate-700"
-        >
-          <ArrowLeftIcon size={16} /> Back to Invoices
-        </button>
-        <h2 className="mt-3 flex items-center gap-3 text-2xl font-bold text-slate-800 md:text-3xl">
-          <FileText className="text-[#1a9e52]" />
-          {invoice.invoice_no}
-          <StatusBadge status={invoice.status} />
-          <PaymentStatusBadge status={invoice.payment_status} />
-        </h2>
-      </div>
+      <FormHeader
+        backHref="/finances/invoice"
+        backLabel="Back to Invoices"
+        icon={<FileText />}
+        title={invoice.invoice_no}
+        badges={
+          <>
+            <StatusBadge status={invoice.status} />
+            <PaymentStatusBadge status={invoice.payment_status} />
+          </>
+        }
+        actions={
+          <>
+            <HeaderAction
+              label="PDF"
+              icon={<PrinterIcon size={16} />}
+              href={`/finances/invoice/${invoice.id}/print`}
+            />
+            {a?.can_update && may.update && (
+              <HeaderAction
+                label="Edit"
+                icon={<PencilIcon size={16} />}
+                href={`/finances/invoice/${invoice.id}/update`}
+              />
+            )}
+            {a?.can_cancel && may.cancel && (
+              <HeaderAction
+                label="Cancel"
+                tone="danger"
+                icon={
+                  busy === 'cancel' ? (
+                    <Loader2Icon size={16} className="animate-spin" />
+                  ) : (
+                    <Ban size={16} />
+                  )
+                }
+                disabled={busy !== null}
+                onClick={handleCancel}
+              />
+            )}
+            {a?.can_delete && may.delete && (
+              <HeaderAction
+                label="Delete"
+                tone="danger"
+                icon={
+                  busy === 'delete' ? (
+                    <Loader2Icon size={16} className="animate-spin" />
+                  ) : (
+                    <Trash2Icon size={16} />
+                  )
+                }
+                disabled={busy !== null}
+                onClick={handleDelete}
+              />
+            )}
+            {/* Record a payment against this posted, not-fully-paid invoice. */}
+            {invoice.status === 'POSTED' && invoice.outstanding > 0 && (
+              <HeaderAction
+                label="Record Payment"
+                tone="info"
+                icon={<WalletIcon size={16} />}
+                href={`/finances/payment/create?customer=${encodeURIComponent(
+                  invoice.customer_name ?? '',
+                )}&phone=${encodeURIComponent(invoice.customer_phone ?? '')}`}
+              />
+            )}
+            {a?.can_post && may.post && (
+              <HeaderAction
+                label="Post"
+                tone="primary"
+                icon={
+                  busy === 'post' ? (
+                    <Loader2Icon size={16} className="animate-spin" />
+                  ) : (
+                    <SendIcon size={16} />
+                  )
+                }
+                disabled={busy !== null}
+                onClick={handlePost}
+              />
+            )}
+          </>
+        }
+      />
 
       <FormLayout
         sidebar={
@@ -305,91 +377,7 @@ export default function SaleInvoiceDetail({
               </div>
             </SidebarCard>
 
-          <div className="flex flex-col gap-2">
-            <button
-              onClick={() =>
-                router.push(`/finances/invoice/${invoice.id}/print`)
-              }
-              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-slate-700 transition-colors hover:bg-slate-50"
-            >
-              <PrinterIcon size={14} /> Print / PDF
-            </button>
-            {/* Record a payment against this posted, not-fully-paid invoice. */}
-            {invoice.status === 'POSTED' && invoice.outstanding > 0 && (
-              <button
-                onClick={() =>
-                  router.push(
-                    `/finances/payment/create?customer=${encodeURIComponent(
-                      invoice.customer_name ?? '',
-                    )}&phone=${encodeURIComponent(
-                      invoice.customer_phone ?? '',
-                    )}`,
-                  )
-                }
-                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#1a9e52] px-4 py-2.5 font-semibold text-white transition-colors hover:bg-[#158042]"
-              >
-                <WalletIcon size={14} /> Record Payment
-              </button>
-            )}
-          </div>
-
-          {((a?.can_update && may.update) || (a?.can_post && may.post) || (a?.can_cancel && may.cancel) || (a?.can_delete && may.delete)) && (
-            <div className="flex flex-col gap-2">
-              {a?.can_update && may.update && (
-                <button
-                  onClick={() =>
-                    router.push(`/finances/invoice/${invoice.id}/update`)
-                  }
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-violet-200 px-4 py-2.5 text-violet-600 transition-colors hover:bg-violet-50"
-                >
-                  <PencilIcon size={14} /> Edit
-                </button>
-              )}
-              {a?.can_post && may.post && (
-                <button
-                  onClick={handlePost}
-                  disabled={busy !== null}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#1a9e52] px-4 py-2.5 font-semibold text-white transition-colors hover:bg-[#158042] disabled:opacity-60"
-                >
-                  {busy === 'post' ? (
-                    <Loader2Icon size={14} className="animate-spin" />
-                  ) : (
-                    <SendIcon size={14} />
-                  )}
-                  Post
-                </button>
-              )}
-              {a?.can_cancel && may.cancel && (
-                <button
-                  onClick={handleCancel}
-                  disabled={busy !== null}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-rose-700 transition-colors hover:bg-rose-100 disabled:opacity-60"
-                >
-                  {busy === 'cancel' ? (
-                    <Loader2Icon size={14} className="animate-spin" />
-                  ) : (
-                    <Ban size={14} />
-                  )}
-                  Cancel Invoice
-                </button>
-              )}
-              {a?.can_delete && may.delete && (
-                <button
-                  onClick={handleDelete}
-                  disabled={busy !== null}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-rose-200 px-4 py-2.5 text-rose-600 transition-colors hover:bg-rose-50 disabled:opacity-60"
-                >
-                  {busy === 'delete' ? (
-                    <Loader2Icon size={14} className="animate-spin" />
-                  ) : (
-                    <Trash2Icon size={14} />
-                  )}
-                  Delete
-                </button>
-              )}
-            </div>
-          )}
-
+            {/* Print / Edit / Post / Cancel / Delete live in the page header. */}
             <AuditInformationCard audit={invoice as Partial<AuditMeta>} />
           </>
         }

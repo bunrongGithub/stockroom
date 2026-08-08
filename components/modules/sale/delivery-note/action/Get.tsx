@@ -12,9 +12,12 @@ import { FieldLabel } from '@/components/ui/FieldLabel';
 import { ReadonlyInput } from '@/components/ui/Readonly';
 import {
   FieldGrid,
+  FormHeader,
   FormLayout,
+  HeaderAction,
   SectionCard,
   SidebarCard,
+  SummaryRow,
   TabNav,
   TabPanel,
 } from '@/components/ui/FormShell';
@@ -215,98 +218,41 @@ export default function SaleShipmentDetail({
         </div>
       )}
 
-      <div>
-        <button
-          onClick={() => router.push('/sale/delivery-note')}
-          className="inline-flex items-center gap-2 text-slate-500 transition-colors hover:text-slate-700"
-        >
-          <ArrowLeftIcon size={16} /> Back to Delivery
-        </button>
-        <h2 className="mt-3 flex items-center gap-3 text-2xl font-bold text-slate-800 md:text-3xl">
-          <Package className="text-[#1a9e52]" />
-          {shipment.shipment_no}
-          <StatusBadge status={shipment.status} />
-        </h2>
-      </div>
-
-      <FormLayout
-        sidebar={
+      <FormHeader
+        backHref="/sale/delivery-note"
+        backLabel="Back"
+        icon={<Truck />}
+        title={shipment.shipment_no}
+        badges={<StatusBadge status={shipment.status} />}
+        actions={
           <>
-            <SidebarCard icon={<Truck size={13} />} title="Shipment Summary">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Order</span>
-                  <button
-                    onClick={() =>
-                      router.push(`/sale/order/${shipment.sales_order_id}/view`)
-                    }
-                    className="font-semibold text-sky-600 hover:underline"
-                  >
-                    {shipment.sales_order_no}
-                  </button>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Customer</span>
-                  <span className="font-semibold text-slate-700">
-                    {shipment.customer_name || '—'}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Delivery Date</span>
-                  <span className="font-semibold text-slate-700">
-                    {shipment.delivery_date}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Warehouse</span>
-                  <span className="font-semibold text-slate-700">
-                    {shipment.warehouse_name}
-                  </span>
-                </div>
-              </div>
-            </SidebarCard>
-
-          <div className="flex flex-col-reverse gap-2">
             {a?.can_update && (
-              <button
-                onClick={() =>
-                  router.push(`/sale/delivery-note/${shipment.id}/update`)
-                }
-                className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-violet-200 px-4 py-2.5 text-violet-600 transition-colors hover:bg-violet-50"
-              >
-                <PencilIcon size={14} /> Edit
-              </button>
+              <HeaderAction
+                label="Edit"
+                icon={<PencilIcon size={16} />}
+                href={`/sale/delivery-note/${shipment.id}/update`}
+              />
             )}
             {a?.can_void && mayVoid && (
-              <button
+              <HeaderAction
+                label="Void"
+                tone="danger"
+                icon={
+                  busy === 'void' ? (
+                    <Loader2Icon size={16} className="animate-spin" />
+                  ) : (
+                    <Ban size={16} />
+                  )
+                }
+                disabled={busy !== null}
                 onClick={handleVoid}
-                disabled={busy !== null}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-rose-700 transition-colors hover:bg-rose-100 disabled:opacity-60"
-              >
-                {busy === 'void' ? (
-                  <Loader2Icon size={14} className="animate-spin" />
-                ) : (
-                  <Ban size={14} />
-                )}
-                Void
-              </button>
-            )}
-            {a?.can_post && mayPost && (
-              <button
-                onClick={handlePost}
-                disabled={busy !== null}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#1a9e52] px-4 py-2.5 font-semibold text-white transition-colors hover:bg-[#158042] disabled:opacity-60"
-              >
-                {busy === 'post' ? (
-                  <Loader2Icon size={14} className="animate-spin" />
-                ) : (
-                  <SendIcon size={14} />
-                )}
-                Post
-              </button>
+              />
             )}
             {a?.can_invoice && (
-              <button
+              <HeaderAction
+                label="Create Invoice"
+                tone="info"
+                icon={<FileText size={16} />}
                 onClick={() => {
                   if (typeof window !== 'undefined')
                     sessionStorage.setItem(
@@ -315,13 +261,54 @@ export default function SaleShipmentDetail({
                     );
                   router.push('/finances/invoice/create');
                 }}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#1a9e52] px-4 py-2.5 font-semibold text-white transition-colors hover:bg-[#158042]"
-              >
-                <FileText size={14} /> Create Invoice
-              </button>
+              />
             )}
-          </div>
+            {a?.can_post && mayPost && (
+              <HeaderAction
+                label="Post"
+                tone="primary"
+                icon={
+                  busy === 'post' ? (
+                    <Loader2Icon size={16} className="animate-spin" />
+                  ) : (
+                    <SendIcon size={16} />
+                  )
+                }
+                disabled={busy !== null}
+                onClick={handlePost}
+              />
+            )}
+          </>
+        }
+      />
 
+      <FormLayout
+        sidebar={
+          <>
+            <SidebarCard icon={<Truck size={13} />} title="Shipment Summary">
+              <div className="space-y-2">
+                <SummaryRow label="Order">
+                  <button
+                    onClick={() =>
+                      router.push(`/sale/order/${shipment.sales_order_id}/view`)
+                    }
+                    className="max-w-full truncate text-sky-600 hover:underline"
+                  >
+                    {shipment.sales_order_no}
+                  </button>
+                </SummaryRow>
+                <SummaryRow label="Customer">
+                  {shipment.customer_name || '—'}
+                </SummaryRow>
+                <SummaryRow label="Delivery Date">
+                  {shipment.delivery_date}
+                </SummaryRow>
+                <SummaryRow label="Warehouse" title={shipment.warehouse_name}>
+                  {shipment.warehouse_name}
+                </SummaryRow>
+              </div>
+            </SidebarCard>
+            {/* Edit / Void / Post / Create Invoice live in the page header. */}
             <AuditInformationCard audit={shipment as Partial<AuditMeta>} />
           </>
         }
@@ -333,7 +320,7 @@ export default function SaleShipmentDetail({
           <TabPanel>
             <SectionCard
               icon={<Truck size={13} />}
-              title="Shipment Information"
+              title="Delivery Information"
             >
               <FieldGrid>
                 <div>
@@ -379,7 +366,7 @@ export default function SaleShipmentDetail({
         {/* Tab 2: Shipment Items */}
         {activeTab === 'items' && (
           <TabPanel>
-            <SectionCard icon={<Package size={13} />} title="Shipment Items">
+            <SectionCard icon={<Package size={13} />} title="Delivery Items">
               <div className="overflow-x-auto">
                   <table className="w-full text-xs font-mono">
                     <thead>

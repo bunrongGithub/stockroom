@@ -1,6 +1,5 @@
 import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { getRequestContext } from '@/lib/request-context';
-import { assertRole } from '@/lib/auth';
 import { ApiError } from '@/service/core/api-response';
 import { companyUserService } from '@/service/apps/base/user';
 import {
@@ -17,7 +16,6 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     try {
         const ctx = getRequestContext(request);
         await requirePermission(ctx, PERMISSIONS.setting.user.update, { req: request });
-        assertRole(ctx, 'admin');
         const { id } = await params;
         const idParsed = userIdSchema.safeParse({ id });
         if (!idParsed.success) {

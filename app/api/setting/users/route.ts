@@ -1,6 +1,5 @@
 import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { getRequestContext } from '@/lib/request-context';
-import { assertRole } from '@/lib/auth';
 import { ApiError } from '@/service/core/api-response';
 import { companyUserService } from '@/service/apps/base/user';
 import { createUserSchema } from '@/service/schema/user.schema';
@@ -32,7 +31,6 @@ export async function POST(request: NextRequest) {
     try {
         const ctx = getRequestContext(request);
         await requirePermission(ctx, PERMISSIONS.setting.user.create, { req: request });
-        assertRole(ctx, 'admin');
 
         const parsed = createUserSchema.safeParse(await request.json());
         if (!parsed.success) {

@@ -10,10 +10,13 @@ import {
 import { ReadonlyInput } from '@/components/ui/Readonly';
 import {
   FieldGrid,
+  FormHeader,
   FormLayout,
+  HeaderAction,
   SectionCard,
   SidebarCard,
   StepButton,
+  SummaryRow,
   TabNav,
   TabPanel,
 } from '@/components/ui/FormShell';
@@ -218,23 +221,35 @@ export default function ShipmentForm({
 
   return (
     <div className="space-y-4 font-mono text-xs">
-      <div>
-        <button
-          onClick={() => router.push('/sale/delivery-note')}
-          className="inline-flex items-center gap-2 text-slate-500 transition-colors hover:text-slate-700"
-        >
-          <ArrowLeftIcon size={16} /> Back to Delivery
-        </button>
-        <h2 className="mt-3 flex items-center gap-2 text-2xl font-bold text-slate-800 md:text-3xl">
-          <Package className="text-[#1a9e52]" />
-          {mode === 'create'
+      <FormHeader
+        backHref="/sale/delivery-note"
+        backLabel="Back"
+        icon={<Truck />}
+        title={
+          mode === 'create'
             ? 'Delivery'
-            : `Edit ${initial?.shipment_no ?? 'Shipment'}`}
-        </h2>
-        <p className="mt-1 text-slate-500">
-          For order {order.order_no} • {order.customer_name}
-        </p>
-      </div>
+            : `Edit ${initial?.shipment_no ?? 'Shipment'}`
+        }
+        subtitle={`For order ${order.order_no} • ${order.customer_name}`}
+        actions={
+          <>
+            <HeaderAction label="Discard" href="/sale/delivery-note" />
+            <HeaderAction
+              tone="primary"
+              label={saving ? 'Saving…' : 'Save'}
+              icon={
+                saving ? (
+                  <Loader2Icon className="animate-spin" size={16} />
+                ) : (
+                  <SaveIcon size={16} />
+                )
+              }
+              disabled={saving || lines.length === 0}
+              onClick={handleSubmit}
+            />
+          </>
+        }
+      />
 
       {error && (
         <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
@@ -255,53 +270,20 @@ export default function ShipmentForm({
           <>
             <SidebarCard icon={<Truck size={13} />} title="Delivery Summary">
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Order</span>
-                  <span className="font-semibold text-slate-700">
-                    {order.order_no}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Warehouse</span>
-                  <span className="font-semibold text-slate-700">
-                    {order.warehouse_name}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Lines</span>
-                  <span className="font-semibold text-slate-700">
-                    {lines.length}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between border-t pt-2 text-sm font-semibold">
-                  <span>Total Units</span>
-                  <span>{totalUnits}</span>
-                </div>
+                <SummaryRow label="Order">{order.order_no}</SummaryRow>
+                <SummaryRow
+                  label="Warehouse"
+                  title={order.warehouse_name ?? undefined}
+                >
+                  {order.warehouse_name}
+                </SummaryRow>
+                <SummaryRow label="Lines">{lines.length}</SummaryRow>
+                <SummaryRow label="Total Units" strong>
+                  {totalUnits}
+                </SummaryRow>
               </div>
             </SidebarCard>
-
-            <div className="flex flex-col-reverse gap-2">
-              <button
-                type="button"
-                onClick={() => router.push('/sale/delivery-note')}
-                className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-center text-slate-600 transition-colors hover:bg-slate-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleSubmit}
-                disabled={saving || lines.length === 0}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1a9e52] px-4 py-2.5 font-semibold text-white transition-colors hover:bg-[#158042] disabled:opacity-50"
-              >
-                {saving ? (
-                  <Loader2Icon className="animate-spin" size={16} />
-                ) : (
-                  <SaveIcon size={16} />
-                )}
-                {saving ? 'Saving...' : 'Save Shipment'}
-              </button>
-            </div>
+            {/* Save / Discard live in the page header, not under the summary. */}
           </>
         }
       >
@@ -312,7 +294,7 @@ export default function ShipmentForm({
           <TabPanel>
             <SectionCard
               icon={<Truck size={13} />}
-              title="Shipment Information"
+              title="Delivery Information"
             >
               <FieldGrid>
                 <div>
@@ -373,7 +355,7 @@ export default function ShipmentForm({
 
             <div className="flex justify-end">
               <StepButton onClick={() => setActiveTab('items')}>
-                Shipment Items <ChevronRight size={16} />
+                Delivery Items <ChevronRight size={16} />
               </StepButton>
             </div>
           </TabPanel>

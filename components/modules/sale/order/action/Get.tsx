@@ -10,7 +10,9 @@ import { FieldLabel } from '@/components/ui/FieldLabel';
 import { ReadonlyInput } from '@/components/ui/Readonly';
 import {
   FieldGrid,
+  FormHeader,
   FormLayout,
+  HeaderAction,
   SectionCard,
   SidebarCard,
   TabNav,
@@ -264,19 +266,71 @@ export default function SaleOrderDetail({
         </div>
       )}
 
-      <div>
-        <button
-          onClick={() => router.push('/sale/order')}
-          className="inline-flex items-center gap-2 text-slate-500 transition-colors hover:text-slate-700"
-        >
-          <ArrowLeftIcon size={16} /> Back to Orders
-        </button>
-        <h2 className="mt-3 flex items-center gap-3 text-2xl font-bold text-slate-800 md:text-3xl">
-          <Package className="text-[#1a9e52]" />
-          {order.order_no}
-          <StatusBadge status={order.status} />
-        </h2>
-      </div>
+      <FormHeader
+        backHref="/sale/order"
+        backLabel="Back to Orders"
+        icon={<Package />}
+        title={order.order_no}
+        badges={<StatusBadge status={order.status} />}
+        actions={
+          <>
+            {a?.can_update && (
+              <HeaderAction
+                label="Edit"
+                icon={<PencilIcon size={16} />}
+                href={`/sale/order/${order.id}/update`}
+              />
+            )}
+            {a?.can_close && (
+              <HeaderAction
+                label="Close"
+                icon={<CheckCircleIcon size={16} />}
+                onClick={() => setConfirmAction('close')}
+              />
+            )}
+            {a?.can_cancel && (
+              <HeaderAction
+                label="Cancel"
+                tone="danger"
+                icon={<XCircleIcon size={16} />}
+                onClick={() => setConfirmAction('cancel')}
+              />
+            )}
+            {canInvoiceDirect && (
+              <HeaderAction
+                label={busy ? 'Creating…' : 'Create Invoice'}
+                tone="info"
+                icon={<ReceiptTextIcon size={16} />}
+                disabled={busy}
+                onClick={() => void createDirectInvoice()}
+              />
+            )}
+            {a?.can_ship && shippableRemaining && (
+              <HeaderAction
+                label="Create Shipment"
+                tone="primary"
+                icon={<TruckIcon size={16} />}
+                onClick={() => {
+                  if (typeof window !== 'undefined')
+                    sessionStorage.setItem(
+                      'pending_dn_order_id',
+                      String(order.id),
+                    );
+                  router.push('/sale/delivery-note/create');
+                }}
+              />
+            )}
+          </>
+        }
+      />
+
+      {/* The direct-invoice caveat has no room in the header button itself. */}
+      {canInvoiceDirect && shippableRemaining && (
+        <p className="text-[11px] leading-snug text-slate-400">
+          Create Invoice bills the non-stock / service lines now. Stock items
+          are invoiced from their shipment after it posts.
+        </p>
+      )}
 
       <FormLayout
         sidebar={
@@ -331,72 +385,7 @@ export default function SaleOrderDetail({
                 </div>
               </div>
             </SidebarCard>
-
-          {(a?.can_update ||
-            a?.can_ship ||
-            a?.can_close ||
-            a?.can_cancel ||
-            canInvoiceDirect) && (
-            <div className="flex flex-col gap-2">
-              {a?.can_update && (
-                <button
-                  onClick={() => router.push(`/sale/order/${order.id}/update`)}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-violet-200 px-4 py-2.5 text-violet-600 transition-colors hover:bg-violet-50"
-                >
-                  <PencilIcon size={14} /> Edit
-                </button>
-              )}
-              {a?.can_ship && shippableRemaining && (
-                <button
-                  onClick={() => {
-                    if (typeof window !== 'undefined')
-                      sessionStorage.setItem(
-                        'pending_dn_order_id',
-                        String(order.id),
-                      );
-                    router.push('/sale/delivery-note/create');
-                  }}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#1a9e52] px-4 py-2.5 font-semibold text-white transition-colors hover:bg-[#158042]"
-                >
-                  <TruckIcon size={14} /> Create Shipment
-                </button>
-              )}
-              {canInvoiceDirect && (
-                <div className="flex flex-col gap-1">
-                  <button
-                    onClick={() => void createDirectInvoice()}
-                    disabled={busy}
-                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 py-2.5 font-semibold text-white transition-colors hover:bg-sky-700 disabled:opacity-50"
-                  >
-                    <ReceiptTextIcon size={14} />
-                    {busy ? 'Creating…' : 'Create Invoice'}
-                  </button>
-                  {shippableRemaining && (
-                    <p className="px-1 text-center text-[10px] leading-snug text-slate-400">
-                      Invoices the non-stock / service lines now. Stock items
-                      are invoiced from their shipment after it posts.
-                    </p>
-                  )}
-                </div>
-              )}
-              {a?.can_close && (
-                <button
-                  onClick={() => setConfirmAction('close')}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-slate-600 transition-colors hover:bg-slate-50"
-                >
-                  <CheckCircleIcon size={14} /> Close
-                </button>
-              )}
-              {a?.can_cancel && (
-                <button
-                  onClick={() => setConfirmAction('cancel')}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-rose-200 px-4 py-2.5 text-rose-600 transition-colors hover:bg-rose-50"
-                >
-                  <XCircleIcon size={14} /> Cancel
-                </button>
-              )}
-            </div>
-          )}
+            {/* Edit / Close / Cancel / Invoice / Ship live in the page header. */}
           </>
         }
       >

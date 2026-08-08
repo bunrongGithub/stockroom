@@ -357,7 +357,7 @@ function Detail({ label, value }: { label: string; value?: string | null }) {
 
 const DOC_TYPES = [
     { id: 'orders' as const, label: 'Sales Orders', noCol: 'order_no', dateCol: 'order_date', href: '/sale/order' },
-    { id: 'shipments' as const, label: 'Shipments', noCol: 'shipment_no', dateCol: 'delivery_date', href: '/sale/delivery-note' },
+    { id: 'shipments' as const, label: 'Delivery', noCol: 'shipment_no', dateCol: 'delivery_date', href: '/sale/delivery-note' },
     { id: 'invoices' as const, label: 'Invoices', noCol: 'invoice_no', dateCol: 'invoice_date', href: '/finances/invoice' },
     { id: 'payments' as const, label: 'Payments', noCol: 'payment_no', dateCol: 'payment_date', href: '/finances/payment' },
 ];

@@ -1,6 +1,5 @@
 import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { getRequestContext } from '@/lib/request-context';
-import { assertRole } from '@/lib/auth';
 import { ApiError, ApiResponseSuccess } from '@/service/core/api-response';
 import {
     assignCompanyRole,
@@ -35,7 +34,6 @@ export async function POST(request: NextRequest) {
     const context = getRequestContext(request);
     await requirePermission(context, PERMISSIONS.setting.user.create, { req: request });
     try {
-        assertRole(context, 'admin');
         const body = await request.json();
         const data = await assignCompanyRole(context, body);
         return new ApiResponseSuccess({ data }, 'Success', 200).toResponse();
@@ -50,7 +48,6 @@ export async function DELETE(request: NextRequest) {
     const context = getRequestContext(request);
     await requirePermission(context, PERMISSIONS.setting.user.delete, { req: request });
     try {
-        assertRole(context, 'admin');
         const body = await request.json();
         const data = await removeCompanyUser(context, body);
         return new ApiResponseSuccess({ data }, 'Success', 200).toResponse();

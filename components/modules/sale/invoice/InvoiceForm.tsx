@@ -8,7 +8,9 @@ import {
 } from '@/components/ui/FieldLabel';
 import {
   FieldGrid,
+  FormHeader,
   FormLayout,
+  HeaderAction,
   SectionCard,
   SidebarCard,
   StepButton,
@@ -189,22 +191,31 @@ export default function InvoiceForm({
 
   return (
     <div className="space-y-4 font-mono text-xs">
-      <div>
-        <button
-          onClick={() => router.push('/finances/invoice')}
-          className="inline-flex items-center gap-2 text-slate-500 transition-colors hover:text-slate-700"
-        >
-          <ArrowLeftIcon size={16} /> Back to Invoices
-        </button>
-        <h2 className="mt-3 flex items-center gap-2 text-2xl font-bold text-slate-800 md:text-3xl">
-          <FileText className="text-[#1a9e52]" />
-          {mode === 'create' ? 'New Sales Invoice' : 'Edit Invoice'}
-        </h2>
-        <p className="mt-1 text-slate-500">
-          From shipment {shipmentNo}
-          {orderNo ? ` • order ${orderNo}` : ''}
-        </p>
-      </div>
+      <FormHeader
+        backHref="/finances/invoice"
+        backLabel="Back to Invoices"
+        icon={<FileText />}
+        title={mode === 'create' ? 'New Sales Invoice' : 'Edit Invoice'}
+        subtitle={`From shipment ${shipmentNo}${orderNo ? ` • order ${orderNo}` : ''}`}
+        actions={
+          <>
+            <HeaderAction label="Discard" href="/finances/invoice" />
+            <HeaderAction
+              tone="primary"
+              label={saving ? 'Saving…' : 'Save'}
+              icon={
+                saving ? (
+                  <Loader2Icon className="animate-spin" size={16} />
+                ) : (
+                  <SaveIcon size={16} />
+                )
+              }
+              disabled={saving}
+              onClick={handleSubmit}
+            />
+          </>
+        }
+      />
 
       {error && (
         <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
@@ -264,29 +275,7 @@ export default function InvoiceForm({
                 </div>
               </div>
             </SidebarCard>
-
-            <div className="flex flex-col-reverse gap-2">
-              <button
-                type="button"
-                onClick={() => router.push('/finances/invoice')}
-                className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-center text-slate-600 transition-colors hover:bg-slate-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleSubmit}
-                disabled={saving}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1a9e52] px-4 py-2.5 font-semibold text-white transition-colors hover:bg-[#158042] disabled:opacity-50"
-              >
-                {saving ? (
-                  <Loader2Icon className="animate-spin" size={16} />
-                ) : (
-                  <SaveIcon size={16} />
-                )}
-                {saving ? 'Saving...' : 'Save Invoice'}
-              </button>
-            </div>
+            {/* Save / Discard live in the page header, not under the summary. */}
           </>
         }
       >

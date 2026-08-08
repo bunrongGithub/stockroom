@@ -1,6 +1,5 @@
 import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { getRequestContext } from '@/lib/request-context';
-import { assertRole } from '@/lib/auth';
 import { ApiError, ApiResponseSuccess } from '@/service/core/api-response';
 import { getCompany, updateCompany } from '@/service/apps/base/company';
 import { NextRequest } from 'next/server';
@@ -36,7 +35,6 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     const context = getRequestContext(request);
     await requirePermission(context, PERMISSIONS.setting.company.update, { req: request });
     try {
-        assertRole(context, 'admin');
         const { id } = await params;
         const body = await request.json();
         const data = await updateCompany(context, body, parseId(id));

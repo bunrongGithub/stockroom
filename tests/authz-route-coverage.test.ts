@@ -70,3 +70,27 @@ test('every mutating API route declares an authorization guard', () => {
         `Unguarded mutating handlers found:\n  ${gaps.join('\n  ')}`,
     );
 });
+
+// Companion gate. assertRole() ranks the JWT's role NAME against a fixed
+// hierarchy (super_admin/admin/member/staff/user); every role created through
+// the role editor has a custom name and therefore ranks 0. Stacking it after
+// requirePermission does not tighten anything — the grant already decides — but
+// it silently denies every custom role, which is how "Access denied: requires
+// role 'admin' or higher" reached a user who genuinely held setting.user.create.
+// Authorize on the permission catalog; scope tenants in the repository.
+test('no API route gates on the legacy role-name hierarchy', () => {
+    const offenders: string[] = [];
+
+    for (const file of walk(API_DIR)) {
+        const src = stripComments(readFileSync(file, 'utf8'));
+        if (/\bassertRole\s*\(/.test(src)) {
+            offenders.push(file.slice(API_DIR.length + 1));
+        }
+    }
+
+    assert.deepEqual(
+        offenders,
+        [],
+        `assertRole() used in API routes — custom roles can never pass it:\n  ${offenders.join('\n  ')}`,
+    );
+});

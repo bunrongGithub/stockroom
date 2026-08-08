@@ -10,7 +10,9 @@ import { FieldLabel } from '@/components/ui/FieldLabel';
 import { ReadonlyInput } from '@/components/ui/Readonly';
 import {
   FieldGrid,
+  FormHeader,
   FormLayout,
+  HeaderAction,
   SectionCard,
   SidebarCard,
 } from '@/components/ui/FormShell';
@@ -142,20 +144,54 @@ export default function SalePaymentDetail({
 
   return (
     <div className="space-y-4 font-mono text-xs">
-      {/* Header */}
-      <div>
-        <button
-          onClick={() => router.push('/finances/payment')}
-          className="inline-flex items-center gap-2 text-slate-500 transition-colors hover:text-slate-700"
-        >
-          <ArrowLeftIcon size={16} /> Back to Payments
-        </button>
-        <h2 className="mt-3 flex items-center gap-3 text-2xl font-bold text-slate-800 md:text-3xl">
-          <WalletIcon className="text-[#1a9e52]" />
-          {payment.payment_no}
-          <StatusBadge status={payment.status} />
-        </h2>
-      </div>
+      <FormHeader
+        backHref="/finances/payment"
+        backLabel="Back to Payments"
+        icon={<WalletIcon />}
+        title={payment.payment_no}
+        badges={<StatusBadge status={payment.status} />}
+        actions={
+          <>
+            {a?.can_update && (
+              <HeaderAction
+                label="Edit"
+                icon={<PencilIcon size={16} />}
+                href={`/finances/payment/${payment.id}/update`}
+              />
+            )}
+            {a?.can_cancel && mayCancel && (
+              <HeaderAction
+                label="Cancel"
+                tone="danger"
+                icon={
+                  busy ? (
+                    <Loader2Icon className="animate-spin" size={16} />
+                  ) : (
+                    <Ban size={16} />
+                  )
+                }
+                disabled={busy}
+                onClick={() => act('cancel')}
+              />
+            )}
+            {a?.can_post && mayPost && (
+              <HeaderAction
+                label="Post"
+                tone="primary"
+                icon={
+                  busy ? (
+                    <Loader2Icon className="animate-spin" size={16} />
+                  ) : (
+                    <SendIcon size={16} />
+                  )
+                }
+                disabled={busy}
+                onClick={() => act('post')}
+              />
+            )}
+          </>
+        }
+      />
 
       <FormLayout
         sidebar={
@@ -198,47 +234,7 @@ export default function SalePaymentDetail({
               </div>
             )}
 
-            <div className="flex flex-col gap-2">
-              {a?.can_update && (
-                <button
-                  onClick={() =>
-                    router.push(`/finances/payment/${payment.id}/update`)
-                  }
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-violet-200 px-4 py-2.5 text-violet-600 transition-colors hover:bg-violet-50"
-                >
-                  <PencilIcon size={14} /> Edit
-                </button>
-              )}
-              {a?.can_post && mayPost && (
-                <button
-                  onClick={() => act('post')}
-                  disabled={busy}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#1a9e52] px-4 py-2.5 font-semibold text-white transition-colors hover:bg-[#158042] disabled:opacity-60"
-                >
-                  {busy ? (
-                    <Loader2Icon className="animate-spin" size={14} />
-                  ) : (
-                    <SendIcon size={14} />
-                  )}
-                  Post
-                </button>
-              )}
-              {a?.can_cancel && mayCancel && (
-                <button
-                  onClick={() => act('cancel')}
-                  disabled={busy}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-rose-700 transition-colors hover:bg-rose-100 disabled:opacity-60"
-                >
-                  {busy ? (
-                    <Loader2Icon className="animate-spin" size={14} />
-                  ) : (
-                    <Ban size={14} />
-                  )}
-                  Cancel
-                </button>
-              )}
-            </div>
-
+            {/* Edit / Cancel / Post live in the page header. */}
             <AuditInformationCard audit={payment as Partial<AuditMeta>} />
           </>
         }

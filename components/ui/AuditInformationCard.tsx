@@ -32,26 +32,26 @@ export function AuditInformationCard({
             </h3>
 
             <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="space-y-1">
+                <div className="min-w-0 space-y-1">
                     <dt className="text-slate-400">Created By</dt>
                     <dd>
                         <UserBadge user={created} />
                     </dd>
                 </div>
-                <div className="space-y-1">
+                <div className="min-w-0 space-y-1">
                     <dt className="text-slate-400">Created Date</dt>
                     <dd className="text-slate-700">
                         {formatDateTime(audit?.created_at)}
                     </dd>
                 </div>
 
-                <div className="space-y-1">
+                <div className="min-w-0 space-y-1">
                     <dt className="text-slate-400">Last Updated By</dt>
                     <dd>
                         <UserBadge user={updated} />
                     </dd>
                 </div>
-                <div className="space-y-1">
+                <div className="min-w-0 space-y-1">
                     <dt className="text-slate-400">Last Updated</dt>
                     <dd className="text-slate-700">
                         {formatDateTime(audit?.updated_at)}

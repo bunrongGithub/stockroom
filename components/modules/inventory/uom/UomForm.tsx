@@ -122,24 +122,6 @@ export default function UomForm({
                                     <span className="font-semibold text-slate-800">
                                         Active
                                     </span>
-                                    <span className="mt-0.5 block text-slate-400">
-                                        Inactive units can&apos;t be used on new
-                                        records.
-                                    </span>
-                                </span>
-                            </label>
-                            <label className="flex items-start gap-3">
-                                <Switch
-                                    checked={isDefault}
-                                    onCheckedChange={setIsDefault}
-                                />
-                                <span>
-                                    <span className="font-semibold text-slate-800">
-                                        Default unit
-                                    </span>
-                                    <span className="mt-0.5 block text-slate-400">
-                                        One per company.
-                                    </span>
                                 </span>
                             </label>
                         </div>

@@ -1,5 +1,7 @@
 'use client';
 
+import { ArrowLeft } from 'lucide-react';
+import Link from 'next/link';
 import type { ReactNode } from 'react';
 
 /**
@@ -13,6 +15,123 @@ import type { ReactNode } from 'react';
  */
 
 const BRAND = 'text-[#1a9e52]';
+
+/* ── Page header ─────────────────────────────────────────────────────────── */
+
+type HeaderActionTone = 'default' | 'primary' | 'info' | 'danger';
+
+const HEADER_ACTION_TONE: Record<HeaderActionTone, string> = {
+    default: 'border border-slate-200 text-slate-600 hover:bg-slate-50',
+    primary:
+        'bg-[#1a9e52] font-semibold text-white hover:bg-[#158042] border border-transparent',
+    info: 'border border-sky-200 text-sky-600 hover:bg-sky-50',
+    danger: 'border border-rose-200 text-rose-600 hover:bg-rose-50',
+};
+
+/**
+ * A button in the page header's action bar.
+ *
+ * Every document screen puts its actions here rather than under the sidebar
+ * summary, so Save / Discard / Post / Void sit in one predictable place no
+ * matter which document you are on. Renders a Link when `href` is given.
+ */
+export function HeaderAction({
+    label,
+    icon,
+    href,
+    onClick,
+    tone = 'default',
+    disabled,
+    type = 'button',
+}: {
+    label: ReactNode;
+    icon?: ReactNode;
+    href?: string;
+    onClick?: () => void;
+    tone?: HeaderActionTone;
+    disabled?: boolean;
+    type?: 'button' | 'submit';
+}) {
+    const className = `inline-flex shrink-0 items-center justify-center gap-2 rounded-xl px-4 py-2.5 transition-colors disabled:opacity-50 ${HEADER_ACTION_TONE[tone]}`;
+
+    if (href && !disabled) {
+        return (
+            <Link href={href} className={className}>
+                {icon}
+                {label}
+            </Link>
+        );
+    }
+    return (
+        <button
+            type={type}
+            onClick={onClick}
+            disabled={disabled}
+            className={className}
+        >
+            {icon}
+            {label}
+        </button>
+    );
+}
+
+/**
+ * Page header: back link + icon-led title (with optional status badges) on the
+ * left, the action bar on the right. The actions wrap onto their own line on
+ * narrow screens rather than squeezing the title.
+ */
+export function FormHeader({
+    backHref,
+    onBackAction,
+    backLabel = 'Back',
+    icon,
+    title,
+    badges,
+    subtitle,
+    actions,
+}: {
+    backHref?: string;
+    onBackAction?: () => void;
+    backLabel?: string;
+    icon?: ReactNode;
+    title: ReactNode;
+    badges?: ReactNode;
+    subtitle?: ReactNode;
+    actions?: ReactNode;
+}) {
+    const backClass =
+        'inline-flex items-center gap-2 text-slate-500 transition-colors hover:text-slate-700';
+    return (
+        <div className="flex flex-wrap items-end justify-between gap-3">
+            <div className="min-w-0">
+                {backHref ? (
+                    <Link href={backHref} className={backClass}>
+                        <ArrowLeft size={16} /> {backLabel}
+                    </Link>
+                ) : onBackAction ? (
+                    <button
+                        type="button"
+                        onClick={onBackAction}
+                        className={backClass}
+                    >
+                        <ArrowLeft size={16} /> {backLabel}
+                    </button>
+                ) : null}
+                <h2 className="mt-3 flex flex-wrap items-center gap-3 text-2xl font-bold text-slate-800 md:text-3xl">
+                    {icon && <span className={BRAND}>{icon}</span>}
+                    {title}
+                    {badges}
+                </h2>
+                {subtitle && <p className="mt-1 text-slate-500">{subtitle}</p>}
+            </div>
+            {actions && (
+                <div className="flex flex-wrap items-center gap-2">
+                    {actions}
+                </div>
+            )}
+        </div>
+    );
+}
 
 /** Two-column page body: 350px sticky sidebar + fluid content. */
 export function FormLayout({
@@ -57,6 +176,45 @@ export function SidebarCard({
             </div>
             <div className={bodyClassName}>{children}</div>
         </section>
+    );
+}
+
+/**
+ * A label/value line inside a SidebarCard summary.
+ *
+ * The value is allowed to shrink and truncate — without min-w-0 a long value
+ * (a Khmer warehouse name, a full customer name) overflows the 350px sidebar
+ * and paints over its own label.
+ */
+export function SummaryRow({
+    label,
+    children,
+    strong,
+    title,
+}: {
+    label: ReactNode;
+    children: ReactNode;
+    /** Emphasised total row, separated by a rule. */
+    strong?: boolean;
+    /** Tooltip for the full value when it truncates. */
+    title?: string;
+}) {
+    return (
+        <div
+            className={`flex items-center justify-between gap-3 ${
+                strong ? 'border-t pt-1.5 text-sm font-semibold' : ''
+            }`}
+        >
+            <span className="shrink-0 text-slate-400">{label}</span>
+            <span
+                title={title}
+                className={`min-w-0 truncate text-right ${
+                    strong ? '' : 'font-semibold text-slate-700'
+                }`}
+            >
+                {children}
+            </span>
+        </div>
     );
 }
 

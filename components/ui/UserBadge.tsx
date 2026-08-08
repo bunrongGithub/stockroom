@@ -34,9 +34,19 @@ export function UserBadge({
     }
     const name = user.full_name?.trim() || 'Unknown user';
     return (
-        <span className={cn('inline-flex items-center gap-2', className)}>
-            <Avatar src={user.avatar_url} name={name} size={size} />
-            <span className="truncate text-slate-700">{name}</span>
+        // max-w-full + min-w-0 are what make `truncate` actually bite: an
+        // inline-flex sizes to its content, so a long name would otherwise
+        // overflow its grid cell and collide with the next column.
+        <span
+            className={cn(
+                'inline-flex max-w-full items-center gap-2',
+                className,
+            )}
+        >
+            <span className="shrink-0">
+                <Avatar src={user.avatar_url} name={name} size={size} />
+            </span>
+            <span className="min-w-0 truncate text-slate-700">{name}</span>
         </span>
     );
 }
