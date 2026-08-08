@@ -27,6 +27,16 @@ export const settingRegistry: RegistryEntry[] = [
         () => import('@/components/modules/setting/role/page'),
     ],
     [
+        'RoleCreate',
+        () => import('@/components/modules/setting/role/action/Create'),
+    ],
+    [
+        'RoleView',
+        () => import('@/components/modules/setting/role/action/Get'),
+    ],
+    // Legacy component key: the seeded modules row for the role view page is
+    // still 'Get'. Kept as an alias so existing rows resolve.
+    [
         'Get',
         () => import('@/components/modules/setting/role/action/Get'),
     ],

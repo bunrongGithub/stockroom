@@ -9,6 +9,7 @@ export type TRole = {
     id: number;
     name: string;
     description: string | null;
+    is_active: boolean;
     created_at: string;
     company: { id: number; name: string } | null;
 };
@@ -36,6 +37,21 @@ export function getRoleColumns({
             header: 'Company Name',
             cell: (row) => (
                 <span className="font-mono text-xs">{row.company?.name}</span>
+            ),
+        },
+        {
+            key: 'is_active',
+            header: 'Status',
+            cell: (row) => (
+                <span
+                    className={`inline-block rounded-full px-2 py-0.5 font-mono text-[10px] font-semibold ${
+                        row.is_active
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : 'bg-slate-100 text-slate-500'
+                    }`}
+                >
+                    {row.is_active ? 'Active' : 'Inactive'}
+                </span>
             ),
         },
         {

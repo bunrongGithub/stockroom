@@ -1,221 +1,183 @@
 'use client';
 
-import { Button } from '@/components/ui/button';
-import { DataTable, type DataTableColumn } from '@/components/ui/DataTable';
+import { FieldLabel } from '@/components/ui/FieldLabel';
+import { SectionCard } from '@/components/ui/FormShell';
+import { ReadonlyInput } from '@/components/ui/Readonly';
 import { useRegisterModule } from '@/hook/useModule';
+import { API } from '@/lib/constant';
 import type { ModuleProps } from '@/lib/registry';
-import { ArrowLeft, Check, Edit2, Loader2, ShieldCheck, X } from 'lucide-react';
+import { ArrowLeft, Loader2, Pencil, Save, ShieldCheck, UserCheck } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-
-type RolePermission = {
-  id: number;
-  can_view: boolean;
-  can_create: boolean;
-  can_update: boolean;
-  can_delete: boolean;
-  module: {
-    id: number;
-    key: string;
-    path: string;
-    label: string;
-  };
-};
+import ModuleAccessTree, {
+    type AccessModule,
+    type GrantMap,
+} from '../ModuleAccessTree';
 
 type RoleDetail = {
-  id: number;
-  name: string;
-  description: string | null;
-  created_at: string;
-  company: { id: number; name: string } | null;
-  role_module_permission: RolePermission[];
+    id: number;
+    name: string;
+    description: string | null;
+    is_active: boolean;
+    created_at: string;
+    company: { id: number; name: string } | null;
+    grants: GrantMap;
 };
 
-function PermBadge({ granted }: { granted: boolean }) {
-  return granted ? (
-    <span className="inline-flex items-center gap-0.5 rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 border border-emerald-200">
-      <Check size={9} /> Yes
-    </span>
-  ) : (
-    <span className="inline-flex items-center gap-0.5 rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-400">
-      <X size={9} /> No
-    </span>
-  );
-}
+const LIST_URL = '/setting/role';
 
-export default function Get({
-  currentPath,
-  permission,
-  currentPathActions,
-}: ModuleProps) {
-  useRegisterModule({
-    actionModules: currentPathActions,
+export default function RoleView({
+    currentPath,
     permission,
-    modulePath: currentPath.path,
-  });
+    currentPathActions,
+}: ModuleProps) {
+    useRegisterModule({
+        actionModules: currentPathActions,
+        permission,
+        modulePath: currentPath.path,
+    });
 
-  const params = useParams();
-  const id = Number(
-    Array.isArray(params.slug) ? params.slug.at(-2) : params.slug,
-  );
-
-  const [data, setData] = useState<RoleDetail | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    if (!id) return;
-    setLoading(true);
-    const url = currentPath.key.replace(':id', String(id));
-    fetch(url)
-      .then((r) => r.json())
-      .then((json) => setData(json))
-      .catch(() => setError('Failed to load role.'))
-      .finally(() => setLoading(false));
-  }, [id, currentPath.key]);
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20 text-slate-400">
-        <Loader2 size={18} className="animate-spin mr-2" /> Loading...
-      </div>
+    const params = useParams();
+    const id = Number(
+        Array.isArray(params.slug) ? params.slug.at(-2) : params.slug,
     );
-  }
 
-  if (error || !data) {
+    const [role, setRole] = useState<RoleDetail | null>(null);
+    const [modules, setModules] = useState<AccessModule[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
+
+    // Same two loads as the editor — the detail page renders the identical
+    // access tree, so it needs the same module list to key the grants against.
+    useEffect(() => {
+        if (!id) return;
+        let active = true;
+        setLoading(true);
+        Promise.all([
+            fetch(`${API.setting.role.root}/${id}`),
+            fetch(API.setting.module.tree),
+        ])
+            .then(async ([roleRes, modRes]) => {
+                if (!active) return;
+                const roleJson = await roleRes.json();
+                const modJson = await modRes.json();
+                setRole((roleJson.data ?? roleJson) as RoleDetail);
+                setModules((modJson.data ?? []) as AccessModule[]);
+            })
+            .catch(() => active && setError('Failed to load the role.'))
+            .finally(() => active && setLoading(false));
+        return () => {
+            active = false;
+        };
+    }, [id]);
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center gap-2 py-20 font-mono text-xs text-slate-400">
+                <Loader2 size={16} className="animate-spin" /> Loading…
+            </div>
+        );
+    }
+
+    if (error || !role) {
+        return (
+            <p className="py-10 text-center font-mono text-xs text-rose-500">
+                {error || 'Role not found.'}
+            </p>
+        );
+    }
+
+    const grantedModules = Object.values(role.grants ?? {}).filter(
+        (a) => a.length > 0,
+    ).length;
+
     return (
-      <p className="py-10 text-center text-sm text-red-500">
-        {error || 'Role not found.'}
-      </p>
+        <div className="space-y-4 font-mono text-xs">
+            {/* Header — mirrors the editor's back link, title and button pair */}
+            <div className="flex flex-wrap items-end justify-between gap-3">
+                <div>
+                    <Link
+                        href={LIST_URL}
+                        className="inline-flex items-center gap-2 text-slate-500 transition-colors hover:text-slate-700"
+                    >
+                        <ArrowLeft size={16} /> Back
+                    </Link>
+                    <h2 className="mt-3 flex items-center gap-3 text-2xl font-bold text-slate-800 md:text-3xl">
+                        <ShieldCheck className="text-[#1a9e52]" />
+                        {role.name}
+                        <span
+                            className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                                role.is_active
+                                    ? 'bg-emerald-100 text-emerald-700'
+                                    : 'bg-slate-100 text-slate-500'
+                            }`}
+                        >
+                            {role.is_active ? 'Active' : 'Inactive'}
+                        </span>
+                    </h2>
+                </div>
+                <div className="flex items-center gap-2">
+                    <Link
+                        href={LIST_URL}
+                        className="rounded-xl border border-slate-200 px-4 py-2.5 text-slate-600 transition-colors hover:bg-slate-50"
+                    >
+                        Discard
+                    </Link>
+                    {permission.can_update && (
+                        <Link
+                            href={`${LIST_URL}/${role.id}/update`}
+                            className="flex items-center justify-center gap-2 rounded-xl bg-[#1a9e52] px-4 py-2.5 font-semibold text-white transition-colors hover:bg-[#158042]"
+                        >
+                            <Save size={16} /> Save
+                        </Link>
+                    )}
+                </div>
+            </div>
+
+            <SectionCard icon={<UserCheck size={13} />} title="Role Information">
+                <div className="grid gap-4 lg:grid-cols-2">
+                    <div>
+                        <FieldLabel>Name</FieldLabel>
+                        <ReadonlyInput value={role.name} />
+                    </div>
+                    <div>
+                        <FieldLabel>Description</FieldLabel>
+                        <ReadonlyInput value={role.description ?? ''} />
+                    </div>
+                    <div>
+                        <FieldLabel>Company</FieldLabel>
+                        <ReadonlyInput value={role.company?.name ?? ''} />
+                    </div>
+                    <div>
+                        <FieldLabel>Created</FieldLabel>
+                        <ReadonlyInput
+                            value={new Date(role.created_at).toLocaleDateString(
+                                'en-GB',
+                                {
+                                    day: '2-digit',
+                                    month: 'short',
+                                    year: 'numeric',
+                                },
+                            )}
+                        />
+                    </div>
+                </div>
+            </SectionCard>
+
+            <SectionCard
+                icon={<ShieldCheck size={13} />}
+                title={`Module Access Rights (${grantedModules} ${
+                    grantedModules === 1 ? 'module' : 'modules'
+                })`}
+            >
+                <ModuleAccessTree
+                    modules={modules}
+                    grants={role.grants ?? {}}
+                    onChangeAction={() => {}}
+                    readOnly
+                />
+            </SectionCard>
+        </div>
     );
-  }
-
-  const permColumns: DataTableColumn<RolePermission>[] = [
-    {
-      key: 'module',
-      header: 'Module',
-      cell: (row) => <span className="font-medium text-slate-800">{row.module.label}</span>,
-    },
-    {
-      key: 'path',
-      header: 'Path',
-      cell: (row) => <span className="font-mono text-xs text-slate-400">{row.module.path}</span>,
-    },
-    {
-      key: 'can_view',
-      header: 'View',
-      headerClassName: 'text-center',
-      cellClassName: 'text-center',
-      cell: (row) => <PermBadge granted={row.can_view} />,
-    },
-    {
-      key: 'can_create',
-      header: 'Create',
-      headerClassName: 'text-center',
-      cellClassName: 'text-center',
-      cell: (row) => <PermBadge granted={row.can_create} />,
-    },
-    {
-      key: 'can_update',
-      header: 'Update',
-      headerClassName: 'text-center',
-      cellClassName: 'text-center',
-      cell: (row) => <PermBadge granted={row.can_update} />,
-    },
-    {
-      key: 'can_delete',
-      header: 'Delete',
-      headerClassName: 'text-center',
-      cellClassName: 'text-center',
-      cell: (row) => <PermBadge granted={row.can_delete} />,
-    },
-  ];
-
-  return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <Link
-            href="/setting/role"
-            className="inline-flex items-center gap-1.5 text-sm text-slate-500 transition-colors hover:text-slate-700"
-          >
-            <ArrowLeft size={14} /> Back to Roles
-          </Link>
-          <h2 className="mt-2 flex items-center gap-2 text-xl font-bold text-slate-800">
-            <ShieldCheck className="text-emerald-500" size={20} />
-            {data.name}
-          </h2>
-          {data.description && (
-            <p className="mt-0.5 text-sm text-slate-500">{data.description}</p>
-          )}
-        </div>
-        {permission.can_update && (
-          <Button size="sm" asChild>
-            <Link href={`/setting/role/${data.id}/update`}>
-              <Edit2 size={13} /> Edit Role
-            </Link>
-          </Button>
-        )}
-      </div>
-
-      {/* Role Info Card */}
-      <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-        <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-400">
-          Role Info
-        </h3>
-        <div className="grid gap-4 sm:grid-cols-3">
-          <div>
-            <p className="text-xs text-slate-400">Name</p>
-            <p className="mt-0.5 font-mono text-sm font-semibold text-slate-800">
-              {data.name}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs text-slate-400">Company</p>
-            <p className="mt-0.5 text-sm text-slate-700">
-              {data.company?.name ?? '—'}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs text-slate-400">Created</p>
-            <p className="mt-0.5 text-sm text-slate-700">
-              {new Date(data.created_at).toLocaleDateString('en-GB', {
-                day: '2-digit',
-                month: 'short',
-                year: 'numeric',
-              })}
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* Permissions Table */}
-      <section className="rounded-2xl border border-slate-100 bg-white shadow-sm">
-        <div className="flex items-center gap-2 border-b border-slate-100 bg-slate-50/80 px-5 py-3">
-          <ShieldCheck size={13} className="text-emerald-500" />
-          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-            Module Permissions ({data.role_module_permission.length})
-          </h3>
-        </div>
-        <div className="p-4">
-          <DataTable
-            columns={permColumns}
-            data={data.role_module_permission}
-            keyExtractor={(row) => row.id}
-            searchFn={(row, query) =>
-              row.module.label.toLowerCase().includes(query) ||
-              row.module.path.toLowerCase().includes(query)
-            }
-            searchPlaceholder="Filter modules..."
-            pageSize={10}
-            pageSizeOptions={[10, 20, 50]}
-            emptyTitle="No permissions"
-            emptyDescription="No module permissions match your filter."
-          />
-        </div>
-      </section>
-    </div>
-  );
 }

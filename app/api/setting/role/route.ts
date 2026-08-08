@@ -44,8 +44,10 @@ export async function POST(request: NextRequest) {
             req: request,
         });
         const body = await request.json();
-        const data = await Service.insertOne(context, body);
-        return new ApiResponseSuccess({ data }, 'Created', 201).toResponse();
+        // The permission editor posts the role header and its grants together;
+        // callers that only send a header still work (permissions defaults []).
+        const data = await Service.createWithGrants(context, body);
+        return new ApiResponseSuccess(data, 'Created', 201).toResponse();
     } catch (exception) {
         if (exception instanceof ApiError) return exception.toResponse();
         return new ApiResponseSuccess(

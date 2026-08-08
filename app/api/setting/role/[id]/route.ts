@@ -6,8 +6,8 @@ import {
     ValidationError,
 } from '@/service/core/api-response';
 import {
+    saveRoleSchema,
     updateRolePermissionsSchema,
-    updateRoleSchema,
 } from '@/service/schema/role.schema';
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
@@ -43,7 +43,7 @@ export async function PUT(
         const { id } = await params;
         const body = await req.json();
 
-        const parsed = updateRoleSchema.safeParse(body);
+        const parsed = saveRoleSchema.safeParse(body);
         if (!parsed.success) {
             return new ValidationError(
                 'Validation Errors',
@@ -51,7 +51,13 @@ export async function PUT(
             ).toResponse();
         }
 
-        const data = await Service.updateOne(context, Number(id), parsed.data);
+        // Header + grants are replaced together, so the editor's Save is one
+        // round trip and cannot half-apply across two requests.
+        const data = await Service.updateWithGrants(
+            context,
+            Number(id),
+            parsed.data,
+        );
         return new ApiResponseSuccess(data).toResponse();
     } catch (err) {
         if (err instanceof ApiError) return err.toResponse();

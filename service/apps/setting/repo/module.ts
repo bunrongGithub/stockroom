@@ -10,6 +10,17 @@ const TABLE = 'modules' as const;
 
 type ParentRef = { id: number; label: string };
 
+/** One grantable module row as the role permission editor consumes it. */
+export type AccessTreeModule = {
+    id: number;
+    key: string;
+    label: string;
+    path: string;
+    type: string;
+    parent_id: number | null;
+    sort_order: number;
+};
+
 export type AppModuleNested = AppModule & {
     parent: ParentRef | null;
     children: (AppModule & {
@@ -166,6 +177,27 @@ export class ModuleRepository extends BaseRepository {
     async deleteOne(_ctx: RequestContext, id: number): Promise<void> {
         const { error } = await this.db.from(TABLE).delete().eq('id', id);
         if (error) throw new Error(error.message);
+    }
+
+    /**
+     * Every grantable module, flat, for the role permission editor.
+     *
+     * Modules are global (no company_id), so this is deliberately not
+     * tenant-filtered — and it must NOT be filtered by existing grants either,
+     * or a role could never be given access to something it does not already
+     * have. Action rows are excluded because their grants are derived from
+     * their parent's on save.
+     */
+    async findAccessTree(_ctx: RequestContext): Promise<AccessTreeModule[]> {
+        const { data, error } = await this.db
+            .from(TABLE)
+            .select('id, key, label, path, type, parent_id, sort_order')
+            .neq('type', 'action')
+            .eq('is_active', true)
+            .order('sort_order', { ascending: true });
+
+        if (error) throw new Error(error.message);
+        return (data ?? []) as AccessTreeModule[];
     }
 
     async findAllMenu(

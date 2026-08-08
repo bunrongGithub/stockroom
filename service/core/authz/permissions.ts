@@ -115,6 +115,89 @@ export const EXTENDED_ACTION_BASE: Partial<
     reverse: 'delete',
 };
 
+/**
+ * An action page's path suffix → the parent capability that implies it.
+ *
+ * The dashboard's catch-all route gates EVERY module on its own `can_view`,
+ * and `can_view` is derived per module id from the grant table. So a role
+ * granted `create` on /sale/order still lands on /unauthorized when it opens
+ * /sale/order/create, because that child row carries no grant of its own.
+ * Deriving the child's view grant from the parent's action is what makes a tick
+ * in the permission editor actually open the page.
+ */
+const ACTION_CHILD_SUFFIXES: ReadonlyArray<[suffix: string, action: PermissionAction]> = [
+    ['/create', 'create'],
+    ['/view', 'view'],
+    ['/update', 'update'],
+    ['/delete', 'delete'],
+    ['/export', 'export'],
+    ['/print', 'print'],
+];
+
+/**
+ * The parent action that should grant `view` on this action page, or null when
+ * the path is not a recognised action page.
+ */
+export function impliedParentAction(path: string): PermissionAction | null {
+    if (!path) return null;
+    for (const [suffix, action] of ACTION_CHILD_SUFFIXES) {
+        if (path.endsWith(suffix)) return action;
+    }
+    return null;
+}
+
+/** The five actions every module supports, in display order. */
+export const CORE_ACTIONS = [
+    'view',
+    'create',
+    'update',
+    'delete',
+    'export',
+] as const;
+
+/** Human labels for the permission editor. */
+export const ACTION_LABEL: Record<PermissionAction, string> = {
+    view: 'View',
+    create: 'Create',
+    update: 'Update',
+    delete: 'Delete',
+    export: 'Export',
+    post: 'Post',
+    approve: 'Approve',
+    void: 'Void',
+    cancel: 'Cancel',
+    close: 'Close',
+    prepare: 'Prepare',
+    count: 'Count',
+    complete: 'Complete',
+    reverse: 'Reverse',
+    print: 'Print',
+};
+
+/**
+ * Every action a module can grant, split for the permission editor.
+ *
+ * `core` is always the five CRUD verbs — the legacy flag table covers them for
+ * modules the catalog does not describe. `workflow` is the module's declared
+ * extended actions (post, void, approve, …), which only exist for documents.
+ * A module absent from the catalog gets core-only, which is exactly what its
+ * can_* flags could express before.
+ */
+export function actionsForModuleKey(moduleKey: string): {
+    core: PermissionAction[];
+    workflow: PermissionAction[];
+} {
+    const declared = allPermissions().filter((p) => p.moduleKey === moduleKey);
+    const workflow = declared
+        .map((p) => p.action)
+        .filter((a) => !CORE_ACTIONS.includes(a as (typeof CORE_ACTIONS)[number]));
+    return {
+        core: [...CORE_ACTIONS],
+        // Stable order: follow the PermissionAction union, not catalog order.
+        workflow: Array.from(new Set(workflow)),
+    };
+}
+
 /** The extended actions a module declares in the catalog, each paired with the
  *  CRUD flag it derives from. Empty for modules with no extended actions. */
 export function extendedActionsForModule(

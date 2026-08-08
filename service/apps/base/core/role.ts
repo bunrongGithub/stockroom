@@ -7,10 +7,16 @@ import {
 import {
     CreateRoleInput,
     createRoleSchema,
+    ModuleActionGrantInput,
+    SaveRoleInput,
+    saveRoleSchema,
     UpdateRolePermissionsInput,
 } from '@/service/schema/role.schema';
 import { RequestContext } from '@/types/request-context';
-import { extendedActionsForModule } from '@/service/core/authz/permissions';
+import {
+    extendedActionsForModule,
+    impliedParentAction,
+} from '@/service/core/authz/permissions';
 import { z } from 'zod';
 
 export class Role extends BaseRepository {
@@ -26,9 +32,10 @@ export class Role extends BaseRepository {
         // so meta.total/totalPages come back 0 and the list can never paginate.
         const baseQuery = this.db
             .from('roles')
-            .select('id, name, description, created_at, company(id, name)', {
-                count: 'exact',
-            })
+            .select(
+                'id, name, description, is_active, created_at, company(id, name)',
+                { count: 'exact' },
+            )
             .order('id', { ascending: false });
 
         const isSuperUser = await this.isSupperUser(context);
@@ -84,30 +91,23 @@ export class Role extends BaseRepository {
             .eq('id', id);
 
         const isSuperUser = await this.isSupperUser(context);
-        if (isSuperUser) {
-            const { data, error } = await baseQuery.maybeSingle();
-            if (!data) {
-                throw new NotFoundError(`Role with id ${id} not found`);
-            }
-            if (error) {
-                console.log(error);
-                throw new ApiError(error.message, 500, error.code).toResponse();
-            }
-            return data;
-        }
-        const { data, error } = await this.applyCompanyFilter(
-            baseQuery,
-            Number(context.companyId),
-        ).maybeSingle();
+        const { data, error } = isSuperUser
+            ? await baseQuery.maybeSingle()
+            : await this.applyCompanyFilter(
+                  baseQuery,
+                  Number(context.companyId),
+              ).maybeSingle();
 
         if (!data) {
             throw new NotFoundError(`Role with id ${id} not found`);
         }
         if (error) {
-            console.log(error);
-            throw new ApiError(error.message, 500, error.code).toResponse();
+            throw new ApiError(error.message, 500, error.code);
         }
-        return data;
+
+        // `grants` is the per-action truth the permission editor loads; the
+        // role_module_permission array above stays for the legacy detail view.
+        return { ...data, grants: await this.findGrants(id) };
     }
 
     async updateOne(
@@ -263,6 +263,211 @@ export class Role extends BaseRepository {
         }
 
         return { success: true };
+    }
+
+    /**
+     * Replace a role's entire grant set from the per-action editor.
+     *
+     * Writes both tables: `role_module_action_permission` (what
+     * requirePermission and get_user_modules read) and the legacy
+     * `role_module_permission` CRUD flags, kept in sync so the role detail
+     * screen and any not-yet-migrated reader stay truthful.
+     *
+     * Not a single transaction — Supabase's REST client cannot span one. A
+     * failure mid-way leaves the role with fewer grants than intended, which is
+     * fail-closed and fixed by saving again.
+     */
+    async syncActionGrants(
+        context: RequestContext,
+        roleId: number,
+        roleCompanyId: number,
+        permissions: ModuleActionGrantInput[],
+    ) {
+        const granted = permissions.filter((p) => p.actions.length > 0);
+
+        // Wipe first: the editor always submits the complete desired state, so
+        // anything absent has been revoked.
+        const { error: delActions } = await this.db
+            .from('role_module_action_permission')
+            .delete()
+            .eq('role_id', roleId);
+        if (delActions)
+            throw new ApiError(delActions.message, 500, delActions.code);
+
+        const { error: delFlags } = await this.db
+            .from('role_module_permission')
+            .delete()
+            .eq('role_id', roleId);
+        if (delFlags) throw new ApiError(delFlags.message, 500, delFlags.code);
+
+        if (granted.length === 0) return { success: true };
+
+        const mkRow = (module_id: number, action: string) => ({
+            role_id: roleId,
+            company_id: roleCompanyId,
+            module_id,
+            action,
+            granted: true,
+            created_by: context.userId,
+            updated_by: context.userId,
+        });
+
+        const rows = granted.flatMap((p) =>
+            [...new Set(p.actions)].map((a) => mkRow(p.module_id, a)),
+        );
+
+        // Give each implied action page its own view grant (see
+        // impliedParentAction) so the buttons this role can see actually open.
+        const parentIds = granted.map((p) => p.module_id);
+        const actionsByParent = new Map(
+            granted.map((p) => [p.module_id, new Set(p.actions)]),
+        );
+        const { data: children } = await this.db
+            .from('modules')
+            .select('id, path, parent_id')
+            .eq('type', 'action')
+            .in('parent_id', parentIds);
+
+        for (const child of children ?? []) {
+            const parentActions = actionsByParent.get(child.parent_id as number);
+            if (!parentActions) continue;
+            const implied = impliedParentAction(String(child.path ?? ''));
+            if (implied && parentActions.has(implied)) {
+                rows.push(mkRow(child.id as number, 'view'));
+            }
+        }
+
+        const { error: insertActions } = await this.db
+            .from('role_module_action_permission')
+            .upsert(rows, { onConflict: 'role_id,module_id,action' });
+        if (insertActions)
+            throw new ApiError(insertActions.message, 500, insertActions.code);
+
+        // Mirror the CRUD subset into the legacy flag table.
+        const flagRows = granted.map((p) => {
+            const set = new Set(p.actions);
+            return {
+                role_id: roleId,
+                company_id: roleCompanyId,
+                module_id: p.module_id,
+                can_view: set.has('view'),
+                can_create: set.has('create'),
+                can_update: set.has('update'),
+                can_delete: set.has('delete'),
+                can_export: set.has('export'),
+            };
+        });
+        const { error: insertFlags } = await this.db
+            .from('role_module_permission')
+            .upsert(flagRows, { onConflict: 'role_id,module_id' });
+        if (insertFlags)
+            throw new ApiError(insertFlags.message, 500, insertFlags.code);
+
+        return { success: true };
+    }
+
+    /** Create a role and its grants in one request from the permission editor. */
+    async createWithGrants(context: RequestContext, payload: SaveRoleInput) {
+        const parsed = saveRoleSchema.safeParse(payload);
+        if (!parsed.success)
+            throw new ValidationError(
+                'Validation failed',
+                z.flattenError(parsed.error).fieldErrors as Record<
+                    string,
+                    string[]
+                >,
+            );
+
+        const companyId = Number(context.companyId);
+        const { data, error, status } = await this.db
+            .from('roles')
+            .insert({
+                name: parsed.data.name,
+                description: parsed.data.description ?? null,
+                is_active: parsed.data.is_active,
+                company_id: companyId,
+            })
+            .select('id, name, description, is_active')
+            .single();
+
+        if (error) throw new ApiError(error.message, status, error.code);
+
+        await this.syncActionGrants(
+            context,
+            data.id as number,
+            companyId,
+            parsed.data.permissions,
+        );
+        return data;
+    }
+
+    /** Update a role's header and replace its grants. */
+    async updateWithGrants(
+        context: RequestContext,
+        id: number,
+        payload: SaveRoleInput,
+    ) {
+        const parsed = saveRoleSchema.safeParse(payload);
+        if (!parsed.success)
+            throw new ValidationError(
+                'Validation failed',
+                z.flattenError(parsed.error).fieldErrors as Record<
+                    string,
+                    string[]
+                >,
+            );
+
+        // Object-level security: 404 rather than 403 so a role in another
+        // company is not confirmed to exist.
+        const isSuperUser = await this.isSupperUser(context);
+        const { data: role } = await this.db
+            .from('roles')
+            .select('id, company_id')
+            .eq('id', id)
+            .maybeSingle();
+        if (
+            !role ||
+            (!isSuperUser && role.company_id !== Number(context.companyId))
+        ) {
+            throw new NotFoundError(`Role with id ${id} not found`);
+        }
+
+        const { data, error, status } = await this.db
+            .from('roles')
+            .update({
+                name: parsed.data.name,
+                description: parsed.data.description ?? null,
+                is_active: parsed.data.is_active,
+            })
+            .eq('id', id)
+            .select('id, name, description, is_active')
+            .single();
+        if (error) throw new ApiError(error.message, status, error.code);
+
+        await this.syncActionGrants(
+            context,
+            id,
+            role.company_id as number,
+            parsed.data.permissions,
+        );
+        return data;
+    }
+
+    /** module_id → granted action verbs, the shape the editor loads. */
+    async findGrants(roleId: number): Promise<Record<number, string[]>> {
+        const { data, error } = await this.db
+            .from('role_module_action_permission')
+            .select('module_id, action')
+            .eq('role_id', roleId)
+            .eq('granted', true);
+        if (error) throw new ApiError(error.message, 500, error.code);
+
+        const out: Record<number, string[]> = {};
+        for (const row of data ?? []) {
+            const id = row.module_id as number;
+            (out[id] ??= []).push(row.action as string);
+        }
+        return out;
     }
 
     async deleteOne(context: RequestContext, id: number) {

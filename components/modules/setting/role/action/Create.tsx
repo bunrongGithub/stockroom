@@ -2,10 +2,9 @@
 
 import { useRegisterModule } from '@/hook/useModule';
 import type { ModuleProps } from '@/lib/registry';
-import { useParams } from 'next/navigation';
 import RoleForm from '../RoleForm';
 
-export default function RoleUpdate({
+export default function RoleCreate({
     currentPath,
     permission,
     currentPathActions,
@@ -16,11 +15,5 @@ export default function RoleUpdate({
         modulePath: currentPath.path,
     });
 
-    const params = useParams();
-    // /setting/role/[id]/update — the id is the segment before the action.
-    const id = Number(
-        Array.isArray(params.slug) ? params.slug.at(-2) : params.slug,
-    );
-
-    return <RoleForm mode="edit" roleId={id} />;
+    return <RoleForm mode="create" />;
 }

@@ -125,6 +125,8 @@ export const API = {
         module: {
             ...resource(`${SETTING}/module`),
             lookup: `${SETTING}/module/lookup`,
+            /** Full, unpaginated module tree for the role permission editor. */
+            tree: `${SETTING}/module/tree`,
         },
         role: resource(`${SETTING}/role`),
         rolePermissions: resource(`${SETTING}/role-permissions`),
