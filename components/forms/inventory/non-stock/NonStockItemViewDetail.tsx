@@ -374,12 +374,12 @@ export default function NonStockItemViewDetail({ item }: { item: NonStockViewIte
                                         label="Returnable"
                                         description="Allow customer returns"
                                     />
-                                    <ReadonlyToggle
+                                    {/* <ReadonlyToggle
                                         checked={item.is_sellable}
                                         icon={<Tag size={16} />}
                                         label="Sellable"
                                         description="Show in POS for sale"
-                                    />
+                                    /> */}
                                 </div>
                                 {item.warranty_duration && (
                                     <div className="mt-4">

@@ -14,7 +14,6 @@ import type {
   ReceiptTxnType,
 } from '@/service/apps/inventory/repo/receipt';
 import {
-  ArrowLeftIcon,
   ChevronDown,
   Loader2,
   Package,
@@ -317,28 +316,45 @@ export default function Update({
 
   return (
     <div className="space-y-6 font-mono text-xs">
-      {/* Page header */}
-      <div className="flex items-center justify-between">
-        <h2 className="flex items-center gap-2 text-xl font-bold text-slate-800">
-          <Package size={18} className="text-emerald-600" />
-          Edit {receipt.reference_no || 'Receipt Transaction'}
-        </h2>
-        <button
-          type="button"
-          onClick={() => router.back()}
-          className="inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs hover:bg-muted font-mono"
-        >
-          <ArrowLeftIcon size={13} /> Back
-        </button>
-      </div>
-
-      {submitError && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-700">
-          {submitError}
-        </div>
-      )}
-
+      {/* The form opens around the header so Save can stay a native submit
+          button while sitting in the top-right action group. */}
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        {/* Page header — Discard replaces the old Back button, so the two
+            primary actions are reachable without scrolling past the lines. */}
+        <div className="flex items-center justify-between">
+          <h2 className="flex items-center gap-2 text-xl font-bold text-slate-800">
+            <Package size={18} className="text-emerald-600" />
+            Edit {receipt.reference_no || 'Receipt Transaction'}
+          </h2>
+          <div className="flex gap-x-1">
+            <button
+              type="button"
+              onClick={() => router.back()}
+              className="inline-flex items-center gap-1.5 rounded-xl border px-4 py-2 text-xs font-mono hover:bg-muted"
+            >
+              Discard
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-mono text-white hover:bg-emerald-500 disabled:opacity-60"
+            >
+              {isSubmitting ? (
+                <Loader2 size={13} className="animate-spin" />
+              ) : (
+                <SaveIcon size={13} />
+              )}
+              {isSubmitting ? 'Saving' : 'Save'}
+            </button>
+          </div>
+        </div>
+
+        {submitError && (
+          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-700">
+            {submitError}
+          </div>
+        )}
+
         {/* ── Receipt Information ── */}
         <Card className="border-none shadow-sm">
           <CardHeader>
@@ -532,28 +548,6 @@ export default function Update({
             </div>
           </CardContent>
         </Card>
-        {/* Footer */}
-        <div className="flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={() => router.back()}
-            className="rounded-xl border px-4 py-2 text-xs hover:bg-muted font-mono"
-          >
-            Discard
-          </button>
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs text-white hover:bg-emerald-500 font-mono disabled:opacity-60"
-          >
-            {isSubmitting ? (
-              <Loader2 size={13} className="animate-spin" />
-            ) : (
-              <SaveIcon size={13} />
-            )}
-            {isSubmitting ? 'Saving...' : 'Save Receipt'}
-          </button>
-        </div>
       </form>
 
       {/* Add / Edit item popup */}

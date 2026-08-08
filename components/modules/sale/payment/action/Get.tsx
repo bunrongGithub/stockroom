@@ -146,7 +146,7 @@ export default function SalePaymentDetail({
     <div className="space-y-4 font-mono text-xs">
       <FormHeader
         backHref="/finances/payment"
-        backLabel="Back to Payments"
+        backLabel="Back"
         icon={<WalletIcon />}
         title={payment.payment_no}
         badges={<StatusBadge status={payment.status} />}

@@ -8,6 +8,7 @@ import type {
 import type { RequestContext } from '@/types/request-context';
 import type { AuditMeta } from '@/types/audit';
 import { getNextDocumentNumber } from '@/service/core/document-number';
+import { ItemUomRepository } from '@/service/apps/inventory/repo/item-uom';
 import {
     lineTotal as calcLineTotal,
     documentTotals,
@@ -32,7 +33,7 @@ const SHIPMENT_TABLE = 'sales_shipment' as const;
 const SELECT_LIST =
     '*, warehouse:warehouse(id, name), customer:business_partner(id, code, name)';
 const SELECT_DETAIL =
-    '*, warehouse:warehouse(id, name), customer:business_partner(id, code, name), items:sales_order_items(*, item:inventory_item(id, name, track_serial), item_uom:inventory_item_uom(id, name, display_name))';
+    '*, warehouse:warehouse(id, name), customer:business_partner(id, code, name), items:sales_order_items(*, item:inventory_item(id, name, track_serial), item_uom:inventory_item_uom(id, uom:inventory_uom(id, name, display_name)))';
 
 // ─── Pure helpers ───────────────────────────────────────────────────────────
 
@@ -96,7 +97,7 @@ function mapOrderItem(r: any): SalesOrderItem {
         track_serial: r.item?.track_serial ?? false,
         product_name: r.item?.name ?? r.description ?? '',
         description: r.description ?? '',
-        uom: r.uom ?? r.item_uom?.name ?? '',
+        uom: r.uom ?? r.item_uom?.uom?.name ?? '',
         ordered_qty: Number(r.ordered_qty),
         shipped_qty: Number(r.shipped_qty),
         invoiced_qty: Number(r.invoiced_qty ?? 0),
@@ -331,7 +332,7 @@ export class SalesOrderRepository extends BaseRepository {
         if (error) throw new ApiError(error.message, 500);
 
         try {
-            await this.insertLines(companyId, header.id, input.items, classes);
+            await this.insertLines(ctx, companyId, header.id, input.items, classes);
         } catch (err) {
             await this.db.from(HEADER_TABLE).delete().eq('id', header.id);
             throw err;
@@ -452,7 +453,7 @@ export class SalesOrderRepository extends BaseRepository {
         if (error) throw new ApiError(error.message, 500);
 
         if (input.items) {
-            await this.syncLines(companyId, id, input.items);
+            await this.syncLines(ctx, companyId, id, input.items);
         }
 
         return (await this.findOne(ctx, id))!;
@@ -468,6 +469,7 @@ export class SalesOrderRepository extends BaseRepository {
      * a failed delete can never silently fall through to an append.
      */
     private async syncLines(
+        ctx: RequestContext,
         companyId: number,
         orderId: number,
         items: UpdateSalesOrderInput['items'],
@@ -541,6 +543,13 @@ export class SalesOrderRepository extends BaseRepository {
         }
 
         // ── 2. Update lines that are still present ────────────────────────────
+        // Re-snapshot the conversion: a line whose UOM was switched during the
+        // edit must carry the factor of its NEW unit, or it would convert with
+        // the previous unit's factor.
+        const updateFactors = await ItemUomRepository.getInstance().factorsByIds(
+            ctx,
+            submitted.map((l) => l.item_uom_id),
+        );
         for (const l of submitted) {
             if (typeof l.id !== 'number' || !existing.has(l.id)) continue;
             const counters = existing.get(l.id) ?? { shipped: 0, invoiced: 0 };
@@ -564,6 +573,9 @@ export class SalesOrderRepository extends BaseRepository {
                     item_id: l.item_id,
                     item_class: classes.get(l.item_id) ?? 'stock',
                     item_uom_id: l.item_uom_id ?? null,
+                    conversion_factor: l.item_uom_id
+                        ? (updateFactors.get(l.item_uom_id) ?? 1)
+                        : 1,
                     description: l.description ?? null,
                     uom: l.uom ?? null,
                     ordered_qty: l.ordered_qty,
@@ -586,7 +598,7 @@ export class SalesOrderRepository extends BaseRepository {
         // ── 3. Insert newly added lines ───────────────────────────────────────
         const newLines = submitted.filter((l) => typeof l.id !== 'number');
         if (newLines.length) {
-            await this.insertLines(companyId, orderId, newLines, classes);
+            await this.insertLines(ctx, companyId, orderId, newLines, classes);
         }
     }
 
@@ -844,6 +856,7 @@ export class SalesOrderRepository extends BaseRepository {
     // ── internals ───────────────────────────────────────────────────────────
 
     private async insertLines(
+        ctx: RequestContext,
         companyId: number,
         orderId: number,
         items: CreateSalesOrderInput['items'],
@@ -855,12 +868,21 @@ export class SalesOrderRepository extends BaseRepository {
                 companyId,
                 items.map((l) => l.item_id),
             ));
+        // Snapshot the conversion in force now, so a later edit to the item's
+        // UOM never restates this order (service/core/uom-conversion.ts).
+        const factors = await ItemUomRepository.getInstance().factorsByIds(
+            ctx,
+            items.map((l) => l.item_uom_id),
+        );
         const rows = items.map((l) => ({
             order_id: orderId,
             company_id: companyId,
             item_id: l.item_id,
             item_class: classMap.get(l.item_id) ?? 'stock',
             item_uom_id: l.item_uom_id ?? null,
+            conversion_factor: l.item_uom_id
+                ? (factors.get(l.item_uom_id) ?? 1)
+                : 1,
             description: l.description ?? null,
             uom: l.uom ?? null,
             ordered_qty: l.ordered_qty,

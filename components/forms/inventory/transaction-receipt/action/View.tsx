@@ -256,12 +256,6 @@ export default function View({ receiptData }: { receiptData: ReceiptTxnType }) {
             <FieldLabel>Reason</FieldLabel>
             <ReasonBadge reason={receipt.reason} />
           </div>
-          <div className="space-y-1.5">
-            <FieldLabel>Status</FieldLabel>
-            <div className="flex min-h-11.5 items-center rounded-xl border border-slate-200 bg-slate-50 px-4 py-2">
-              <StatusBadge status={receipt.status} />
-            </div>
-          </div>
           <div className="col-span-2 space-y-1.5">
             <FieldLabel>Additional Note</FieldLabel>
             <ReadonlyInput value={receipt.notes ?? ''} placeholder="—" />

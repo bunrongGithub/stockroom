@@ -1,6 +1,11 @@
 'use client';
 
 import AsyncSearchSelect from '@/components/ui/AsyncSearchSelect';
+import ItemUomSelect, {
+  baseOptionOf,
+  fetchItemUoms,
+} from '@/components/ui/ItemUomSelect';
+import { QuantityInBase } from '@/components/ui/UomConversionPreview';
 import SerialEntryPanel from '@/components/ui/serial/SerialEntryPanel';
 import { EditableInput, FieldLabel } from '@/components/ui/FieldLabel';
 import { API } from '@/lib/constant';
@@ -70,37 +75,60 @@ export default function ReceiptItemFields({
   const itemId = watch('item_id');
   const serialNumbers = watch('serial_numbers') ?? [];
   const receiptQty = Number(watch('receipt_qty') || 0);
-  const [serialEnabled, setSerialEnabled] = useState(false);
-  const [serialGeneration, setSerialGeneration] = useState<
-    'manual' | 'auto' | 'both'
-  >('both');
+  // base_qty = receipt_qty × baseFactor. 1 until a non-base unit is picked, so
+  // receipts of items with only a base UOM behave exactly as before.
+  // Stored WITH the item it describes, so a product switch can never render
+  // the previous item's conversion or serial flag, and nothing has to be reset
+  // synchronously inside the effect below.
+  const [meta, setMeta] = useState<{
+    itemId: number;
+    baseFactor: number;
+    baseUomName: string;
+    serialEnabled: boolean;
+    serialGeneration: 'manual' | 'auto' | 'both';
+  } | null>(null);
+
+  const fresh = meta != null && meta.itemId === itemId;
+  const baseFactor = fresh ? meta.baseFactor : 1;
+  const baseUomName = fresh ? meta.baseUomName : '';
+  const serialEnabled = fresh ? meta.serialEnabled : false;
+  const serialGeneration = fresh ? meta.serialGeneration : 'both';
 
   // Recompute the serial-tracking flag whenever the item changes (incl. on
   // mount when editing an existing line). Goes through the cached lookup, so it
   // shares one request with the pick-handler auto-fill below.
   useEffect(() => {
     if (!itemId) {
-      setSerialEnabled(false);
       setValue('serial_numbers', []);
       return;
     }
 
     let active = true;
-    resolveItemDefaults(itemId)
-      .then((d) => {
-        if (!active) return;
-        setSerialEnabled(d.trackSerial);
-        setSerialGeneration(d.serialGeneration);
-        if (!d.trackSerial) setValue('serial_numbers', []);
-      })
-      .catch(() => {
-        if (active) setSerialEnabled(false);
+
+    // Units and item defaults resolve together so the line's conversion and
+    // its serial flag are published as one consistent snapshot. Both lookups
+    // are cached, so this is not an extra round trip.
+    Promise.all([
+      fetchItemUoms(itemId).catch(() => []),
+      resolveItemDefaults(itemId).catch(() => null),
+    ]).then(([uoms, defaults]) => {
+      if (!active) return;
+      const base = baseOptionOf(uoms);
+      const current = uoms.find((u) => u.id === getValues('item_uom_id'));
+      setMeta({
+        itemId,
+        baseUomName: base?.name ?? '',
+        baseFactor: (current ?? base)?.baseFactor ?? 1,
+        serialEnabled: defaults?.trackSerial ?? false,
+        serialGeneration: defaults?.serialGeneration ?? 'both',
       });
+      if (!defaults?.trackSerial) setValue('serial_numbers', []);
+    });
 
     return () => {
       active = false;
     };
-  }, [itemId, setValue, resolveItemDefaults]);
+  }, [itemId, setValue, getValues, resolveItemDefaults]);
 
   // Auto-populate cost / UOM / location from the item master when the user
   // PICKS a product (not on edit-mount, so saved line values are never
@@ -180,18 +208,27 @@ export default function ReceiptItemFields({
               name="item_uom_id"
               control={control}
               render={({ field: f }) => (
-                <AsyncSearchSelect
-                  label="UOM"
-                  placeholder="Select UOM..."
-                  apiUrl={`${API.inventory.itemUom.root}?item_id=${itemId}`}
-                  value={f.value}
-                  selectedLabel={watch('uom_label') ?? ''}
-                  enablePopupSearch
-                  onChangeAction={(selected) => {
-                    f.onChange(selected?.id ? Number(selected.id) : null);
-                    setValue('uom_label', selected?.name ?? '');
-                  }}
-                />
+                <div>
+                  {/* Defaults to the item's base UOM; any other unit the item
+                      defines can be received in. */}
+                  <ItemUomSelect
+                    itemId={itemId}
+                    value={f.value}
+                    onChangeAction={(sel) => {
+                      f.onChange(sel.itemUomId);
+                      setValue('uom_label', sel.name);
+                      setMeta((m) =>
+                        m ? { ...m, baseFactor: sel.baseFactor } : m,
+                      );
+                    }}
+                  />
+                  <QuantityInBase
+                    quantity={receiptQty}
+                    conversion={baseFactor}
+                    uomName={watch('uom_label') ?? ''}
+                    baseUomName={baseUomName}
+                  />
+                </div>
               )}
             />
           ) : (
@@ -285,7 +322,7 @@ export default function ReceiptItemFields({
           <SerialEntryPanel
             value={(serialNumbers as string[]).filter(Boolean)}
             onChange={(serials) => setValue('serial_numbers', serials)}
-            requiredCount={receiptQty}
+            requiredCount={receiptQty * baseFactor}
             generate={
               itemId
                 ? {

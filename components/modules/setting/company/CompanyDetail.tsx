@@ -70,7 +70,7 @@ export default function CompanyDetail({
                 onClick={() => router.push('/setting/company')}
                 className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
             >
-                <ArrowLeft size={16} /> Back to Companies
+                <ArrowLeft size={16} /> Back
             </button>
 
             {/* Header */}

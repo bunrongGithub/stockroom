@@ -58,8 +58,10 @@ export default function RoleForm({
     // renders half-populated — grants keyed on module ids are meaningless
     // without the modules they point at.
     useEffect(() => {
+        // `loading` already starts true and this page is remounted per route,
+        // so there is nothing to reset here — setting it synchronously would
+        // only cost an extra render.
         let active = true;
-        setLoading(true);
         const requests: [Promise<Response>, Promise<Response> | null] = [
             fetch(API.setting.module.tree),
             mode === 'edit' && roleId

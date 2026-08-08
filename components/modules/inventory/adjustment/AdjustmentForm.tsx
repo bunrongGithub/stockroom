@@ -273,7 +273,7 @@ export default function AdjustmentForm({
           onClick={() => router.push('/inventory/stock_adjust')}
           className="inline-flex items-center gap-2 text-slate-500 transition-colors hover:text-slate-700"
         >
-          <ArrowLeftIcon size={16} /> Back to Adjustments
+          <ArrowLeftIcon size={16} /> Back
         </button>
         <h2 className="mt-3 flex items-center gap-2 text-2xl font-bold text-slate-800 md:text-3xl">
           <ArrowLeftRight className="text-[#1a9e52]" />

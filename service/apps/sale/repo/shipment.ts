@@ -6,6 +6,11 @@ import { validateSerialSelection } from '@/service/apps/inventory/repo/serial-va
 import { ApiError, NotFoundError } from '@/service/core/api-response';
 import { BaseRepository } from '@/service/core/base-repository';
 import { behaviorOf } from '@/service/core/item-behavior';
+import {
+    baseUomContext,
+    toBaseQty,
+    uomContextOf,
+} from '@/service/core/uom-conversion';
 import type { QueryConfig } from '@/service/core/query/config.ts';
 import type { QueryObject } from '@/service/core/query/types.ts';
 import type {
@@ -33,7 +38,7 @@ const LINE_TABLE = 'sales_shipment_items' as const;
 const SELECT_LIST =
     '*, sales_order:sales_order(id, order_no), warehouse:warehouse(id, name)';
 const SELECT_DETAIL =
-    '*, sales_order:sales_order(id, order_no), warehouse:warehouse(id, name), items:sales_shipment_items(*, item:inventory_item(id, name, track_serial), location:warehouse_location(id, name), item_uom:inventory_item_uom(id, name, display_name))';
+    '*, sales_order:sales_order(id, order_no), warehouse:warehouse(id, name), items:sales_shipment_items(*, item:inventory_item(id, name, track_serial), location:warehouse_location(id, name), item_uom:inventory_item_uom(id, uom:inventory_uom(id, name, display_name)))';
 
 /**
  * DRAFT shipments can be edited/posted/voided (POSTED is immutable). A POSTED
@@ -63,7 +68,7 @@ function mapShipmentItem(r: any): SalesShipmentItem {
         location_id: r.location_id,
         location_name: r.location?.name ?? '',
         item_uom_id: r.item_uom_id ?? null,
-        uom: r.item_uom?.name ?? '',
+        uom: r.item_uom?.uom?.name ?? '',
         ordered_qty: Number(r.ordered_qty),
         previously_shipped_qty: Number(r.previously_shipped_qty),
         shipment_qty: Number(r.shipment_qty),
@@ -262,7 +267,7 @@ export class SalesShipmentRepository extends BaseRepository {
         if (error) throw new ApiError(error.message, 500);
 
         try {
-            await this.insertLines(companyId, header.id, input.items);
+            await this.insertLines(ctx, companyId, header.id, input.items);
         } catch (err) {
             await this.db.from(HEADER_TABLE).delete().eq('id', header.id);
             throw err;
@@ -312,7 +317,7 @@ export class SalesShipmentRepository extends BaseRepository {
             );
             this.validateLines(order, input.items);
             await this.db.from(LINE_TABLE).delete().eq('shipment_id', id);
-            await this.insertLines(companyId, id, input.items);
+            await this.insertLines(ctx, companyId, id, input.items);
         }
 
         return (await this.findOne(ctx, id))!;
@@ -362,7 +367,9 @@ export class SalesShipmentRepository extends BaseRepository {
         const orderService = SalesOrderRepository.getInstance();
         const serialRepo = SerialManagementService.getInstance();
 
-        // Build movement lines, converting entered qty → base UOM.
+        // Build movement lines. The base quantity is derived by the movement
+        // engine from this context — never computed here (see
+        // service/core/uom-conversion.ts).
         const movementItems = await Promise.all(
             shipment.items.map(async (line) => {
                 const enteredUom = line.item_uom_id
@@ -372,17 +379,19 @@ export class SalesShipmentRepository extends BaseRepository {
                     ctx,
                     line.item_id,
                 );
-                const conversion = Number(enteredUom?.conversion ?? 1) || 1;
 
                 return {
                     item_id: line.item_id,
                     warehouse_id: shipment.warehouse_id,
                     location_id: line.location_id,
                     entered_qty: line.shipment_qty,
-                    entered_uom_id: enteredUom?.uom_id ?? null,
-                    base_qty: line.shipment_qty * conversion,
+                    // The line's own snapshot wins over the live item UOM, so
+                    // editing a conversion never rewrites a posted shipment.
+                    uom: uomContextOf(line, enteredUom),
                     base_uom_id: baseUom?.uom_id ?? null,
                     movement_direction: 'OUT' as const,
+                    serial_tracked: line.track_serial ?? false,
+                    item_label: line.product_name,
                 };
             }),
         );
@@ -419,8 +428,17 @@ export class SalesShipmentRepository extends BaseRepository {
                 ),
             ];
             try {
+                // One serial identifies one BASE unit. Shipping 10 Box of 12
+                // needs 120 serials, not 10 — validate against the converted
+                // quantity, which is also what the ledger will record.
+                const lineUom = movementItems.find(
+                    (m) => m.item_id === line.item_id,
+                )?.uom;
                 validateSerialSelection({
-                    quantity: Number(line.shipment_qty),
+                    quantity: toBaseQty(
+                        Number(line.shipment_qty),
+                        lineUom ?? baseUomContext(null),
+                    ),
                     serials,
                 });
             } catch (e) {
@@ -772,10 +790,17 @@ export class SalesShipmentRepository extends BaseRepository {
     }
 
     private async insertLines(
+        ctx: RequestContext,
         companyId: number,
         shipmentId: number,
         items: CreateSalesShipmentInput['items'],
     ): Promise<void> {
+        // Snapshot each line's conversion so editing the item's UOM later
+        // cannot restate this shipment (service/core/uom-conversion.ts).
+        const factors = await ItemUomRepository.getInstance().factorsByIds(
+            ctx,
+            items.map((l) => l.item_uom_id),
+        );
         const rows = items.map((l) => ({
             shipment_id: shipmentId,
             company_id: companyId,
@@ -783,6 +808,9 @@ export class SalesShipmentRepository extends BaseRepository {
             item_id: l.item_id,
             location_id: l.location_id,
             item_uom_id: l.item_uom_id ?? null,
+            conversion_factor: l.item_uom_id
+                ? (factors.get(l.item_uom_id) ?? 1)
+                : 1,
             ordered_qty: l.ordered_qty ?? 0,
             previously_shipped_qty: l.previously_shipped_qty ?? 0,
             shipment_qty: l.shipment_qty,

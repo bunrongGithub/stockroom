@@ -1,14 +1,24 @@
 import { PERMISSIONS, requirePermission } from '@/service/core/authz';
-import { createUomSchema } from '@/service/schema/uom.schema';
+import { createItemUomSchema } from '@/service/schema/uom.schema';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getRequestContext } from '@/lib/request-context';
+import { ApiError } from '@/service/core/api-response';
 import { service } from '.';
 
+/**
+ * The UOMs defined for one item.
+ *
+ * Serves both the UOM Details editor and every transaction line picker, so the
+ * payload carries the conversion plus the joined UOM master row — a picker must
+ * be able to show "Box — 1 Box = 12 Piece" without a second request.
+ */
 export async function GET(request: NextRequest) {
     try {
         const ctx = getRequestContext(request);
-        await requirePermission(ctx, PERMISSIONS.inventory.item.view, { req: request });
+        await requirePermission(ctx, PERMISSIONS.inventory.item.view, {
+            req: request,
+        });
         const searchParams = request.nextUrl.searchParams;
 
         const page = Number(searchParams.get('page') || 1);
@@ -32,32 +42,35 @@ export async function GET(request: NextRequest) {
         });
         return NextResponse.json(items, { status: 200 });
     } catch (error) {
-        console.error('Error in GET /api/uom:', error);
+        if (error instanceof ApiError) return error.toResponse();
         const message =
             error instanceof Error ? error.message : 'Unexpected error';
         return NextResponse.json({ error: message }, { status: 500 });
     }
 }
 
-// export async function POST(req: NextRequest) {
-//     try {
-//         const ctx = getRequestContext(req);
-//         const body = await req.json();
+/** Define an additional (non-base) UOM for an item. */
+export async function POST(request: NextRequest) {
+    try {
+        const ctx = getRequestContext(request);
+        await requirePermission(ctx, PERMISSIONS.inventory.item.create, {
+            req: request,
+        });
 
-//         const parsed = createUomSchema.safeParse(body);
-//         if (!parsed.success) {
-//             return NextResponse.json(
-//                 { error: z.flattenError(parsed.error).fieldErrors },
-//                 { status: 422 },
-//             );
-//         }
+        const parsed = createItemUomSchema.safeParse(await request.json());
+        if (!parsed.success) {
+            return NextResponse.json(
+                { error: z.flattenError(parsed.error).fieldErrors },
+                { status: 422 },
+            );
+        }
 
-//         const item = await service.insertOne(ctx, parsed.data);
-//         return NextResponse.json({ data: item }, { status: 201 });
-//     } catch (error) {
-//         const message =
-//             error instanceof Error ? error.message : 'Unexpected error';
-//         const status = message.includes('already exists') ? 409 : 500;
-//         return NextResponse.json({ error: message }, { status });
-//     }
-// }
+        const item = await service.insertOne(ctx, parsed.data);
+        return NextResponse.json({ data: item }, { status: 201 });
+    } catch (error) {
+        if (error instanceof ApiError) return error.toResponse();
+        const message =
+            error instanceof Error ? error.message : 'Unexpected error';
+        return NextResponse.json({ error: message }, { status: 500 });
+    }
+}

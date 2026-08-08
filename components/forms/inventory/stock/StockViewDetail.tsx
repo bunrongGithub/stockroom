@@ -1,6 +1,7 @@
 'use client';
 
 import { FieldLabel } from '@/components/ui/FieldLabel';
+import { FormHeader, HeaderAction } from '@/components/ui/FormShell';
 import { ReadonlyInput } from '@/components/ui/Readonly';
 import { AuditInformationCard } from '@/components/ui/AuditInformationCard';
 import type { AuditMeta } from '@/types/audit';
@@ -25,10 +26,12 @@ import {
   Tag,
   Warehouse,
 } from 'lucide-react';
-import Link from 'next/link';
 import { Fragment, useEffect, useState } from 'react';
 import { API } from '@/lib/constant';
 import ItemMovementPanel from './ItemMovementPanel';
+
+/** The stock item list this page belongs to. */
+const LIST_HREF = '/inventory/configurations/stock-item';
 
 export type StockViewItem = {
   id: number;
@@ -322,16 +325,27 @@ export default function StockViewDetail({ item }: { item: StockViewItem }) {
   const createdAt = new Date(item.created_at);
 
   return (
-    <div className="mx-auto space-y-2 font-mono">
-      {/* Header */}
-      <div className="font-bold">
-        <Link
-          href="/inventory/configurations/stock"
-          className="inline-flex items-center gap-2 text-sm text-slate-500 transition-colors hover:text-slate-700"
-        >
-          <ArrowLeft size={16} /> Back
-        </Link>
-      </div>
+    <div className="mx-auto space-y-4 font-mono">
+      {/* Header — Discard and Update live here rather than under the sidebar,
+          matching every other document screen. Discard replaces the old back
+          link, which pointed at /inventory/configurations/stock: not a module,
+          so it 404'd. */}
+      <FormHeader
+        icon={<Package size={24} />}
+        title={item.name}
+        subtitle={item.sku ?? item.reference_no ?? undefined}
+        actions={
+          <>
+            <HeaderAction label="Discard" href={LIST_HREF} />
+            <HeaderAction
+              label="Update"
+              icon={<Edit2 size={15} />}
+              tone="primary"
+              href={`${LIST_HREF}/${item.id}/update`}
+            />
+          </>
+        }
+      />
 
       <div className="grid gap-6 xl:grid-cols-[350px_minmax(0,1fr)]">
         {/* ══════════════════════════════════
@@ -395,22 +409,6 @@ export default function StockViewDetail({ item }: { item: StockViewItem }) {
               </div>
             </div>
           </section>
-
-          {/* Action Buttons */}
-          <div className="flex flex-col-reverse gap-2">
-            <Link
-              href="/inventory/configurations/stock-item"
-              className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-center text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
-            >
-              Back
-            </Link>
-            <Link
-              href={`/inventory/configurations/stock-item/${item.id}/update`}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1a9e52] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#158042]"
-            >
-              <Edit2 size={15} /> Update
-            </Link>
-          </div>
         </aside>
 
         {/* ══════════════════════════════════
@@ -652,12 +650,12 @@ export default function StockViewDetail({ item }: { item: StockViewItem }) {
                     label="Returnable"
                     description="Allow customer returns"
                   />
-                  <ReadonlyToggle
+                  {/* <ReadonlyToggle
                     checked={item.is_sellable}
                     icon={<Tag size={16} />}
                     label="Sellable"
                     description="Show in POS for sale"
-                  />
+                  /> */}
                 </div>
                 {item.warranty_duration && (
                   <div className="mt-4">

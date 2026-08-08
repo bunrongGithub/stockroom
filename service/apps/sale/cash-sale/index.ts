@@ -1,6 +1,7 @@
 import { ItemUomRepository } from '@/service/apps/inventory/repo/item-uom';
 import { SerialManagementService } from '@/service/apps/inventory/serial';
 import { validateSerialSelection } from '@/service/apps/inventory/repo/serial-validation';
+import { toBaseQty, uomContextOf } from '@/service/core/uom-conversion';
 import { CompanySettingsRepository } from '@/service/apps/setting/repo/company-settings';
 import { ApiError, NotFoundError } from '@/service/core/api-response';
 import { BaseRepository } from '@/service/core/base-repository';
@@ -271,18 +272,45 @@ export class CashSaleService extends BaseRepository {
                 );
             }
 
+            // The cart may be denominated in an alternate unit, but stock
+            // balances and serials are always base — resolve the conversion
+            // before anything is compared against them.
+            const lineItemUom =
+                (line.item_uom_id
+                    ? await this.itemUoms.findOne(ctx, line.item_uom_id)
+                    : null) ??
+                (await this.itemUoms.findDefaultByItem(ctx, line.item_id));
+            const lineUomCtx = uomContextOf(line, lineItemUom);
+            const baseQty = toBaseQty(line.quantity, lineUomCtx);
+
             // Price: the client's number is a suggestion, never an authority.
-            const unitPrice = line.unit_price ?? Number(item.price);
-            if (item.min_price != null && unitPrice < Number(item.min_price)) {
+            // The item master's price and its min/max bounds are all per BASE
+            // unit, so selling by an alternate unit scales them by the same
+            // factor — otherwise a Box price would be checked against a Piece
+            // floor and the guard would be a whole conversion too lenient.
+            const priceFactor = lineUomCtx.baseFactor || 1;
+            const unitPrice =
+                line.unit_price ?? Number(item.price) * priceFactor;
+            const minPrice =
+                item.min_price != null
+                    ? Number(item.min_price) * priceFactor
+                    : null;
+            const maxPrice =
+                item.max_price != null
+                    ? Number(item.max_price) * priceFactor
+                    : null;
+            const unitLabel = lineItemUom?.uom?.name ?? '';
+
+            if (minPrice != null && unitPrice < minPrice) {
                 throw new ApiError(
-                    `${item.name}: price ${unitPrice} is below the minimum ${item.min_price}.`,
+                    `${item.name}: price ${unitPrice} is below the minimum ${minPrice}${unitLabel ? ` per ${unitLabel}` : ''}.`,
                     400,
                     'PRICE_OUT_OF_RANGE',
                 );
             }
-            if (item.max_price != null && unitPrice > Number(item.max_price)) {
+            if (maxPrice != null && unitPrice > maxPrice) {
                 throw new ApiError(
-                    `${item.name}: price ${unitPrice} is above the maximum ${item.max_price}.`,
+                    `${item.name}: price ${unitPrice} is above the maximum ${maxPrice}${unitLabel ? ` per ${unitLabel}` : ''}.`,
                     400,
                     'PRICE_OUT_OF_RANGE',
                 );
@@ -331,7 +359,8 @@ export class CashSaleService extends BaseRepository {
                     locationId,
                 );
                 const key = `${line.item_id}:${locationId}`;
-                const required = (demand.get(key) ?? 0) + line.quantity;
+                // Balances are base UOM, so the demand must be too.
+                const required = (demand.get(key) ?? 0) + baseQty;
                 demand.set(key, required);
                 if (available < required) {
                     throw new ApiError(
@@ -343,8 +372,9 @@ export class CashSaleService extends BaseRepository {
 
                 if (item.track_serial && behavior.supportsSerial) {
                     try {
+                        // One serial is one base unit: 1 Box of 12 needs 12.
                         validateSerialSelection({
-                            quantity: line.quantity,
+                            quantity: baseQty,
                             serials: serialNumbers,
                         });
                     } catch (e) {
@@ -394,11 +424,7 @@ export class CashSaleService extends BaseRepository {
                 );
             }
 
-            const itemUom =
-                (line.item_uom_id
-                    ? await this.itemUoms.findOne(ctx, line.item_uom_id)
-                    : null) ??
-                (await this.itemUoms.findDefaultByItem(ctx, line.item_id));
+            const itemUom = lineItemUom;
 
             lines.push({
                 item_id: line.item_id,
@@ -410,7 +436,7 @@ export class CashSaleService extends BaseRepository {
                 discount: line.discount ?? 0,
                 tax: line.tax ?? 0,
                 item_uom_id: itemUom?.id ?? null,
-                uom_name: itemUom?.name ?? '',
+                uom_name: itemUom?.uom?.name ?? '',
                 location_id: locationId,
                 track_serial: item.track_serial && behavior.supportsSerial,
                 serial_numbers: serialNumbers,

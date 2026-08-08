@@ -99,7 +99,7 @@ export default function CountForm({
                     onClick={() => router.push('/inventory/stock_count')}
                     className="inline-flex items-center gap-2 text-muted-foreground transition-colors hover:text-foreground"
                 >
-                    <ArrowLeftIcon size={16} /> Back to Stock Counts
+                    <ArrowLeftIcon size={16} /> Back
                 </button>
                 <h2 className="mt-3 flex items-center gap-2 text-2xl font-bold text-foreground md:text-3xl">
                     <ClipboardList className="text-success" />

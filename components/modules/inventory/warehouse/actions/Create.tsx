@@ -90,7 +90,7 @@ export default function Create({
             href="/inventory/configurations/warehouse"
             className="inline-flex items-center gap-1.5 text-slate-500 transition-colors hover:text-slate-700"
           >
-            <ArrowLeft size={14} /> Back to Warehouses
+            <ArrowLeft size={14} /> Back
           </Link>
           <h2 className="mt-2 flex items-center gap-2 text-xl font-bold text-slate-800">
             <WarehouseIcon className="text-emerald-500" size={20} />

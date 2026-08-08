@@ -191,10 +191,10 @@ export default function NonStockItemEditForm({ item }: { item: NonStockEditItem 
                     href={`/inventory/configurations/non-stock-item/${item.id}/view`}
                     className="inline-flex items-center gap-2 text-sm text-slate-500 transition-colors hover:text-slate-700"
                 >
-                    <ArrowLeft size={16} /> Back to Item
+                    <ArrowLeft size={16} /> Back
                 </Link>
                 <h2 className="mt-3 flex items-center gap-2 text-2xl font-bold text-slate-800 md:text-3xl">
-                    <Package className="text-[#1a9e52]" /> Edit Non-Stock Item
+                    <Package className="text-[#1a9e52]" />Non-Stock
                 </h2>
             </div>
 
@@ -470,13 +470,13 @@ export default function NonStockItemEditForm({ item }: { item: NonStockEditItem 
                                         label="Returnable"
                                         description="Allow customer returns"
                                     />
-                                    <ToggleCheckbox
+                                    {/* <ToggleCheckbox
                                         checked={formData.is_sellable}
                                         onChange={(val) => setFormData((p) => ({ ...p, is_sellable: val }))}
                                         icon={<Tag size={16} />}
                                         label="Sellable"
                                         description="Show in POS for sale"
-                                    />
+                                    /> */}
                                 </div>
                                 {formData.is_warranty && (
                                     <div className="mt-4">

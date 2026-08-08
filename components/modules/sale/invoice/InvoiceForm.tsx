@@ -195,8 +195,8 @@ export default function InvoiceForm({
         backHref="/finances/invoice"
         backLabel="Back to Invoices"
         icon={<FileText />}
-        title={mode === 'create' ? 'New Sales Invoice' : 'Edit Invoice'}
-        subtitle={`From shipment ${shipmentNo}${orderNo ? ` • order ${orderNo}` : ''}`}
+        title={mode === 'create' ? 'Invoice' : 'Invoice'}
+        subtitle={`From delivery ${shipmentNo}${orderNo ? ` • order ${orderNo}` : ''}`}
         actions={
           <>
             <HeaderAction label="Discard" href="/finances/invoice" />

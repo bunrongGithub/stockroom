@@ -1,5 +1,9 @@
 import { generateSKU } from '@/lib/utils/sequenumbering';
-import { NotFoundError } from '@/service/core/api-response';
+import {
+    ApiError,
+    ConflictError,
+    NotFoundError,
+} from '@/service/core/api-response';
 import { BaseRepository } from '@/service/core/base-repository';
 import { behaviorOf } from '@/service/core/item-behavior';
 import { getNextDocumentNumber } from '@/service/core/document-number';
@@ -255,16 +259,14 @@ export class InventoryRepository extends BaseRepository {
                 ).toResponse();
 
             // create new inventory item uom
-            const defaultFactor = 1;
             const defaultConversion = 1;
             await ItemUomRepository.getInstance().insertOne(ctx, {
-                name: uom.name,
-                display_name: uom.display_name,
                 item_id: data.id,
                 uom_id: uom.id,
                 is_default: true,
                 conversion: defaultConversion,
-                factor: defaultFactor,
+                conversion_type: 'MULTIPLY',
+                is_active: true
             });
         }
 
@@ -327,22 +329,33 @@ export class InventoryRepository extends BaseRepository {
             if (!baseUom) {
                 // no base uom yet -> create one
                 await itemUomService.insertOne(ctx, {
-                    name: uom.name,
-                    display_name: uom.display_name,
                     item_id: stockItem.id,
                     uom_id: uom.id,
                     is_default: true,
                     conversion: 1,
-                    factor: 1,
+                    conversion_type: 'MULTIPLY',
+                    is_active: true
                 });
             } else if (baseUom.uom_id !== uom.id) {
-                // base uom changed -> point the existing default at the new uom
-                await itemUomService.updateOne(ctx, baseUom.id, {
-                    name: uom.name,
-                    display_name: uom.display_name,
+                // Base UOM change. This used to repoint the existing default
+                // row, which silently restated history: transaction lines
+                // reference inventory_item_uom.id, so a receipt of "100 Piece"
+                // would start reading "100 Box". Worse, inventory_balances has
+                // no UOM column, so 100 on hand would quietly change meaning.
+                //
+                // Once an item has stock history the base unit is load-bearing
+                // and cannot be reinterpreted — the row is replaced only while
+                // the item has never moved.
+                await this.assertNoStockHistory(stockItem.id);
+
+                await itemUomService.deleteOne(ctx, baseUom.id);
+                await itemUomService.insertOne(ctx, {
+                    item_id: stockItem.id,
                     uom_id: uom.id,
+                    is_default: true,
                     conversion: 1,
-                    factor: 1,
+                    conversion_type: 'MULTIPLY',
+                    is_active: true
                 });
             }
         }
@@ -359,5 +372,27 @@ export class InventoryRepository extends BaseRepository {
         );
 
         if (error) throw new Error(error.message);
+    }
+
+    /**
+     * Refuse an operation that would reinterpret an item's base unit once stock
+     * has moved in it.
+     *
+     * `inventory_balances.qty_on_hand` carries no UOM — it is base by
+     * definition — so changing what "base" means would silently redenominate
+     * every on-hand figure and every posted movement for the item.
+     */
+    private async assertNoStockHistory(itemId: number): Promise<void> {
+        const { count, error } = await this.db
+            .from('inventory_movement_items')
+            .select('id', { count: 'exact', head: true })
+            .eq('item_id', itemId);
+
+        if (error) throw new ApiError(error.message, 500);
+        if ((count ?? 0) > 0) {
+            throw new ConflictError(
+                'This item already has stock movements, so its base unit of measure can no longer be changed. Add the new unit under UOM Details instead, or create a new item.',
+            );
+        }
     }
 }

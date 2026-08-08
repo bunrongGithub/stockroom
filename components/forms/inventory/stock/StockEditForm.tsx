@@ -6,6 +6,7 @@ import {
   EditableTextarea,
   FieldLabel,
 } from '@/components/ui/FieldLabel';
+import { FormHeader, HeaderAction } from '@/components/ui/FormShell';
 import { ReadonlyInput } from '@/components/ui/Readonly';
 import {
   AlertCircle,
@@ -19,13 +20,26 @@ import {
   Package,
   Percent,
   RotateCcw,
+  Ruler,
   ShieldCheck,
   Tag,
   X,
 } from 'lucide-react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { API } from '@/lib/constant';
+import type { ConversionType } from '@/service/core/uom-conversion';
+import ItemUomDetails, {
+  validateUomRows,
+  type ItemUomDraft,
+} from './ItemUomDetails';
+
+/** The view page this form returns to on Discard or after saving. */
+const VIEW_HREF = (id: number) =>
+  `/inventory/configurations/stock-item/${id}/view`;
+
+/** Lets the header's Save button submit the grid <form> it cannot sit inside. */
+const FORM_ID = 'stock-item-edit-form';
 
 export type StockEditItem = {
   id: number;
@@ -62,6 +76,7 @@ const TABS = [
   { id: 'details' as const, label: 'Details', num: 1 },
   { id: 'pricing' as const, label: 'Pricing', num: 2 },
   { id: 'options' as const, label: 'More Options', num: 3 },
+  { id: 'uoms' as const, label: 'UOM Details', num: 4 },
 ];
 type TabId = (typeof TABS)[number]['id'];
 
@@ -131,6 +146,10 @@ function ToggleCheckbox({
 export default function StockEditForm({ item }: { item: StockEditItem }) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabId>('details');
+  // The item's alternate units. Loaded separately because they live in their
+  // own table and are saved through their own endpoint.
+  const [uomRows, setUomRows] = useState<ItemUomDraft[]>([]);
+  const [uomsLoaded, setUomsLoaded] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
   const createdAt = new Date(item.created_at);
@@ -175,9 +194,107 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
     }));
   };
 
+  // Load the item's UOM rows. A row already referenced by a document is
+  // locked: its unit is immutable because posted lines resolve through it.
+  useEffect(() => {
+    let active = true;
+    fetch(`${API.inventory.itemUom.root}?item_id=${item.id}&limit=100`)
+      .then((r) => r.json())
+      .then((json) => {
+        if (!active) return;
+        const rows = (json.data ?? []) as Array<{
+          id: number;
+          uom_id: number;
+          conversion: number | null;
+          conversion_type: ConversionType | null;
+          is_default: boolean;
+          uom?: { name?: string } | null;
+          name?: string;
+        }>;
+        setUomRows(
+          rows.map((r) => ({
+            key: `u${r.id}`,
+            id: r.id,
+            uom_id: r.uom_id,
+            uom_name: r.uom?.name ?? '',
+            conversion: Number(r.conversion ?? 1),
+            conversion_type: (r.conversion_type ?? 'MULTIPLY') as ConversionType,
+            is_default: r.is_default,
+          })),
+        );
+      })
+      .catch(() => undefined)
+      .finally(() => active && setUomsLoaded(true));
+    return () => {
+      active = false;
+    };
+  }, [item.id]);
+
+  /**
+   * Persist the UOM rows alongside the item.
+   *
+   * They live in their own table with their own endpoint, so this diffs the
+   * editor's rows against what was loaded: new rows are created, changed
+   * conversions patched, removed rows deleted. A delete the server refuses
+   * (because documents reference it) surfaces as an error rather than silently
+   * dropping the row.
+   */
+  const saveUomRows = async () => {
+    const existing = new Map(
+      uomRows.filter((r) => r.id).map((r) => [r.id as number, r]),
+    );
+    const base = API.inventory.itemUom.root;
+
+    // Created + updated
+    for (const row of uomRows) {
+      if (row.is_default || !row.uom_id) continue;
+      if (!row.id) {
+        const res = await fetch(base, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: row.uom_name,
+            item_id: item.id,
+            uom_id: row.uom_id,
+            is_default: false,
+            conversion: row.conversion,
+            conversion_type: row.conversion_type,
+            factor: row.conversion,
+          }),
+        });
+        if (!res.ok) throw new Error((await res.json()).error ?? 'Failed to add UOM');
+      } else {
+        const res = await fetch(`${base}/${row.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            conversion: row.conversion,
+            conversion_type: row.conversion_type,
+          }),
+        });
+        if (!res.ok) throw new Error((await res.json()).error ?? 'Failed to update UOM');
+      }
+    }
+
+    // Deleted
+    for (const [id] of existing) {
+      if (uomRows.some((r) => r.id === id)) continue;
+      const res = await fetch(`${base}/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error((await res.json()).error ?? 'Failed to remove UOM');
+    }
+  };
+
   const handleSave = async (e: React.SyntheticEvent) => {
     e.preventDefault();
     setError('');
+
+    const uomError = validateUomRows(uomRows);
+    if (uomError) {
+      setActiveTab('uoms');
+      setError(uomError);
+      return;
+    }
+
     setIsSaving(true);
     try {
       const payload = {
@@ -220,6 +337,10 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
         throw new Error(json.error?.message ?? json.error ?? 'Update failed');
       }
 
+      // Alternate units are saved after the item, so a rejected base-UOM
+      // change (an item with stock history) fails before they are touched.
+      await saveUomRows();
+
       router.push(`/inventory/configurations/stock-item/${item.id}/view`);
       router.refresh();
     } catch (err) {
@@ -237,17 +358,32 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
 
   return (
     <div className="space-y-4 font-mono">
-      <div>
-        <Link
-          href={`/inventory/configurations/stock/${item.id}/view`}
-          className="inline-flex items-center gap-2 text-sm text-slate-500 transition-colors hover:text-slate-700"
-        >
-          <ArrowLeft size={16} /> Back to Item
-        </Link>
-        <h2 className="mt-3 flex items-center gap-2 text-2xl font-bold text-slate-800 md:text-3xl">
-          <Package className="text-[#1a9e52]" /> Edit Stock Item
-        </h2>
-      </div>
+      {/* Header — Discard and Save live here rather than under the sidebar,
+          matching every other document screen. Discard replaces the old back
+          link, which pointed at /inventory/configurations/stock/:id/view: not
+          a module, so it 404'd. */}
+      <FormHeader
+        icon={<Package size={24} />}
+        title={item.name}
+        subtitle={item.sku ?? item.reference_no ?? undefined}
+        actions={
+          <>
+            <HeaderAction label="Discard" href={VIEW_HREF(item.id)} />
+            <HeaderAction
+              label={isSaving ? 'Saving' : 'Save'}
+              icon={
+                isSaving ? (
+                  <Loader2 className="animate-spin" size={16} />
+                ) : undefined
+              }
+              tone="primary"
+              type="submit"
+              form={FORM_ID}
+              disabled={isSaving}
+            />
+          </>
+        }
+      />
 
       {error && (
         <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
@@ -264,6 +400,7 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
       )}
 
       <form
+        id={FORM_ID}
         onSubmit={handleSave}
         className="grid gap-6 xl:grid-cols-[350px_minmax(0,1fr)] text-xs"
       >
@@ -325,23 +462,6 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
               </div>
             </div>
           </section>
-
-          <div className="flex flex-col-reverse gap-2">
-            <Link
-              href={`/inventory/configurations/stock/${item.id}/view`}
-              className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-center text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
-            >
-              Cancel
-            </Link>
-            <button
-              type="submit"
-              disabled={isSaving}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1a9e52] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#158042] disabled:opacity-50"
-            >
-              {isSaving && <Loader2 className="animate-spin" size={16} />}
-              {isSaving ? 'Saving...' : 'Save Changes'}
-            </button>
-          </div>
         </aside>
 
         {/* RIGHT — Tabs */}
@@ -715,7 +835,7 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
                     label="Returnable"
                     description="Allow customer returns"
                   />
-                  <ToggleCheckbox
+                  {/* <ToggleCheckbox
                     checked={formData.is_sellable}
                     onChange={(val) =>
                       setFormData((p) => ({ ...p, is_sellable: val }))
@@ -723,7 +843,7 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
                     icon={<Tag size={16} />}
                     label="Sellable"
                     description="Show in POS for sale"
-                  />
+                  /> */}
                 </div>
                 {formData.is_warranty && (
                   <div className="mt-4">
@@ -739,13 +859,50 @@ export default function StockEditForm({ item }: { item: StockEditItem }) {
                 )}
               </section>
 
-              <div className="flex justify-start">
+              <div className="flex justify-between">
                 <button
                   type="button"
                   onClick={() => setActiveTab('pricing')}
                   className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-xs text-slate-600 transition-colors hover:bg-slate-50"
                 >
                   <ArrowLeft size={16} /> Pricing
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('uoms')}
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-xs text-slate-600 transition-colors hover:bg-slate-50"
+                >
+                  UOM Details <ChevronRight size={16} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Tab 4: UOM Details */}
+          {activeTab === 'uoms' && (
+            <div className="space-y-5 pt-5">
+              <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+                <h3 className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
+                  <Ruler size={13} className="text-[#1a9e52]" /> UOM Details
+                </h3>
+                {uomsLoaded ? (
+                  <ItemUomDetails
+                    baseUomName={formData.uom?.name ?? ''}
+                    rows={uomRows}
+                    onChangeAction={setUomRows}
+                  />
+                ) : (
+                  <p className="py-8 text-center text-slate-400">Loading…</p>
+                )}
+              </section>
+
+              <div className="flex justify-start">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('options')}
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-xs text-slate-600 transition-colors hover:bg-slate-50"
+                >
+                  <ArrowLeft size={16} /> More Options
                 </button>
               </div>
             </div>

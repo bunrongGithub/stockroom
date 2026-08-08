@@ -199,6 +199,12 @@ export interface SalesInvoiceItem {
     serial_numbers?: string[];
     description: string;
     uom: string;
+    /** The unit row the line was billed in (inventory_item_uom.id). */
+    item_uom_id?: number | null;
+    /** base_quantity = quantity × conversion_factor, snapshotted at save. */
+    conversion_factor?: number;
+    /** Quantity in the item's base UOM — for reconciling against the ledger. */
+    base_quantity?: number;
     quantity: number;
     unit_price: number;
     discount: number; // percent

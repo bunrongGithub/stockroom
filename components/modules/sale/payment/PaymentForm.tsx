@@ -143,7 +143,7 @@ export default function PaymentForm({
     <div className="space-y-4 font-mono text-xs">
       <FormHeader
         backHref="/finances/payment"
-        backLabel="Back to Payments"
+        backLabel="Back"
         icon={<WalletIcon />}
         title={
           mode === 'create'

@@ -1,6 +1,12 @@
 'use client';
 
 import AsyncSearchSelect from '@/components/ui/AsyncSearchSelect';
+import { FormHeader, HeaderAction } from '@/components/ui/FormShell';
+import { API } from '@/lib/constant';
+import ItemUomDetails, {
+  validateUomRows,
+  type ItemUomDraft,
+} from './ItemUomDetails';
 import {
   EditableInput,
   EditableTextarea,
@@ -20,12 +26,13 @@ import {
   Package,
   Percent,
   RotateCcw,
+  Ruler,
+  Save,
   ShieldCheck,
   Tag,
   User,
   X,
 } from 'lucide-react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
@@ -34,6 +41,7 @@ const TABS = [
   { id: 'details' as const, label: 'Details', num: 1 },
   { id: 'pricing' as const, label: 'Pricing', num: 2 },
   { id: 'options' as const, label: 'More Options', num: 3 },
+  { id: 'uoms' as const, label: 'UOM Details', num: 4 },
 ];
 type TabId = (typeof TABS)[number]['id'];
 
@@ -140,6 +148,10 @@ export default function StockCreateForm() {
   const currentUser = useUserProfile();
 
   const [activeTab, setActiveTab] = useState<TabId>('details');
+  // Alternate units are collected here and created after the item itself —
+  // they need an item_id, which only exists once the item is saved. The base
+  // UOM row is created server-side from the Base UOM field.
+  const [uomRows, setUomRows] = useState<ItemUomDraft[]>([]);
   const [submitError, setSubmitError] = useState('');
   const [createdAt] = useState(() => new Date());
 
@@ -191,6 +203,13 @@ export default function StockCreateForm() {
 
   const onSubmit = async (data: FormValues) => {
     setSubmitError('');
+
+    const uomError = validateUomRows(uomRows);
+    if (uomError) {
+      setActiveTab('uoms');
+      setSubmitError(uomError);
+      return;
+    }
     try {
       const payload = {
         name: data.name,
@@ -245,6 +264,36 @@ export default function StockCreateForm() {
         return;
       }
 
+      // Alternate units, now that the item has an id. A failure here leaves a
+      // valid item with fewer units rather than rolling back the item itself,
+      // so the message points at what to retry.
+      for (const row of uomRows) {
+        if (!row.uom_id) continue;
+        const uomRes = await fetch(API.inventory.itemUom.root, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: row.uom_name,
+            item_id: json.id,
+            uom_id: row.uom_id,
+            is_default: false,
+            conversion: row.conversion,
+            conversion_type: row.conversion_type,
+            factor: row.conversion,
+          }),
+        });
+        if (!uomRes.ok) {
+          const uomJson = await uomRes.json().catch(() => ({}));
+          setSubmitError(
+            `The item was created, but a UOM could not be added: ${
+              uomJson.error ?? 'unknown error'
+            }. Add it from the item's UOM Details tab.`,
+          );
+          setActiveTab('uoms');
+          return;
+        }
+      }
+
       router.push(`/inventory/configurations/stock-item/${json.id}/view`);
       router.refresh();
     } catch {
@@ -253,18 +302,39 @@ export default function StockCreateForm() {
   };
 
   return (
-    <div className="space-y-4 font-mono text-xs">
-      <div>
-        <Link
-          href="/inventory/configurations/stock"
-          className="inline-flex items-center gap-2 text-slate-500 transition-colors hover:text-slate-700"
-        >
-          <ArrowLeft size={16} /> Back to Stock Items
-        </Link>
-        <h2 className="mt-3 flex items-center gap-2 text-2xl font-bold text-slate-800 md:text-3xl">
-          <Package className="text-[#1a9e52]" /> New Stock Item
-        </h2>
-      </div>
+    // The form wraps the header too, so the Save button in the top-right is a
+    // real submit and Enter still saves from any field.
+    <form
+      onSubmit={handleSubmit(onSubmit)}
+      className="space-y-4 font-mono text-xs"
+    >
+      <FormHeader
+        backHref="/inventory/configurations/stock"
+        icon={<Package />}
+        title="Stock"
+        actions={
+          <>
+            <HeaderAction
+              label="Discard"
+              icon={<X size={16} />}
+              href="/inventory/configurations/stock-item"
+            />
+            <HeaderAction
+              type="submit"
+              tone="primary"
+              label={isSubmitting ? 'Saving…' : 'Save'}
+              icon={
+                isSubmitting ? (
+                  <Loader2 className="animate-spin" size={16} />
+                ) : (
+                  <Save size={16} />
+                )
+              }
+              disabled={isSubmitting}
+            />
+          </>
+        }
+      />
 
       {submitError && (
         <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
@@ -280,10 +350,7 @@ export default function StockCreateForm() {
         </div>
       )}
 
-      <form
-        onSubmit={handleSubmit(onSubmit)}
-        className="grid gap-6 xl:grid-cols-[350px_minmax(0,1fr)]"
-      >
+      <div className="grid gap-6 xl:grid-cols-[350px_minmax(0,1fr)]">
         {/* LEFT SIDEBAR */}
         <aside className="space-y-4 self-start xl:sticky xl:top-6">
           <section className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
@@ -343,22 +410,7 @@ export default function StockCreateForm() {
             </div>
           </section>
 
-          <div className="flex flex-col-reverse gap-2">
-            <Link
-              href="/inventory/configurations/stock-item"
-              className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-center text-slate-600 transition-colors hover:bg-slate-50"
-            >
-              Cancel
-            </Link>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1a9e52] px-4 py-2.5 font-semibold text-white transition-colors hover:bg-[#158042] disabled:opacity-50"
-            >
-              {isSubmitting && <Loader2 className="animate-spin" size={16} />}
-              {isSubmitting ? 'Saving...' : 'Save Item'}
-            </button>
-          </div>
+          {/* Save / Discard live in the page header, not under the summary. */}
         </aside>
 
         {/* RIGHT — Tabs */}
@@ -774,7 +826,7 @@ export default function StockCreateForm() {
                       />
                     )}
                   />
-                  <Controller
+                  {/* <Controller
                     name="is_sellable"
                     control={control}
                     render={({ field }) => (
@@ -786,7 +838,7 @@ export default function StockCreateForm() {
                         description="Show in POS for sale"
                       />
                     )}
-                  />
+                  /> */}
                 </div>
                 {isWarranty && (
                   <div className="mt-4">
@@ -800,7 +852,7 @@ export default function StockCreateForm() {
                 )}
               </section>
 
-              <div className="flex justify-start">
+              <div className="flex justify-between">
                 <button
                   type="button"
                   onClick={() => setActiveTab('pricing')}
@@ -808,11 +860,44 @@ export default function StockCreateForm() {
                 >
                   <ArrowLeft size={16} /> Pricing
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('uoms')}
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-slate-600 transition-colors hover:bg-slate-50"
+                >
+                  UOM Details <ChevronRight size={16} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Tab 4: UOM Details */}
+          {activeTab === 'uoms' && (
+            <div className="space-y-5 pt-5">
+              <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+                <h3 className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
+                  <Ruler size={13} className="text-[#1a9e52]" /> UOM Details
+                </h3>
+                <ItemUomDetails
+                  baseUomName={watch('uom')?.name ?? ''}
+                  rows={uomRows}
+                  onChangeAction={setUomRows}
+                />
+              </section>
+
+              <div className="flex justify-start">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('options')}
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-slate-600 transition-colors hover:bg-slate-50"
+                >
+                  <ArrowLeft size={16} /> More Options
+                </button>
               </div>
             </div>
           )}
         </div>
-      </form>
-    </div>
+      </div>
+    </form>
   );
 }

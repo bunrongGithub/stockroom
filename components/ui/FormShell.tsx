@@ -43,6 +43,7 @@ export function HeaderAction({
     tone = 'default',
     disabled,
     type = 'button',
+    form,
 }: {
     label: ReactNode;
     icon?: ReactNode;
@@ -51,6 +52,12 @@ export function HeaderAction({
     tone?: HeaderActionTone;
     disabled?: boolean;
     type?: 'button' | 'submit';
+    /**
+     * Id of the form this button submits. Needed when the page's <form> is
+     * itself the layout grid, so the header cannot sit inside it — the button
+     * still submits natively rather than through a synthetic click handler.
+     */
+    form?: string;
 }) {
     const className = `inline-flex shrink-0 items-center justify-center gap-2 rounded-xl px-4 py-2.5 transition-colors disabled:opacity-50 ${HEADER_ACTION_TONE[tone]}`;
 
@@ -65,6 +72,7 @@ export function HeaderAction({
     return (
         <button
             type={type}
+            form={form}
             onClick={onClick}
             disabled={disabled}
             className={className}

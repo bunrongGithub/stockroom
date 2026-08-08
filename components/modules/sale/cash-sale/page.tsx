@@ -7,6 +7,11 @@ import {
     FieldLabel,
 } from '@/components/ui/FieldLabel';
 import BusinessPartnerLookup from '@/components/master-data/BusinessPartnerLookup';
+import ItemUomSelect, {
+    type ItemUomSelection,
+} from '@/components/ui/ItemUomSelect';
+import { QuantityInBase } from '@/components/ui/UomConversionPreview';
+import { roundQty } from '@/service/core/uom-conversion';
 import ItemClassBadge from '@/components/ui/ItemClassBadge';
 import SerialLookupPanel from '@/components/ui/serial/SerialLookupPanel';
 import { useItemAutoFill } from '@/hook/useItemAutoFill';
@@ -50,6 +55,10 @@ type CartLine = {
     unit_price: number;
     item_uom_id: number | null;
     uom_name: string;
+    /** base_qty = quantity × base_factor (1 while the line is in base UOM). */
+    base_factor: number;
+    /** The item's base unit name, for the "2 Box = 24 Piece" hint. */
+    base_uom_name: string;
     track_serial: boolean;
     serial_numbers: string[];
 };
@@ -163,6 +172,35 @@ export default function CashSaleModule({
         setLines((prev) => prev.map((l) => ({ ...l, serial_numbers: [] })));
     };
 
+    /**
+     * Switch a cart line to another unit.
+     *
+     * The item's price is per BASE unit, so the unit price is rescaled by the
+     * change in conversion — picking a Box of 12 turns $5/Piece into $60/Box.
+     * Without this the register would charge Box quantities at Piece prices and
+     * undercharge by the whole conversion factor.
+     *
+     * Serials are per base unit, so a unit change invalidates any already
+     * scanned and they are cleared rather than left mismatched.
+     */
+    const changeLineUom = (key: string, sel: ItemUomSelection) => {
+        setLines((prev) =>
+            prev.map((l) => {
+                if (l.key !== key) return l;
+                const from = l.base_factor || 1;
+                const to = sel.baseFactor || 1;
+                return {
+                    ...l,
+                    item_uom_id: sel.itemUomId,
+                    uom_name: sel.name,
+                    base_factor: to,
+                    unit_price: roundQty((l.unit_price / from) * to, 4),
+                    serial_numbers: from === to ? l.serial_numbers : [],
+                };
+            }),
+        );
+    };
+
     // ── Cart ────────────────────────────────────────────────────────────────
 
     const addItem = useCallback(
@@ -192,6 +230,8 @@ export default function CashSaleModule({
                         unit_price: d.price ?? 0,
                         item_uom_id: d.itemUomId,
                         uom_name: d.uomName,
+                        base_factor: 1,
+                        base_uom_name: d.uomName,
                         track_serial: d.trackSerial,
                         serial_numbers: [],
                     },
@@ -266,7 +306,9 @@ export default function CashSaleModule({
 
     // Every serial-tracked line must have exactly as many serials as its qty.
     const serialsComplete = lines.every(
-        (l) => !l.track_serial || l.serial_numbers.length === l.quantity,
+        (l) =>
+            !l.track_serial ||
+            l.serial_numbers.length === l.quantity * (l.base_factor || 1),
     );
     // Warehouse/location only gate the sale when something in the cart
     // actually moves stock (item-behavior); a service-only cart needs neither.
@@ -329,9 +371,22 @@ export default function CashSaleModule({
                                                     iconOnly
                                                 />
                                             </p>
-                                            <p className="text-slate-400">
-                                                {line.uom_name || '—'}
-                                            </p>
+                                            {/* Base UOM stays the default; the
+                                                cashier can switch to any other
+                                                unit the item defines. */}
+                                            <div className="mt-1 max-w-52">
+                                                <ItemUomSelect
+                                                    label=""
+                                                    itemId={line.item_id}
+                                                    value={line.item_uom_id}
+                                                    onChangeAction={(sel) =>
+                                                        changeLineUom(
+                                                            line.key,
+                                                            sel,
+                                                        )
+                                                    }
+                                                />
+                                            </div>
                                         </div>
                                         <button
                                             type="button"
@@ -360,6 +415,14 @@ export default function CashSaleModule({
                                                             ) || 0,
                                                     })
                                                 }
+                                            />
+                                            <QuantityInBase
+                                                quantity={line.quantity}
+                                                conversion={
+                                                    line.base_factor || 1
+                                                }
+                                                uomName={line.uom_name}
+                                                baseUomName={line.base_uom_name}
                                             />
                                         </div>
                                         <div>
@@ -396,7 +459,10 @@ export default function CashSaleModule({
                                                 itemId={line.item_id}
                                                 warehouseId={warehouseId!}
                                                 locationId={locationId}
-                                                requiredCount={line.quantity}
+                                                requiredCount={
+                                                    line.quantity *
+                                                    (line.base_factor || 1)
+                                                }
                                                 value={line.serial_numbers}
                                                 onChange={(serials) =>
                                                     patchLine(line.key, {

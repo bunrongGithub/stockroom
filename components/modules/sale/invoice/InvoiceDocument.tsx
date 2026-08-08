@@ -167,7 +167,18 @@ export default function InvoiceDocument({
                             <td className="py-2 pr-2 text-right">
                                 {item.quantity}
                             </td>
-                            <td className="py-2 pr-2">{item.uom || '—'}</td>
+                            <td className="py-2 pr-2">
+                                {item.uom || '—'}
+                                {/* A line billed in a non-base unit states the
+                                    stock equivalent, so the customer and the
+                                    warehouse read the same document. */}
+                                {(item.conversion_factor ?? 1) !== 1 &&
+                                    item.base_quantity != null && (
+                                        <span className="block text-[9px] text-slate-500">
+                                            = {item.base_quantity} base
+                                        </span>
+                                    )}
+                            </td>
                             <td className="py-2 pr-2 text-right">
                                 {money(item.unit_price)}
                             </td>

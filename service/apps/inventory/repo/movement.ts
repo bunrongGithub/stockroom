@@ -1,6 +1,12 @@
 import { BaseRepository } from '@/service/core/base-repository';
 import { ApiError } from '@/service/core/api-response';
 import { behaviorOf } from '@/service/core/item-behavior';
+import {
+    assertWholeBaseQty,
+    baseUomContext,
+    toBaseQty,
+    type UomContext,
+} from '@/service/core/uom-conversion';
 import { getNextDocumentNumber } from '@/service/core/document-number';
 import type { RequestContext } from '@/types/request-context';
 import type { InventoryTxnMovementType } from './receipt';
@@ -44,21 +50,60 @@ export type InventoryMovementItem = {
     created_at: string;
 };
 
-/** One stock line to record. The caller is responsible for converting the
- *  entered quantity into the item base UOM (`base_qty`). */
+/**
+ * One stock line to record.
+ *
+ * The caller supplies the quantity **as entered** plus the UOM context it was
+ * captured against; this repository derives `base_qty` through
+ * service/core/uom-conversion. Callers cannot pass `base_qty` — that is
+ * deliberate. Three modules previously each converted differently (shipment
+ * multiplied by the live factor, adjustment did not convert at all, receipt
+ * used a factor hardcoded to 1); making the base quantity underivable from
+ * outside turns that class of bug into a type error.
+ *
+ * Omit `uom` entirely for a line already expressed in the item's base UOM.
+ */
 export type CreateMovementItemInput = {
     item_id: number;
     warehouse_id: number;
     location_id: number;
     entered_qty: number;
-    entered_uom_id?: number | null;
-    base_qty: number;
+    /** Conversion context; defaults to base (factor 1) when absent. */
+    uom?: UomContext;
+    /** inventory_uom.id of the item's base unit, for the ledger's base_uom_id. */
     base_uom_id?: number | null;
     movement_direction: MovementDirection;
     unit_cost?: number | null;
     lot_number?: string | null;
     purchased_date?: string | null;
+    /** Set for serial-tracked items so the base quantity is checked whole. */
+    serial_tracked?: boolean;
+    /** Item name, used only to make a rejected conversion readable. */
+    item_label?: string;
 };
+
+/** A movement line with its base quantity resolved — internal to this repo. */
+type ResolvedMovementItem = CreateMovementItemInput & {
+    base_qty: number;
+    entered_uom_id: number | null;
+};
+
+/**
+ * Resolve every line's base quantity once, at the single point of entry to the
+ * ledger. Serial-tracked lines must land on a whole number of base units.
+ */
+function resolveMovementItems(
+    items: CreateMovementItemInput[],
+): ResolvedMovementItem[] {
+    return items.map((item) => {
+        const uom = item.uom ?? baseUomContext(null);
+        const base_qty = toBaseQty(item.entered_qty, uom);
+        if (item.serial_tracked) {
+            assertWholeBaseQty(base_qty, item.item_label ?? 'This item');
+        }
+        return { ...item, base_qty, entered_uom_id: uom.uomId ?? null };
+    });
+}
 
 /** A whole inventory transaction to record in the ledger. */
 export type CreateMovementInput = {
@@ -150,6 +195,11 @@ export class MovementRepository extends BaseRepository {
         // referencing a non-stock (or service) item is rejected here.
         await this.ensureStockItems(input.items.map((i) => i.item_id));
 
+        // Convert every line to base quantities BEFORE the header is written, so
+        // a bad conversion (e.g. a fractional quantity on a serial-tracked item)
+        // fails before anything is persisted.
+        const resolved = resolveMovementItems(input.items);
+
         const reference_no = await getNextDocumentNumber(
             ctx,
             'inventory_movement',
@@ -177,15 +227,15 @@ export class MovementRepository extends BaseRepository {
         if (headerError) throw new ApiError(headerError.message, 500);
 
         try {
-            // 2. item rows
-            const rows = input.items.map((item) => ({
+            // 2. item rows — base_qty is derived here and nowhere else.
+            const rows = resolved.map((item) => ({
                 movement_id: header.id,
                 company_id: companyId,
                 item_id: item.item_id,
                 warehouse_id: item.warehouse_id,
                 location_id: item.location_id,
                 entered_qty: item.entered_qty,
-                entered_uom_id: item.entered_uom_id ?? null,
+                entered_uom_id: item.entered_uom_id,
                 base_qty: item.base_qty,
                 base_uom_id: item.base_uom_id ?? null,
                 movement_direction: item.movement_direction,
@@ -200,8 +250,8 @@ export class MovementRepository extends BaseRepository {
 
             if (itemError) throw new ApiError(itemError.message, 500);
 
-            // 3. apply each line to the stock balance
-            for (const item of input.items) {
+            // 3. apply each line to the stock balance (always base quantities)
+            for (const item of resolved) {
                 await this.applyToBalance(companyId, item);
             }
         } catch (err) {
@@ -437,7 +487,7 @@ export class MovementRepository extends BaseRepository {
      */
     private async applyToBalance(
         companyId: number,
-        item: CreateMovementItemInput,
+        item: ResolvedMovementItem,
     ): Promise<void> {
         const signedQty =
             item.movement_direction === 'IN' ? item.base_qty : -item.base_qty;

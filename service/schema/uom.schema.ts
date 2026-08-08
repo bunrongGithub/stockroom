@@ -27,13 +27,32 @@ export type CreateUomInput = z.infer<typeof createUomSchema>;
 export type UpdateUomInput = z.infer<typeof updateUomSchema>;
 
 export const createItemUomSchema = z.object({
-    name: z.string().min(1).max(100).trim(),
-    display_name: z.string().max(20).optional().nullable(),
+    // The unit's name lives on inventory_uom — never duplicated here.
     item_id: z.number().int().positive(),
     uom_id: z.number().int().positive(),
     is_default: z.boolean().default(true),
-    conversion: z.number().default(1),
-    factor: z.number().default(1),
+    // Rule 5: strictly greater than zero. Mirrored by a CHECK constraint.
+    conversion: z.number().positive('Conversion must be greater than zero').default(1),
+    conversion_type: z.enum(['MULTIPLY', 'DIVIDE']).default('MULTIPLY'),
+    is_active: z.boolean().default(true),
 });
 
+/** What the UOM Details tab submits for one row (item comes from the route). */
+export const itemUomDetailSchema = z.object({
+    id: z.number().int().positive().optional(),
+    uom_id: z.number().int().positive(),
+    conversion: z.number().positive('Conversion must be greater than zero'),
+    conversion_type: z.enum(['MULTIPLY', 'DIVIDE']).default('MULTIPLY'),
+    is_active: z.boolean().default(true),
+});
+
+/** The whole UOM Details list, replacing an item's non-base UOMs. */
+export const saveItemUomsSchema = z.object({
+    uoms: z.array(itemUomDetailSchema).default([]),
+});
+
+export const updateItemUomSchema = itemUomDetailSchema.partial().omit({ id: true });
+
 export type CreateItemUomInput = z.infer<typeof createItemUomSchema>;
+export type ItemUomDetailInput = z.infer<typeof itemUomDetailSchema>;
+export type SaveItemUomsInput = z.infer<typeof saveItemUomsSchema>;

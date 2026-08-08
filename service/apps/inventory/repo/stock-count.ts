@@ -95,7 +95,7 @@ function mapLine(r: any): StockCountItem {
         location_id: r.location_id,
         location_name: r.location?.name ?? null,
         item_uom_id: r.item_uom_id ?? null,
-        uom: r.item_uom?.name ?? null,
+        uom: r.item_uom?.uom?.name ?? null,
         sku: r.sku ?? null,
         item_name: r.item_name ?? null,
         is_serial: isSerial,
@@ -500,10 +500,12 @@ export class StockCountRepository extends BaseRepository {
                     remarks: `Generated from stock count ${count.count_no}`,
                     items: loc.lines.map((l) => ({
                         item_id: l.item_id,
-                        // NOT the count line's item_uom_id: that references
-                        // inventory_item_uom, but the movement engine's
-                        // entered_uom_id FK targets inventory_uom — the ids
-                        // don't correspond. Base-UOM quantities need no unit.
+                        // Deliberately null: a count is taken against stock on
+                        // hand, and balances are always base UOM. A null item
+                        // UOM resolves to the base context (factor 1), so the
+                        // generated adjustment moves exactly the counted
+                        // quantity. Passing the count line's item_uom_id here
+                        // would double-convert.
                         item_uom_id: null,
                         description: l.item_name ?? undefined,
                         current_qty: l.live_qty,
@@ -813,7 +815,7 @@ export class StockCountRepository extends BaseRepository {
 // ═════════════════════════════════════════════════════════════════════════════
 
 const LINE_SELECT =
-    '*, location:warehouse_location(id, name), item_uom:inventory_item_uom(id, name)';
+    '*, location:warehouse_location(id, name), item_uom:inventory_item_uom(id, uom:inventory_uom(id, name))';
 
 export class StockCountLineRepository extends BaseRepository {
     private static instance: StockCountLineRepository;

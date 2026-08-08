@@ -20,6 +20,12 @@ import {
   TabNav,
   TabPanel,
 } from '@/components/ui/FormShell';
+import { QuantityInBase } from '@/components/ui/UomConversionPreview';
+import { toBaseQty } from '@/service/core/uom-conversion';
+import {
+  baseOptionOf,
+  fetchItemUoms,
+} from '@/components/ui/ItemUomSelect';
 import { saleShipmentApi } from '@/lib/api/sale';
 import { API } from '@/lib/constant';
 import { behaviorOf } from '@/service/core/item-behavior';
@@ -57,6 +63,10 @@ type ShipLine = {
   location_name: string;
   shipment_qty: number;
   serial_numbers: string[];
+  /** base_qty = shipment_qty × base_factor (1 when the line is in base UOM). */
+  base_factor?: number;
+  /** The item's base unit name, for the "5 Box = 60 Piece" hint. */
+  base_uom_name?: string;
 };
 
 function buildLines(order: SalesOrder, initial?: SalesShipment): ShipLine[] {
@@ -141,6 +151,43 @@ export default function ShipmentForm({
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
+  // Resolve each line's conversion so the form can show the stock effect and,
+  // for serial-tracked items, ask for the right number of serials — one serial
+  // is one BASE unit, so 10 Box of 12 needs 120, not 10.
+  useEffect(() => {
+    let active = true;
+    const itemIds = [...new Set(lines.map((l) => l.item_id))];
+    if (itemIds.length === 0) return;
+
+    Promise.all(
+      itemIds.map(async (itemId) => ({
+        itemId,
+        uoms: await fetchItemUoms(itemId).catch(() => []),
+      })),
+    ).then((results) => {
+      if (!active) return;
+      const byItem = new Map(results.map((r) => [r.itemId, r.uoms]));
+      setLines((prev) =>
+        prev.map((l) => {
+          const uoms = byItem.get(l.item_id) ?? [];
+          const base = baseOptionOf(uoms);
+          const picked = uoms.find((u) => u.id === l.item_uom_id) ?? base;
+          return {
+            ...l,
+            base_factor: picked?.baseFactor ?? 1,
+            base_uom_name: base?.name ?? '',
+          };
+        }),
+      );
+    });
+
+    return () => {
+      active = false;
+    };
+    // Runs once for the line set the form was built with.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function setLine(idx: number, patch: Partial<ShipLine>) {
     setLines((prev) =>
       prev.map((l, i) => (i === idx ? { ...l, ...patch } : l)),
@@ -165,10 +212,22 @@ export default function ShipmentForm({
           `Quantity for ${l.product_name} exceeds remaining (${l.remaining})`,
         );
       }
-      if (l.track_serial && l.serial_numbers.length !== Number(l.shipment_qty)) {
+      // One serial identifies one BASE unit, so the count is checked against
+      // the converted quantity — shipping 1 Piecs of 2 Unit needs 2 serials,
+      // which is also what SerialLookupPanel asks for.
+      const requiredSerials = toBaseQty(Number(l.shipment_qty), {
+        itemUomId: l.item_uom_id,
+        uomId: null,
+        baseFactor: l.base_factor ?? 1,
+      });
+      if (l.track_serial && l.serial_numbers.length !== requiredSerials) {
         setActiveTab('items');
+        const inBase =
+          (l.base_factor ?? 1) !== 1
+            ? ` (${l.shipment_qty} ${l.uom} = ${requiredSerials} ${l.base_uom_name})`
+            : '';
         return setError(
-          `Select exactly ${l.shipment_qty} serial number(s) for ${l.product_name}`,
+          `Select exactly ${requiredSerials} serial number(s) for ${l.product_name}${inBase}`,
         );
       }
     }
@@ -407,6 +466,9 @@ export default function ShipmentForm({
                           }
                         />
                         <div>
+                          {/* A shipment fulfils an order line, so it is always
+                              denominated in that line's unit — the remaining
+                              quantity is expressed in it. */}
                           <FieldLabel>UOM</FieldLabel>
                           <ReadonlyInput value={line.uom ?? ''} />
                         </div>
@@ -424,6 +486,12 @@ export default function ShipmentForm({
                               })
                             }
                           />
+                          <QuantityInBase
+                            quantity={line.shipment_qty}
+                            conversion={line.base_factor ?? 1}
+                            uomName={line.uom}
+                            baseUomName={line.base_uom_name ?? ''}
+                          />
                         </div>
                       </div>
                       {line.track_serial && (
@@ -431,7 +499,10 @@ export default function ShipmentForm({
                           itemId={line.item_id}
                           warehouseId={order.warehouse_id ?? 0}
                           locationId={line.location_id}
-                          requiredCount={Number(line.shipment_qty) || 0}
+                          requiredCount={
+                            (Number(line.shipment_qty) || 0) *
+                            (line.base_factor ?? 1)
+                          }
                           value={line.serial_numbers}
                           onChange={(serials) =>
                             setLine(idx, { serial_numbers: serials })

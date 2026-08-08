@@ -8,6 +8,8 @@ import type {
 import type { RequestContext } from '@/types/request-context';
 import type { AuditMeta } from '@/types/audit';
 import { getNextDocumentNumber } from '@/service/core/document-number';
+import { ItemUomRepository } from '@/service/apps/inventory/repo/item-uom';
+import { toBaseQty, uomContextOf } from '@/service/core/uom-conversion';
 import { ApiError, NotFoundError } from '@/service/core/api-response';
 import { behaviorOf } from '@/service/core/item-behavior';
 import { lineTotal, documentTotals } from '../pricing';
@@ -35,7 +37,7 @@ const LINE_TABLE = 'sales_invoice_items' as const;
 const SELECT_LIST =
     '*, shipment:sales_shipment(id, shipment_no), sales_order:sales_order(id, order_no)';
 const SELECT_DETAIL =
-    '*, shipment:sales_shipment(id, shipment_no), sales_order:sales_order(id, order_no), items:sales_invoice_items(*, item:inventory_item(id, name, sku, track_serial, item_class))';
+    '*, shipment:sales_shipment(id, shipment_no), sales_order:sales_order(id, order_no), items:sales_invoice_items(*, item:inventory_item(id, name, sku, track_serial, item_class), item_uom:inventory_item_uom(id, uom:inventory_uom(id, name, display_name)))';
 
 /** Draft = editable/deletable; Posted = official/cancellable; Cancelled = terminal. */
 export function computeInvoiceActions(
@@ -61,7 +63,15 @@ function mapInvoiceItem(r: any): SalesInvoiceItem {
     item_class: r.item?.item_class ?? 'stock',
     track_serial: r.item?.track_serial ?? false,
     description: r.description ?? '',
-    uom: r.uom ?? '',
+    // Prefer the snapshotted text: it is what the document was issued with and
+    // must not change if the UOM is later renamed.
+    uom: r.uom ?? r.item_uom?.uom?.name ?? '',
+    item_uom_id: r.item_uom_id ?? null,
+    conversion_factor: Number(r.conversion_factor ?? 1),
+    base_quantity: toBaseQty(
+        Number(r.quantity),
+        uomContextOf(r, r.item_uom),
+    ),
     quantity: Number(r.quantity),
     unit_price: Number(r.unit_price),
     discount: Number(r.discount),
@@ -121,6 +131,10 @@ type InvoiceLineDraft = {
     shipment_item_id: number | null;
     description: string | null;
     uom: string | null;
+    /** The unit the quantity is expressed in, carried from the source line. */
+    item_uom_id?: number | null;
+    /** base_qty = quantity × conversion_factor, snapshotted at save time. */
+    conversion_factor?: number;
     quantity: number;
     unit_price: number;
     discount: number;
@@ -368,6 +382,9 @@ export class SalesInvoiceRepository extends BaseRepository {
                 shipment_item_id: s.id,
                 description: ol?.description || s.product_name,
                 uom: s.uom,
+                // An invoice bills what was shipped, so it inherits the
+                // shipment line's unit rather than re-deriving one.
+                item_uom_id: s.item_uom_id ?? null,
                 quantity,
                 unit_price: edit?.unit_price ?? ol?.unit_price ?? 0,
                 discount: edit?.discount ?? ol?.discount ?? 0,
@@ -399,6 +416,8 @@ export class SalesInvoiceRepository extends BaseRepository {
                 shipment_item_id: null,
                 description: ol.description || ol.product_name,
                 uom: ol.uom,
+                // Direct lines never ship, so they bill in the order's unit.
+                item_uom_id: ol.item_uom_id ?? null,
                 quantity,
                 unit_price: edit?.unit_price ?? ol.unit_price,
                 discount: edit?.discount ?? ol.discount,
@@ -507,6 +526,8 @@ export class SalesInvoiceRepository extends BaseRepository {
                 shipment_item_id: null,
                 description: ol.description || ol.product_name,
                 uom: ol.uom,
+                // Direct lines never ship, so they bill in the order's unit.
+                item_uom_id: ol.item_uom_id ?? null,
                 quantity,
                 unit_price: edit?.unit_price ?? ol.unit_price,
                 discount: edit?.discount ?? ol.discount,
@@ -597,7 +618,7 @@ export class SalesInvoiceRepository extends BaseRepository {
         if (error) throw new ApiError(error.message, 500);
 
         try {
-            await this.insertLines(companyId, header.id, args.lines);
+            await this.insertLines(ctx, companyId, header.id, args.lines);
         } catch (err) {
             await this.db.from(HEADER_TABLE).delete().eq('id', header.id);
             throw err;
@@ -758,7 +779,7 @@ export class SalesInvoiceRepository extends BaseRepository {
                 .eq('invoice_id', id)
                 .eq('company_id', companyId);
             if (delErr) throw new ApiError(delErr.message, 500);
-            await this.insertLines(companyId, id, lines);
+            await this.insertLines(ctx, companyId, id, lines);
             await this.syncSourceDocs(
                 ctx,
                 existing.shipment_id,
@@ -1002,10 +1023,17 @@ export class SalesInvoiceRepository extends BaseRepository {
     // ── internals ───────────────────────────────────────────────────────────
 
     private async insertLines(
+        ctx: RequestContext,
         companyId: number,
         invoiceId: number,
         lines: InvoiceLineDraft[],
     ): Promise<void> {
+        // Snapshot the conversion so a later edit to the item's UOM cannot
+        // restate an issued invoice (service/core/uom-conversion.ts).
+        const factors = await ItemUomRepository.getInstance().factorsByIds(
+            ctx,
+            lines.map((l) => l.item_uom_id),
+        );
         const rows = lines.map((l) => ({
             invoice_id: invoiceId,
             company_id: companyId,
@@ -1014,6 +1042,10 @@ export class SalesInvoiceRepository extends BaseRepository {
             shipment_item_id: l.shipment_item_id,
             description: l.description,
             uom: l.uom,
+            item_uom_id: l.item_uom_id ?? null,
+            conversion_factor: l.item_uom_id
+                ? (factors.get(l.item_uom_id) ?? 1)
+                : 1,
             quantity: l.quantity,
             unit_price: l.unit_price,
             discount: l.discount,

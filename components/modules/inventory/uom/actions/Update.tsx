@@ -56,7 +56,7 @@ export default function InventoryUomUpdate({
                     onClick={() => router.push('/inventory/configurations/uom')}
                     className="text-xs text-primary hover:underline"
                 >
-                    Back to Units of Measure
+                    Back
                 </button>
             </div>
         );

@@ -58,7 +58,7 @@ export default function CompanyUpdate({
                     onClick={() => router.push('/setting/company')}
                     className="text-xs text-primary hover:underline"
                 >
-                    Back to Companies
+                    Back
                 </button>
             </div>
         );

@@ -207,10 +207,10 @@ export default function NonStockItemCreateForm() {
                     href="/inventory/configurations/non-stock-item"
                     className="inline-flex items-center gap-2 text-slate-500 transition-colors hover:text-slate-700"
                 >
-                    <ArrowLeft size={16} /> Back to Non-Stock Items
+                    <ArrowLeft size={16} /> Back
                 </Link>
                 <h2 className="mt-3 flex items-center gap-2 text-2xl font-bold text-slate-800 md:text-3xl">
-                    <Package className="text-[#1a9e52]" /> New Non-Stock Item
+                    <Package className="text-[#1a9e52]" /> Non-Stock
                 </h2>
             </div>
 
@@ -479,9 +479,9 @@ export default function NonStockItemCreateForm() {
                                     <Controller name="is_returnable" control={control} render={({ field }) => (
                                         <ToggleCheckbox checked={field.value ?? false} onChange={field.onChange} icon={<RotateCcw size={16} />} label="Returnable" description="Allow customer returns" />
                                     )} />
-                                    <Controller name="is_sellable" control={control} render={({ field }) => (
+                                    {/* <Controller name="is_sellable" control={control} render={({ field }) => (
                                         <ToggleCheckbox checked={field.value ?? false} onChange={field.onChange} icon={<Tag size={16} />} label="Sellable" description="Show in POS for sale" />
-                                    )} />
+                                    )} /> */}
                                 </div>
                                 {isWarranty && (
                                     <div className="mt-4">

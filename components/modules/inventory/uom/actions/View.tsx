@@ -83,7 +83,7 @@ export default function InventoryUomView({
                     href={LIST_URL}
                     className="inline-flex items-center gap-2 text-slate-500 transition-colors hover:text-slate-700"
                 >
-                    <ArrowLeft size={16} /> Back to Unit of Measure
+                    <ArrowLeft size={16} /> Back
                 </Link>
                 <div className="mt-3 flex flex-col justify-between gap-4 md:flex-row md:items-center">
                     <h2 className="flex items-center gap-2 text-2xl font-bold text-slate-800 md:text-3xl">

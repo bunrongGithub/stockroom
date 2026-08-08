@@ -3,6 +3,12 @@
 import AsyncSearchSelect from '@/components/ui/AsyncSearchSelect';
 import BusinessPartnerLookup from '@/components/master-data/BusinessPartnerLookup';
 import ItemClassBadge from '@/components/ui/ItemClassBadge';
+import ItemUomSelect, {
+  baseOptionOf,
+  fetchItemUoms,
+} from '@/components/ui/ItemUomSelect';
+import { QuantityInBase } from '@/components/ui/UomConversionPreview';
+import { roundQty } from '@/service/core/uom-conversion';
 import {
   EditableInput,
   EditableTextarea,
@@ -57,6 +63,10 @@ type LineDraft = {
   product_name: string;
   item_uom_id: number | null;
   uom: string;
+  /** base_qty = ordered_qty × base_factor. 1 while the line is in base UOM. */
+  base_factor?: number;
+  /** The item's base unit name, for the "5 Box = 60 Piece" hint. */
+  base_uom_name?: string;
   ordered_qty: number;
   unit_price: number;
   discount: number;
@@ -72,6 +82,8 @@ function emptyLine(): LineDraft {
     product_name: '',
     item_uom_id: null,
     uom: '',
+    base_factor: 1,
+    base_uom_name: '',
     ordered_qty: 1,
     unit_price: 0,
     discount: 0,
@@ -189,7 +201,16 @@ export default function OrderForm({
     if (!id) return;
 
     try {
-      const d = await resolveItemDefaults(id);
+      // The item's units come along with its defaults so the line knows both
+      // what it is denominated in and what the base unit is called — the
+      // "5 Box = 60 Piece" hint needs both names.
+      const [d, uoms] = await Promise.all([
+        resolveItemDefaults(id),
+        fetchItemUoms(id).catch(() => []),
+      ]);
+      const base = baseOptionOf(uoms);
+      const picked = uoms.find((u) => u.id === d.itemUomId) ?? base;
+
       setItems((prev) =>
         prev.map((l) =>
           l.key === key && l.item_id === id
@@ -197,8 +218,10 @@ export default function OrderForm({
                 ...l,
                 item_class: d.itemClass,
                 unit_price: d.price ?? l.unit_price,
-                item_uom_id: d.itemUomId ?? l.item_uom_id,
-                uom: d.uomName || l.uom,
+                item_uom_id: d.itemUomId ?? picked?.id ?? l.item_uom_id,
+                uom: d.uomName || picked?.name || l.uom,
+                base_factor: picked?.baseFactor ?? 1,
+                base_uom_name: base?.name ?? '',
               }
             : l,
         ),
@@ -304,7 +327,7 @@ export default function OrderForm({
     <div className="space-y-4 font-mono text-xs">
       <FormHeader
         backHref="/sale/order"
-        backLabel="Back to Sales Orders"
+        backLabel="Back"
         icon={<Package />}
         title={
           mode === 'create' ? 'Order' : `Edit ${initial?.order_no ?? 'Order'}`
@@ -546,28 +569,29 @@ export default function OrderForm({
                         )}
                       </div>
                       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-                        {line.item_id ? (
-                          <AsyncSearchSelect
-                            key={line.item_id}
-                            label="UOM"
-                            placeholder="Select UOM..."
-                            apiUrl={`${API.inventory.itemUom.root}?item_id=${line.item_id}`}
-                            value={line.item_uom_id}
-                            selectedLabel={line.uom}
-                            enablePopupSearch
-                            onChangeAction={(sel) =>
-                              setLine(idx, {
-                                item_uom_id: sel?.id ? Number(sel.id) : null,
-                                uom: sel?.name ?? '',
-                              })
-                            }
-                          />
-                        ) : (
-                          <div>
-                            <FieldLabel>UOM</FieldLabel>
-                            <ReadonlyInput placeholder="" />
-                          </div>
-                        )}
+                        {/* Defaults to the item's base UOM (unchanged); any
+                            other unit the item defines can now be chosen. */}
+                        <ItemUomSelect
+                          itemId={line.item_id}
+                          value={line.item_uom_id}
+                          onChangeAction={(sel) => {
+                            // The item's price is per base unit, so switching
+                            // to a Box of 12 turns $5/Piece into $60/Box.
+                            // Without rescaling the line would bill Box
+                            // quantities at Piece prices.
+                            const from = line.base_factor ?? 1;
+                            const to = sel.baseFactor || 1;
+                            setLine(idx, {
+                              item_uom_id: sel.itemUomId,
+                              uom: sel.name,
+                              base_factor: to,
+                              unit_price: roundQty(
+                                (line.unit_price / from) * to,
+                                4,
+                              ),
+                            });
+                          }}
+                        />
                         <div>
                           <FieldLabel required>Qty</FieldLabel>
                           <EditableInput
@@ -581,6 +605,13 @@ export default function OrderForm({
                                 ordered_qty: Number(e.target.value),
                               })
                             }
+                          />
+                          {/* Only renders when the line is not in base UOM. */}
+                          <QuantityInBase
+                            quantity={line.ordered_qty}
+                            conversion={line.base_factor ?? 1}
+                            uomName={line.uom}
+                            baseUomName={line.base_uom_name ?? ''}
                           />
                         </div>
                         <div>

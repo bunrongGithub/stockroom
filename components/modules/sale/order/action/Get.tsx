@@ -268,7 +268,7 @@ export default function SaleOrderDetail({
 
       <FormHeader
         backHref="/sale/order"
-        backLabel="Back to Orders"
+        backLabel="Back"
         icon={<Package />}
         title={order.order_no}
         badges={<StatusBadge status={order.status} />}
@@ -307,7 +307,7 @@ export default function SaleOrderDetail({
             )}
             {a?.can_ship && shippableRemaining && (
               <HeaderAction
-                label="Create Shipment"
+                label="Delivery"
                 tone="primary"
                 icon={<TruckIcon size={16} />}
                 onClick={() => {

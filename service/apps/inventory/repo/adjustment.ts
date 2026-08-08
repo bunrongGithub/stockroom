@@ -9,6 +9,8 @@ import type { RequestContext } from '@/types/request-context';
 import { getNextDocumentNumber } from '@/service/core/document-number';
 import { ApiError, NotFoundError } from '@/service/core/api-response';
 import { behaviorOf } from '@/service/core/item-behavior';
+import { toBaseQty, uomContextOf } from '@/service/core/uom-conversion';
+import { ItemUomRepository } from './item-uom';
 import { MovementRepository } from './movement';
 import { SerialManagementService } from '@/service/apps/inventory/serial';
 import type {
@@ -32,7 +34,7 @@ const SELECT_LIST =
     '*, warehouse:warehouse(id, name), location:warehouse_location(id, name), reason:adjustment_reason!stock_adjustment_reason_code_fkey(code, label)';
 const SELECT_DETAIL =
     SELECT_LIST +
-    ', items:stock_adjustment_items(*, item:inventory_item(id, name, sku, track_serial, item_class, cost), item_uom:inventory_item_uom(id, name))';
+    ', items:stock_adjustment_items(*, item:inventory_item(id, name, sku, track_serial, item_class, cost), item_uom:inventory_item_uom(id, uom:inventory_uom(id, name)))';
 
 /** Negative-adjustment serial terminal state, by business reason. */
 function terminalStatusFor(
@@ -64,7 +66,7 @@ function mapItem(r: any): StockAdjustmentItem {
         product_name: r.item?.name ?? r.description ?? `#${r.item_id}`,
         sku: r.item?.sku ?? null,
         track_serial: r.item?.track_serial ?? false,
-        uom: r.item_uom?.name ?? '',
+        uom: r.item_uom?.uom?.name ?? '',
         description: r.description ?? null,
         current_qty: Number(r.current_qty),
         adjustment_qty: Number(r.adjustment_qty),
@@ -233,7 +235,7 @@ export class StockAdjustmentRepository extends BaseRepository {
         if (error) throw new ApiError(error.message, 500);
 
         try {
-            await this.insertLines(companyId, header.id, input.items);
+            await this.insertLines(ctx, companyId, header.id, input.items);
         } catch (err) {
             await this.db.from(HEADER_TABLE).delete().eq('id', header.id);
             throw err;
@@ -280,7 +282,7 @@ export class StockAdjustmentRepository extends BaseRepository {
             .delete()
             .eq('adjustment_id', id);
         if (delError) throw new ApiError(delError.message, 500);
-        await this.insertLines(Number(ctx.companyId), id, input.items);
+        await this.insertLines(ctx, Number(ctx.companyId), id, input.items);
 
         return (await this.findOne(ctx, id))!;
     }
@@ -349,14 +351,35 @@ export class StockAdjustmentRepository extends BaseRepository {
         const terminalStatus = terminalStatusFor(adjustment.reason_code);
 
         // ── Validate every line against LIVE stock & serial state ──────────
+        // One conversion lookup for the whole document, used by both the
+        // serial-count check below and the movement lines further down.
+        const itemUomService = ItemUomRepository.getInstance();
+        const lineFactors = await itemUomService.factorsByIds(
+            ctx,
+            adjustment.items.map((l) => l.item_uom_id),
+        );
+        const factorOf = (itemUomId: number | null) =>
+            itemUomId ? (lineFactors.get(itemUomId) ?? 1) : 1;
+
         const outSerialIdsByLine = new Map<number, number[]>();
         for (const line of adjustment.items) {
             const qty = line.adjustment_qty;
             const absQty = Math.abs(qty);
 
-            if (line.track_serial && line.serial_numbers.length !== absQty) {
+            // One serial is one BASE unit. Adjustments are normally entered in
+            // the base UOM (factor 1), but a line carrying an alternate unit
+            // must still be counted in base.
+            const requiredSerials = toBaseQty(absQty, {
+                itemUomId: line.item_uom_id,
+                uomId: null,
+                baseFactor: factorOf(line.item_uom_id),
+            });
+            if (
+                line.track_serial &&
+                line.serial_numbers.length !== requiredSerials
+            ) {
                 throw new ApiError(
-                    `${line.product_name}: ${absQty} serial number(s) required, got ${line.serial_numbers.length}`,
+                    `${line.product_name}: ${requiredSerials} serial number(s) required, got ${line.serial_numbers.length}`,
                     400,
                     'SERIAL_COUNT_MISMATCH',
                 );
@@ -405,6 +428,39 @@ export class StockAdjustmentRepository extends BaseRepository {
         }
 
         // ── ONE movement transaction for the whole document ─────────────────
+        // Previously this passed `base_qty` equal to the entered quantity (no
+        // conversion at all) and put an inventory_item_uom.id into the ledger's
+        // *_uom_id columns, which reference inventory_uom. Both are fixed by
+        // going through the conversion service like every other module.
+        const adjustmentMovementItems = await Promise.all(
+            adjustment.items.map(async (line) => {
+                const enteredUom = line.item_uom_id
+                    ? await itemUomService.findOne(ctx, line.item_uom_id)
+                    : null;
+                const baseUom = await itemUomService.findDefaultByItem(
+                    ctx,
+                    line.item_id,
+                );
+
+                return {
+                    item_id: line.item_id,
+                    warehouse_id: adjustment.warehouse_id,
+                    location_id: adjustment.location_id,
+                    entered_qty: Math.abs(line.adjustment_qty),
+                    uom: uomContextOf(line, enteredUom),
+                    base_uom_id: baseUom?.uom_id ?? null,
+                    movement_direction:
+                        line.adjustment_qty > 0
+                            ? ('IN' as const)
+                            : ('OUT' as const),
+                    unit_cost:
+                        line.adjustment_qty > 0 ? line.unit_cost : null,
+                    serial_tracked: line.track_serial ?? false,
+                    item_label: line.description ?? undefined,
+                };
+            }),
+        );
+
         await MovementRepository.getInstance().createMovement(ctx, {
             movement_type: 'adjustment',
             movement_date: adjustment.adjustment_date,
@@ -412,18 +468,7 @@ export class StockAdjustmentRepository extends BaseRepository {
             source_document_type: 'stock_adjustment',
             source_document_id: adjustment.id,
             remarks: `${adjustment.adjustment_no} · ${adjustment.reason_label}`,
-            items: adjustment.items.map((line) => ({
-                item_id: line.item_id,
-                warehouse_id: adjustment.warehouse_id,
-                location_id: adjustment.location_id,
-                entered_qty: Math.abs(line.adjustment_qty),
-                entered_uom_id: line.item_uom_id,
-                base_qty: Math.abs(line.adjustment_qty),
-                base_uom_id: line.item_uom_id,
-                movement_direction:
-                    line.adjustment_qty > 0 ? ('IN' as const) : ('OUT' as const),
-                unit_cost: line.adjustment_qty > 0 ? line.unit_cost : null,
-            })),
+            items: adjustmentMovementItems,
         });
 
         // ── Serial effects (after the ledger, matching the receipt order) ───
@@ -562,15 +607,24 @@ export class StockAdjustmentRepository extends BaseRepository {
     }
 
     private async insertLines(
+        ctx: RequestContext,
         companyId: number,
         adjustmentId: number,
         lines: CreateStockAdjustmentInput['items'],
     ): Promise<void> {
+        // Snapshot each line's conversion (service/core/uom-conversion.ts).
+        const factors = await ItemUomRepository.getInstance().factorsByIds(
+            ctx,
+            lines.map((l) => l.item_uom_id),
+        );
         const rows = lines.map((l) => ({
             adjustment_id: adjustmentId,
             company_id: companyId,
             item_id: l.item_id,
             item_uom_id: l.item_uom_id ?? null,
+            conversion_factor: l.item_uom_id
+                ? (factors.get(l.item_uom_id) ?? 1)
+                : 1,
             description: l.description ?? null,
             current_qty: l.current_qty,
             adjustment_qty: l.adjustment_qty,

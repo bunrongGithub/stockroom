@@ -181,11 +181,11 @@ export default function Update({
             href={`/inventory/configurations/warehouse/${id}/view`}
             className="inline-flex items-center gap-1.5 text-slate-500 transition-colors hover:text-slate-700"
           >
-            <ArrowLeft size={14} /> Back to Warehouse
+            <ArrowLeft size={14} /> Back
           </Link>
           <h2 className="mt-2 flex items-center gap-2 text-xl font-bold text-slate-800">
             <WarehouseIcon className="text-emerald-500" size={20} />
-            Update Warehouse
+            Update
           </h2>
         </div>
         <div className="flex items-center gap-2">
@@ -193,7 +193,7 @@ export default function Update({
             href={`/inventory/configurations/warehouse/${id}/view`}
             className="rounded-lg border border-slate-200 px-4 py-2 text-slate-600 transition-colors hover:bg-slate-50"
           >
-            Cancel
+            Discard
           </Link>
           <Button onClick={handleSave} disabled={saving} size="sm">
             {saving ? (
@@ -201,7 +201,7 @@ export default function Update({
             ) : (
               <Save size={13} />
             )}
-            {saving ? 'Saving...' : 'Save Changes'}
+            {saving ? 'Saving' : 'Save'}
           </Button>
         </div>
       </div>

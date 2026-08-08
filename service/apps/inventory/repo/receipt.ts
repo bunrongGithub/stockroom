@@ -18,6 +18,11 @@ import type {
 } from '@/service/schema/receipt.schema';
 import type { RequestContext } from '@/types/request-context';
 import type { AuditMeta } from '@/types/audit';
+import {
+    itemUomBaseFactor,
+    toBaseQty,
+    uomContextOf,
+} from '@/service/core/uom-conversion';
 import { ItemUomRepository } from './item-uom';
 import { MovementRepository } from './movement';
 import { SerialManagementService } from '@/service/apps/inventory/serial';
@@ -118,7 +123,7 @@ const LINE_TABLE = 'receipt_items' as const;
 // enricher (enrichAudit) instead, which also yields created_by_user/updated_by_user.
 const SELECT_LIST = '*, company(id, name)';
 const SELECT_DETAIL =
-    '*, company(id, name), items:receipt_items(*, item:inventory_item(id, name), warehouse:warehouse(id, name), location:warehouse_location(id, name), item_uom:inventory_item_uom(id, name, display_name))';
+    '*, company(id, name), items:receipt_items(*, item:inventory_item(id, name), warehouse:warehouse(id, name), location:warehouse_location(id, name), item_uom:inventory_item_uom(id, uom:inventory_uom(id, name, display_name)))';
 
 // ─── Repository ───────────────────────────────────────────────────────────────
 
@@ -161,7 +166,9 @@ export class ReceiptItemRepository extends BaseRepository {
                     location_id: item.location_id,
                     item_uom_id: itemUom.id,
                     receipt_qty: item.receipt_qty,
-                    conversion_factor: 1,
+                    // Snapshot the conversion in force at save time. Editing
+                    // the item's UOM later must not restate this receipt.
+                    conversion_factor: itemUomBaseFactor(itemUom),
                     lot_number: item.lot_number ?? null,
                     purchased_date: item.purchased_date ?? null,
                     unit_cost: item.unit_cost ?? null,
@@ -419,6 +426,10 @@ export class ReceiptRepository extends BaseRepository {
                 if (itemMeta.error)
                     throw new ApiError(itemMeta.error.message, 500);
 
+                const enteredUom = item.item_uom_id
+                    ? await itemUomService.findOne(ctx, item.item_uom_id)
+                    : null;
+
                 if (itemMeta.data?.track_serial) {
                     const serials =
                         (
@@ -426,17 +437,20 @@ export class ReceiptRepository extends BaseRepository {
                                 serial_numbers?: string[];
                             }
                         ).serial_numbers ?? [];
-                    if (serials.length !== Number(item.receipt_qty)) {
+                    // One serial is one BASE unit: receiving 10 Box of 12 needs
+                    // 120 serials, not 10.
+                    const requiredSerials = toBaseQty(
+                        Number(item.receipt_qty),
+                        uomContextOf(item, enteredUom),
+                    );
+                    if (serials.length !== requiredSerials) {
                         throw new ApiError(
-                            'Serial numbers must match the receipt quantity.',
+                            `Serial numbers must match the received quantity (${requiredSerials} required).`,
                             400,
                             'SERIAL_QUANTITY',
                         );
                     }
                 }
-                const enteredUom = item.item_uom_id
-                    ? await itemUomService.findOne(ctx, item.item_uom_id)
-                    : null;
                 const baseUom = await itemUomService.findDefaultByItem(
                     ctx,
                     item.item_id,
@@ -447,13 +461,16 @@ export class ReceiptRepository extends BaseRepository {
                     warehouse_id: item.warehouse_id,
                     location_id: item.location_id,
                     entered_qty: Number(item.receipt_qty),
-                    entered_uom_id: enteredUom?.uom_id ?? null,
-                    base_qty: Number(item.base_qty_received),
+                    // base_qty_received is a stored column that was only ever
+                    // correct while conversion_factor was hardcoded to 1. The
+                    // conversion service is now the authority.
+                    uom: uomContextOf(item, enteredUom),
                     base_uom_id: baseUom?.uom_id ?? null,
                     movement_direction: 'IN' as const,
                     unit_cost: item.unit_cost ?? null,
                     lot_number: item.lot_number ?? null,
                     purchased_date: item.purchased_date ?? null,
+                    serial_tracked: Boolean(item.serial_numbers?.length),
                 };
             }),
         );

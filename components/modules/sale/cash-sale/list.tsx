@@ -160,7 +160,7 @@ export default function SaleCashSaleList({
     return (
         <div className="space-y-4 font-mono">
             <PageHeader
-                title="Cash Sale History"
+                title="Cash Sale"
                 description="Completed counter sales — view or reprint a receipt."
                 actions={
                     permission?.can_create && (

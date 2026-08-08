@@ -75,7 +75,7 @@ export default function UomForm({
                     href={LIST_URL}
                     className="inline-flex items-center gap-2 text-slate-500 transition-colors hover:text-slate-700"
                 >
-                    <ArrowLeft size={16} /> Back to Unit of Measure
+                    <ArrowLeft size={16} /> Back
                 </Link>
                 <h2 className="mt-3 flex items-center gap-2 text-2xl font-bold text-slate-800 md:text-3xl">
                     <Ruler className="text-[#1a9e52]" />
