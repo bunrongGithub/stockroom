@@ -5,18 +5,27 @@ import {
     EditableTextarea,
     FieldLabel,
 } from '@/components/ui/FieldLabel';
-import { PageHeader } from '@/components/ui/PageHeader';
-import { Button } from '@/components/ui/button';
+import { FieldGrid, SectionCard } from '@/components/ui/FormShell';
 import { Spinner } from '@/components/ui/Spinner';
 import { useToast } from '@/components/ui/Toast';
 import SelectDropdown from '@/components/ui/SelectDropdown';
 import { companyApi } from '@/lib/api/company';
 import type { Company, CompanyStatus } from '@/types/setting/company';
-import { ArrowLeft } from 'lucide-react';
+import {
+    AlertCircle,
+    ArrowLeft,
+    Building2,
+    MapPin,
+    Save,
+    X,
+} from 'lucide-react';
+import Link from 'next/link';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 const STATUS_OPTIONS: CompanyStatus[] = ['active', 'inactive', 'suspended'];
+
+const LIST_URL = '/setting/company';
 
 export default function CompanyForm({
     mode,
@@ -67,11 +76,11 @@ export default function CompanyForm({
             if (mode === 'create') {
                 const company = await companyApi.create(payload);
                 toast.success(`Company ${company.name} created.`);
-                router.push(`/setting/company/${company.id}/view`);
+                router.push(`${LIST_URL}/${company.id}/view`);
             } else {
                 await companyApi.update(payload, initial!.id);
                 toast.success('Company updated.');
-                router.push(`/setting/company/${initial!.id}/view`);
+                router.push(`${LIST_URL}/${initial!.id}/view`);
             }
             router.refresh();
         } catch (err) {
@@ -82,36 +91,70 @@ export default function CompanyForm({
     }
 
     return (
-        <div className="mx-auto max-w-2xl space-y-4">
-            <button
-                type="button"
-                onClick={() => router.push('/setting/company')}
-                className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-            >
-                <ArrowLeft size={16} /> Back to Companies
-            </button>
-
-            <PageHeader
-                title={
-                    mode === 'create'
-                        ? 'New Company'
-                        : `Edit ${initial?.name ?? ''}`
-                }
-                description="Company profile and legal information."
-            />
+        // The form wraps the header too, so the Save button in the top-right
+        // is a real submit and Enter still saves from any field.
+        <form onSubmit={handleSubmit} className="space-y-4 font-mono text-xs">
+            {/* Header — back link, title, and the Discard / Save pair */}
+            <div className="flex flex-wrap items-end justify-between gap-3">
+                <div>
+                    <Link
+                        href={LIST_URL}
+                        className="inline-flex items-center gap-2 text-slate-500 transition-colors hover:text-slate-700"
+                    >
+                        <ArrowLeft size={16} /> Back to Companies
+                    </Link>
+                    <h2 className="mt-3 flex items-center gap-2 text-2xl font-bold text-slate-800 md:text-3xl">
+                        <Building2 className="text-[#1a9e52]" />
+                        {mode === 'create'
+                            ? 'New Company'
+                            : `Edit ${initial?.name ?? 'Company'}`}
+                    </h2>
+                </div>
+                <div className="flex items-center gap-2">
+                    <Link
+                        href={LIST_URL}
+                        className="rounded-xl border border-slate-200 px-4 py-2.5 text-slate-600 transition-colors hover:bg-slate-50"
+                    >
+                        Discard
+                    </Link>
+                    <button
+                        type="submit"
+                        disabled={saving}
+                        className="flex items-center justify-center gap-2 rounded-xl bg-[#1a9e52] px-4 py-2.5 font-semibold text-white transition-colors hover:bg-[#158042] disabled:opacity-50"
+                    >
+                        {saving ? (
+                            <Spinner size={16} className="text-current" />
+                        ) : (
+                            <Save size={16} />
+                        )}
+                        {saving ? 'Saving…' : 'Save'}
+                    </button>
+                </div>
+            </div>
 
             {error && (
-                <div className="rounded-xl border border-danger/30 bg-danger-muted px-4 py-3 text-sm text-danger">
-                    {error}
+                <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+                    <AlertCircle
+                        size={18}
+                        className="mt-0.5 shrink-0 text-red-500"
+                    />
+                    <p className="text-red-700">{error}</p>
+                    <button
+                        type="button"
+                        onClick={() => setError('')}
+                        className="ml-auto shrink-0 text-red-400 hover:text-red-600"
+                    >
+                        <X size={16} />
+                    </button>
                 </div>
             )}
 
-            <form
-                onSubmit={handleSubmit}
-                className="space-y-5 rounded-2xl border border-border/60 bg-card p-5 shadow-sm"
+            <SectionCard
+                icon={<Building2 size={13} />}
+                title="Company Information"
             >
-                <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="sm:col-span-2">
+                <FieldGrid>
+                    <div className="lg:col-span-2">
                         <FieldLabel required>Company Name</FieldLabel>
                         <EditableInput
                             value={name}
@@ -138,6 +181,32 @@ export default function CompanyForm({
                             placeholder="Optional"
                         />
                     </div>
+                    <SelectDropdown
+                        label="Status"
+                        options={STATUS_OPTIONS.map((s) => ({
+                            value: s,
+                            label: s,
+                        }))}
+                        value={status}
+                        onChange={(v) => setStatus(v as CompanyStatus)}
+                    />
+                    <div className="lg:col-span-2">
+                        <FieldLabel>Description</FieldLabel>
+                        <EditableTextarea
+                            value={description}
+                            onChange={(e) => setDescription(e.target.value)}
+                            rows={3}
+                            placeholder="Optional"
+                        />
+                    </div>
+                </FieldGrid>
+            </SectionCard>
+
+            <SectionCard
+                icon={<MapPin size={13} />}
+                title="Contact &amp; Address"
+            >
+                <FieldGrid>
                     <div>
                         <FieldLabel>Phone</FieldLabel>
                         <EditableInput
@@ -155,7 +224,7 @@ export default function CompanyForm({
                             placeholder="company@example.com"
                         />
                     </div>
-                    <div>
+                    <div className="lg:col-span-2">
                         <FieldLabel>Website</FieldLabel>
                         <EditableInput
                             value={website}
@@ -163,47 +232,17 @@ export default function CompanyForm({
                             placeholder="https://..."
                         />
                     </div>
-                    <SelectDropdown
-                        label="Status"
-                        options={STATUS_OPTIONS.map((s) => ({
-                            value: s,
-                            label: s,
-                        }))}
-                        value={status}
-                        onChange={(v) => setStatus(v as CompanyStatus)}
-                    />
-                    <div className="sm:col-span-2">
+                    <div className="lg:col-span-2">
                         <FieldLabel>Address</FieldLabel>
                         <EditableTextarea
                             value={address}
                             onChange={(e) => setAddress(e.target.value)}
+                            rows={3}
                             placeholder="Optional"
                         />
                     </div>
-                    <div className="sm:col-span-2">
-                        <FieldLabel>Description</FieldLabel>
-                        <EditableTextarea
-                            value={description}
-                            onChange={(e) => setDescription(e.target.value)}
-                            placeholder="Optional"
-                        />
-                    </div>
-                </div>
-
-                <div className="flex flex-col-reverse gap-2 border-t border-border/40 pt-4 sm:flex-row sm:justify-end">
-                    <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => router.push('/setting/company')}
-                    >
-                        Cancel
-                    </Button>
-                    <Button type="submit" disabled={saving}>
-                        {saving && <Spinner size={15} className="text-current" />}
-                        {mode === 'create' ? 'Create Company' : 'Save Changes'}
-                    </Button>
-                </div>
-            </form>
-        </div>
+                </FieldGrid>
+            </SectionCard>
+        </form>
     );
 }

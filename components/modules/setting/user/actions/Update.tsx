@@ -56,7 +56,7 @@ export default function UserUpdate({
                     onClick={() => router.push('/setting/users')}
                     className="text-xs text-primary hover:underline"
                 >
-                    Back to Users
+                    Back
                 </button>
             </div>
         );

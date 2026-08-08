@@ -23,7 +23,10 @@ export function EditableInput(
     return (
         <input
             {...rest}
-            className={`w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 placeholder-slate-300 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 ${className}`.trim()}
+            // The disabled: variants carry pseudo-class specificity, so they
+            // beat the base bg-white — a plain `bg-slate-50` in `className`
+            // would not, and the field would still look editable.
+            className={`w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 placeholder-slate-300 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 ${className}`.trim()}
         />
     );
 }

@@ -1,11 +1,7 @@
 'use client';
 
-import {
-    EditableInput,
-    FieldLabel,
-} from '@/components/ui/FieldLabel';
-import { PageHeader } from '@/components/ui/PageHeader';
-import { Button } from '@/components/ui/button';
+import { EditableInput, FieldLabel } from '@/components/ui/FieldLabel';
+import { FieldGrid, SectionCard } from '@/components/ui/FormShell';
 import { Switch } from '@/components/ui/switch';
 import { Spinner } from '@/components/ui/Spinner';
 import { Avatar } from '@/components/ui/Avatar';
@@ -17,11 +13,22 @@ import { usersApi } from '@/lib/api/users';
 import { companyApi } from '@/lib/api/company';
 import type { Company } from '@/types/setting/company';
 import type { CompanyUser } from '@/service/apps/base/user/repo/user.repo';
-import { ArrowLeft, Upload } from 'lucide-react';
+import {
+    AlertCircle,
+    ArrowLeft,
+    Save,
+    ShieldCheck,
+    Upload,
+    UserCircle,
+    X,
+} from 'lucide-react';
+import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 type RoleOption = { id: number; name: string };
+
+const LIST_URL = '/setting/users';
 
 export default function UserForm({
     mode,
@@ -134,7 +141,7 @@ export default function UserForm({
                     role_ids: [roleId],
                 });
                 toast.success(`User ${user.email} created.`);
-                router.push(`/setting/users/${user.id}/view`);
+                router.push(`${LIST_URL}/${user.id}/view`);
             } else {
                 await usersApi.update(initial!.id, {
                     full_name: fullName.trim(),
@@ -144,7 +151,7 @@ export default function UserForm({
                     role_ids: [roleId],
                 });
                 toast.success('User updated.');
-                router.push(`/setting/users/${initial!.id}/view`);
+                router.push(`${LIST_URL}/${initial!.id}/view`);
             }
             router.refresh();
         } catch (err) {
@@ -155,33 +162,65 @@ export default function UserForm({
     }
 
     return (
-        <div className="mx-auto max-w-2xl space-y-4">
-            <button
-                type="button"
-                onClick={() => router.push('/setting/users')}
-                className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-            >
-                <ArrowLeft size={16} /> Back to Users
-            </button>
-
-            <PageHeader
-                title={mode === 'create' ? 'New User' : `Edit ${initial?.full_name ?? initial?.email}`}
-                description="Company members and their roles."
-            />
+        // The form wraps the header too, so the Save button in the top-right
+        // is a real submit and Enter still saves from any field.
+        <form onSubmit={handleSubmit} className="space-y-4 font-mono text-xs">
+            {/* Header — back link, title, and the Discard / Save pair */}
+            <div className="flex flex-wrap items-end justify-between gap-3">
+                <div>
+                    <Link
+                        href={LIST_URL}
+                        className="inline-flex items-center gap-2 text-slate-500 transition-colors hover:text-slate-700"
+                    >
+                        <ArrowLeft size={16} /> Back
+                    </Link>
+                </div>
+                <div className="flex items-center gap-2">
+                    <Link
+                        href={LIST_URL}
+                        className="rounded-xl border border-slate-200 px-4 py-2.5 text-slate-600 transition-colors hover:bg-slate-50"
+                    >
+                        Discard
+                    </Link>
+                    <button
+                        type="submit"
+                        disabled={saving}
+                        className="flex items-center justify-center gap-2 rounded-xl bg-[#1a9e52] px-4 py-2.5 font-semibold text-white transition-colors hover:bg-[#158042] disabled:opacity-50"
+                    >
+                        {saving ? (
+                            <Spinner size={16} className="text-current" />
+                        ) : (
+                            <Save size={16} />
+                        )}
+                        {saving ? 'Saving…' : 'Save'}
+                    </button>
+                </div>
+            </div>
 
             {error && (
-                <div className="rounded-xl border border-danger/30 bg-danger-muted px-4 py-3 text-sm text-danger">
-                    {error}
+                <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+                    <AlertCircle
+                        size={18}
+                        className="mt-0.5 shrink-0 text-red-500"
+                    />
+                    <p className="text-red-700">{error}</p>
+                    <button
+                        type="button"
+                        onClick={() => setError('')}
+                        className="ml-auto shrink-0 text-red-400 hover:text-red-600"
+                    >
+                        <X size={16} />
+                    </button>
                 </div>
             )}
 
-            <form
-                onSubmit={handleSubmit}
-                className="space-y-5 rounded-2xl border border-border/60 bg-card p-5 shadow-sm"
+            <SectionCard
+                icon={<UserCircle size={13} />}
+                title="User Information"
             >
-                {/* Avatar (edit mode — needs an existing user) */}
+                {/* Avatar upload needs an existing user to attach the file to. */}
                 {mode === 'edit' && (
-                    <div className="flex items-center gap-4">
+                    <div className="mb-4 flex items-center gap-4">
                         <Avatar
                             src={avatarUrl}
                             name={fullName || email}
@@ -195,25 +234,27 @@ export default function UserForm({
                                 className="hidden"
                                 onChange={handleAvatar}
                             />
-                            <Button
+                            <button
                                 type="button"
-                                variant="outline"
-                                size="sm"
                                 disabled={uploading}
                                 onClick={() => fileRef.current?.click()}
+                                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
                             >
                                 {uploading ? (
-                                    <Spinner size={14} className="text-current" />
+                                    <Spinner
+                                        size={14}
+                                        className="text-current"
+                                    />
                                 ) : (
                                     <Upload size={14} />
                                 )}
                                 Change avatar
-                            </Button>
+                            </button>
                         </div>
                     </div>
                 )}
 
-                <div className="grid gap-4 sm:grid-cols-2">
+                <FieldGrid>
                     <div>
                         <FieldLabel required>Full Name</FieldLabel>
                         <EditableInput
@@ -233,7 +274,7 @@ export default function UserForm({
                             disabled={mode === 'edit'}
                         />
                         {mode === 'edit' && (
-                            <p className="mt-1 text-xs text-muted-foreground">
+                            <p className="mt-1 text-[11px] text-slate-400">
                                 Email can&apos;t be changed.
                             </p>
                         )}
@@ -247,8 +288,9 @@ export default function UserForm({
                                 onChange={(e) => setPassword(e.target.value)}
                                 placeholder="At least 8 characters"
                             />
-                            <p className="mt-1 text-xs text-muted-foreground">
-                                Share this with the user; they can change it later.
+                            <p className="mt-1 text-[11px] text-slate-400">
+                                Share this with the user; they can change it
+                                later.
                             </p>
                         </div>
                     )}
@@ -260,10 +302,14 @@ export default function UserForm({
                             placeholder="Optional"
                         />
                     </div>
-                </div>
+                </FieldGrid>
+            </SectionCard>
 
-                {/* Company & Role */}
-                <div className="grid gap-4 sm:grid-cols-2">
+            <SectionCard
+                icon={<ShieldCheck size={13} />}
+                title="Company &amp; Access"
+            >
+                <FieldGrid>
                     <SelectDropdown
                         label="Company"
                         required
@@ -289,38 +335,34 @@ export default function UserForm({
                             onChange={(v) => setRoleId(Number(v))}
                         />
                         {roles.length === 0 && (
-                            <p className="mt-1 text-xs text-muted-foreground">
+                            <p className="mt-1 text-[11px] text-slate-400">
                                 No roles found for this company.
                             </p>
                         )}
                     </div>
-                </div>
-
-                {/* Status */}
-                <label className="flex items-center gap-3 border-t border-border/40 pt-4">
-                    <Switch checked={isActive} onCheckedChange={setIsActive} />
-                    <span className="text-sm">
-                        <span className="font-medium">Active</span>
-                        <span className="block text-xs text-muted-foreground">
+                    <div>
+                        <FieldLabel>Active</FieldLabel>
+                        <label className="flex min-h-11.5 cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 shadow-sm">
+                            <Switch
+                                checked={isActive}
+                                onCheckedChange={(v: boolean) => setIsActive(v)}
+                            />
+                            <span
+                                className={
+                                    isActive
+                                        ? 'font-semibold text-[#1a9e52]'
+                                        : 'text-slate-400'
+                                }
+                            >
+                                {isActive ? 'Active' : 'Inactive'}
+                            </span>
+                        </label>
+                        <p className="mt-1 text-[11px] text-slate-400">
                             Inactive users can&apos;t log in.
-                        </span>
-                    </span>
-                </label>
-
-                <div className="flex flex-col-reverse gap-2 border-t border-border/40 pt-4 sm:flex-row sm:justify-end">
-                    <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => router.push('/setting/users')}
-                    >
-                        Cancel
-                    </Button>
-                    <Button type="submit" disabled={saving}>
-                        {saving && <Spinner size={15} className="text-current" />}
-                        {mode === 'create' ? 'Create User' : 'Save Changes'}
-                    </Button>
-                </div>
-            </form>
-        </div>
+                        </p>
+                    </div>
+                </FieldGrid>
+            </SectionCard>
+        </form>
     );
 }
