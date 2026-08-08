@@ -62,7 +62,7 @@ export default function SaleInvoiceUpdate({
           {error || 'Invoice not found.'}
         </p>
         <button
-          onClick={() => router.push('/sale/invoice')}
+          onClick={() => router.push('/finances/invoice')}
           className="text-xs text-sky-600 hover:underline"
         >
           Back to list

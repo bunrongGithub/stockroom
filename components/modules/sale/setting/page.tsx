@@ -1,15 +1,9 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
+import { EditableSelect, FieldLabel } from '@/components/ui/FieldLabel';
+import { SectionCard } from '@/components/ui/FormShell';
 import { PageHeader } from '@/components/ui/PageHeader';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
 import { useRegisterModule } from '@/hook/useModule';
 import { cashSaleApi, type SalesSettings } from '@/lib/api/cash-sale';
 import { API } from '@/lib/constant';
@@ -115,55 +109,50 @@ export default function SaleSettingModule({
                 description="Where counter sales take stock from."
             />
 
-            <div className="max-w-xl space-y-4 rounded-2xl border border-slate-200 bg-white p-5">
-                <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-                    <Warehouse size={16} className="text-[#1a9e52]" />
-                    Cash Sale source
-                </h2>
-
-                <div className="space-y-1.5">
-                    <Label>Default sales warehouse</Label>
-                    <Select
+            <SectionCard
+                icon={<Warehouse size={13} />}
+                title="Cash Sale source"
+            >
+              <div className="max-w-xl space-y-4">
+                <div>
+                    <FieldLabel>Default sales warehouse</FieldLabel>
+                    <EditableSelect
                         value={warehouseId ? String(warehouseId) : ''}
-                        onValueChange={(v) => {
+                        onChange={(e) => {
                             // A location from the old warehouse cannot apply.
                             setLocations([]);
                             setLocationId(null);
-                            setWarehouseId(Number(v));
+                            setWarehouseId(Number(e.target.value));
                         }}
                         disabled={!permission.can_update}
                     >
-                        <SelectTrigger>
-                            <SelectValue placeholder="Select a warehouse" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {warehouses.map((w) => (
-                                <SelectItem key={w.id} value={String(w.id)}>
-                                    {w.name}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                        <option value="" disabled>
+                            Select a warehouse
+                        </option>
+                        {warehouses.map((w) => (
+                            <option key={w.id} value={String(w.id)}>
+                                {w.name}
+                            </option>
+                        ))}
+                    </EditableSelect>
                 </div>
 
-                <div className="space-y-1.5">
-                    <Label>Default sales location</Label>
-                    <Select
+                <div>
+                    <FieldLabel>Default sales location</FieldLabel>
+                    <EditableSelect
                         value={locationId ? String(locationId) : ''}
-                        onValueChange={(v) => setLocationId(Number(v))}
+                        onChange={(e) => setLocationId(Number(e.target.value))}
                         disabled={!permission.can_update || !warehouseId}
                     >
-                        <SelectTrigger>
-                            <SelectValue placeholder="Select a location" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {locations.map((l) => (
-                                <SelectItem key={l.id} value={String(l.id)}>
-                                    {l.name}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                        <option value="" disabled>
+                            Select a location
+                        </option>
+                        {locations.map((l) => (
+                            <option key={l.id} value={String(l.id)}>
+                                {l.name}
+                            </option>
+                        ))}
+                    </EditableSelect>
                 </div>
 
                 {error && (
@@ -191,7 +180,8 @@ export default function SaleSettingModule({
                         Save settings
                     </Button>
                 )}
-            </div>
+              </div>
+            </SectionCard>
         </div>
     );
 }

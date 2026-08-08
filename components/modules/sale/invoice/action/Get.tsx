@@ -7,6 +7,16 @@ import type { ModuleProps } from '@/lib/registry';
 import { financesInvoiceApi } from '@/lib/api/finances';
 import { RelatedDocumentsPanel } from '@/components/ui/RelatedDocuments';
 import { AuditInformationCard } from '@/components/ui/AuditInformationCard';
+import { FieldLabel } from '@/components/ui/FieldLabel';
+import { ReadonlyInput } from '@/components/ui/Readonly';
+import {
+  FieldGrid,
+  FormLayout,
+  SectionCard,
+  SidebarCard,
+  TabNav,
+  TabPanel,
+} from '@/components/ui/FormShell';
 import type { AuditMeta } from '@/types/audit';
 import type {
   SalesInvoice,
@@ -22,8 +32,10 @@ import {
   FileText,
   FileWarning,
   Loader2Icon,
+  Package,
   PencilIcon,
   PrinterIcon,
+  ReceiptText,
   SendIcon,
   Trash2Icon,
   WalletIcon,
@@ -158,7 +170,7 @@ export default function SaleInvoiceDetail({
     try {
       await financesInvoiceApi.remove(invoice.id);
       showToast('Invoice deleted.', 'success');
-      router.push('/sale/invoice');
+      router.push('/finances/invoice');
     } catch (e) {
       showToast(
         e instanceof Error ? e.message : 'Failed to delete invoice',
@@ -184,7 +196,7 @@ export default function SaleInvoiceDetail({
           {error || 'Invoice not found.'}
         </p>
         <button
-          onClick={() => router.push('/sale/invoice')}
+          onClick={() => router.push('/finances/invoice')}
           className="text-xs text-sky-600 hover:underline"
         >
           Back to list
@@ -207,7 +219,7 @@ export default function SaleInvoiceDetail({
 
       <div>
         <button
-          onClick={() => router.push('/sale/invoice')}
+          onClick={() => router.push('/finances/invoice')}
           className="inline-flex items-center gap-2 text-slate-500 transition-colors hover:text-slate-700"
         >
           <ArrowLeftIcon size={16} /> Back to Invoices
@@ -220,76 +232,78 @@ export default function SaleInvoiceDetail({
         </h2>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[350px_minmax(0,1fr)]">
-        {/* LEFT SIDEBAR */}
-        <aside className="space-y-4 self-start xl:sticky xl:top-6">
-          <section className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
-            <div className="border-b border-slate-50 bg-slate-50/80 px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">
-              Invoice Summary
-            </div>
-            <div className="space-y-2 p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">Customer</span>
-                <span className="font-semibold text-slate-700">
-                  {invoice.customer_name || '—'}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">Invoice Date</span>
-                <span className="font-semibold text-slate-700">
-                  {invoice.invoice_date}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">Shipment</span>
-                <button
-                  onClick={() =>
-                    router.push(
-                      `/sale/delivery-note/${invoice.shipment_id}/view`,
-                    )
-                  }
-                  className="font-semibold text-sky-600 hover:underline"
-                >
-                  {invoice.shipment_no}
-                </button>
-              </div>
-              {invoice.sales_order_id && (
+      <FormLayout
+        sidebar={
+          <>
+            <SidebarCard
+              icon={<ReceiptText size={13} />}
+              title="Invoice Summary"
+            >
+              <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Sales Order</span>
+                  <span className="text-slate-400">Customer</span>
+                  <span className="font-semibold text-slate-700">
+                    {invoice.customer_name || '—'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Invoice Date</span>
+                  <span className="font-semibold text-slate-700">
+                    {invoice.invoice_date}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Shipment</span>
                   <button
                     onClick={() =>
-                      router.push(`/sale/order/${invoice.sales_order_id}/view`)
+                      router.push(
+                        `/sale/delivery-note/${invoice.shipment_id}/view`,
+                      )
                     }
                     className="font-semibold text-sky-600 hover:underline"
                   >
-                    {invoice.sales_order_no}
+                    {invoice.shipment_no}
                   </button>
                 </div>
-              )}
-              <div className="mt-2 space-y-1.5 rounded-xl bg-slate-50 p-3">
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Subtotal</span>
-                  <span>{fmt(invoice.subtotal)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Discount</span>
-                  <span className="text-rose-500">
-                    - {fmt(invoice.discount_total)}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Tax</span>
-                  <span>{fmt(invoice.tax_total)}</span>
-                </div>
-                <div className="flex justify-between border-t pt-1.5 text-sm font-semibold">
-                  <span>Grand Total</span>
-                  <span>
-                    {invoice.currency} {fmt(invoice.grand_total)}
-                  </span>
+                {invoice.sales_order_id && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Sales Order</span>
+                    <button
+                      onClick={() =>
+                        router.push(
+                          `/sale/order/${invoice.sales_order_id}/view`,
+                        )
+                      }
+                      className="font-semibold text-sky-600 hover:underline"
+                    >
+                      {invoice.sales_order_no}
+                    </button>
+                  </div>
+                )}
+                <div className="mt-2 space-y-1.5 rounded-xl bg-slate-50 p-3">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Subtotal</span>
+                    <span>{fmt(invoice.subtotal)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Discount</span>
+                    <span className="text-rose-500">
+                      - {fmt(invoice.discount_total)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Tax</span>
+                    <span>{fmt(invoice.tax_total)}</span>
+                  </div>
+                  <div className="flex justify-between border-t pt-1.5 text-sm font-semibold">
+                    <span>Grand Total</span>
+                    <span>
+                      {invoice.currency} {fmt(invoice.grand_total)}
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
-          </section>
+            </SidebarCard>
 
           <div className="flex flex-col gap-2">
             <button
@@ -376,90 +390,93 @@ export default function SaleInvoiceDetail({
             </div>
           )}
 
-          <AuditInformationCard audit={invoice as Partial<AuditMeta>} />
-        </aside>
+            <AuditInformationCard audit={invoice as Partial<AuditMeta>} />
+          </>
+        }
+      >
+        <TabNav tabs={TABS} active={activeTab} onChangeAction={setActiveTab} />
 
-        {/* RIGHT — tabs */}
-        <div className="min-w-0">
-          <div className="flex gap-0 border-b border-slate-200">
-            {TABS.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 border-b-2 px-5 py-3 transition-all ${
-                  activeTab === tab.id
-                    ? 'border-[#1a9e52] text-[#1a9e52]'
-                    : 'border-transparent text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          {activeTab === 'info' && (
-            <div className="space-y-5 pt-5">
-              <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-                <h3 className="mb-4 text-xs font-bold uppercase tracking-wider text-slate-500">
-                  Invoice Information
-                </h3>
-                <div className="grid grid-cols-2 gap-y-3">
-                  <span className="text-slate-400">Reference No</span>
-                  <span>{invoice.reference_no || '—'}</span>
-                  <span className="text-slate-400">Customer</span>
-                  <span className="font-medium">
-                    {invoice.customer_name || '—'}
-                  </span>
-                  <span className="text-slate-400">Customer Phone</span>
-                  <span>{invoice.customer_phone || '—'}</span>
-                  <span className="text-slate-400">Customer Address</span>
-                  <span>{invoice.customer_address || '—'}</span>
-                  <span className="text-slate-400">Invoice Date</span>
-                  <span>{invoice.invoice_date}</span>
-                  <span className="text-slate-400">Currency</span>
-                  <span>{invoice.currency}</span>
-                  <span className="text-slate-400">Exchange Rate</span>
-                  <span>{invoice.exchange_rate}</span>
-                  <span className="text-slate-400">Invoice Total</span>
-                  <span className="font-semibold">
+        {activeTab === 'info' && (
+          <TabPanel>
+            <SectionCard
+              icon={<FileText size={13} />}
+              title="Invoice Information"
+            >
+              <FieldGrid>
+                <div>
+                  <FieldLabel>Reference No</FieldLabel>
+                  <ReadonlyInput value={invoice.reference_no ?? ''} />
+                </div>
+                <div>
+                  <FieldLabel>Customer</FieldLabel>
+                  <ReadonlyInput value={invoice.customer_name ?? ''} />
+                </div>
+                <div>
+                  <FieldLabel>Customer Phone</FieldLabel>
+                  <ReadonlyInput value={invoice.customer_phone ?? ''} />
+                </div>
+                <div>
+                  <FieldLabel>Customer Address</FieldLabel>
+                  <ReadonlyInput value={invoice.customer_address ?? ''} />
+                </div>
+                <div>
+                  <FieldLabel>Invoice Date</FieldLabel>
+                  <ReadonlyInput value={invoice.invoice_date} />
+                </div>
+                <div>
+                  <FieldLabel>Currency</FieldLabel>
+                  <ReadonlyInput value={invoice.currency} />
+                </div>
+                <div>
+                  <FieldLabel>Exchange Rate</FieldLabel>
+                  <ReadonlyInput value={invoice.exchange_rate} />
+                </div>
+                <div>
+                  <FieldLabel>Payment Status</FieldLabel>
+                  <div className="flex min-h-11.5 items-center rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                    <PaymentStatusBadge status={invoice.payment_status} />
+                  </div>
+                </div>
+                <div>
+                  <FieldLabel>Invoice Total</FieldLabel>
+                  <div className="flex min-h-11.5 items-center rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
                     {invoice.currency} {fmt(invoice.grand_total)}
-                  </span>
-                  <span className="text-slate-400">Paid Amount</span>
-                  <span className="font-semibold text-emerald-600">
+                  </div>
+                </div>
+                <div>
+                  <FieldLabel>Paid Amount</FieldLabel>
+                  <div className="flex min-h-11.5 items-center rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
                     {invoice.currency} {fmt(invoice.amount_paid)}
-                  </span>
-                  <span className="text-slate-400">Remaining Balance</span>
-                  <span
-                    className={`font-semibold ${invoice.outstanding > 0 ? 'text-amber-600' : 'text-slate-500'}`}
+                  </div>
+                </div>
+                <div>
+                  <FieldLabel>Remaining Balance</FieldLabel>
+                  <div
+                    className={`flex min-h-11.5 items-center rounded-xl border px-4 py-3 text-sm font-semibold ${
+                      invoice.outstanding > 0
+                        ? 'border-amber-200 bg-amber-50 text-amber-700'
+                        : 'border-slate-200 bg-slate-50 text-slate-500'
+                    }`}
                   >
                     {invoice.currency} {fmt(invoice.outstanding)}
-                  </span>
-                  <span className="text-slate-400">Payment Status</span>
-                  <span>
-                    <PaymentStatusBadge status={invoice.payment_status} />
-                  </span>
-                  {invoice.remarks && (
-                    <>
-                      <span className="text-slate-400">Remarks</span>
-                      <span>{invoice.remarks}</span>
-                    </>
-                  )}
+                  </div>
                 </div>
-                <p className="mt-4 text-[11px] text-slate-400">
-                  Last updated {new Date(invoice.updated_at).toLocaleString()}
-                </p>
-              </section>
-            </div>
-          )}
+                <div className="lg:col-span-2">
+                  <FieldLabel>Remarks</FieldLabel>
+                  <ReadonlyInput value={invoice.remarks ?? ''} />
+                </div>
+              </FieldGrid>
+              <p className="mt-4 text-[11px] text-slate-400">
+                Last updated {new Date(invoice.updated_at).toLocaleString()}
+              </p>
+            </SectionCard>
+          </TabPanel>
+        )}
 
-          {activeTab === 'items' && (
-            <div className="space-y-5 pt-5">
-              <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-                <h3 className="mb-4 text-xs font-bold uppercase tracking-wider text-slate-500">
-                  Items
-                </h3>
-                <div className="overflow-x-auto">
+        {activeTab === 'items' && (
+          <TabPanel>
+            <SectionCard icon={<Package size={13} />} title="Items">
+              <div className="overflow-x-auto">
                   <table className="w-full text-xs font-mono">
                     <thead>
                       <tr className="border-b text-muted-foreground">
@@ -511,39 +528,39 @@ export default function SaleInvoiceDetail({
                       ))}
                     </tbody>
                   </table>
-                </div>
-                <div className="mt-4 flex justify-end">
-                  <div className="w-56 space-y-1.5 text-xs font-mono">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Subtotal</span>
-                      <span>{fmt(invoice.subtotal)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Discount</span>
-                      <span className="text-rose-500">
-                        - {fmt(invoice.discount_total)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Tax</span>
-                      <span>{fmt(invoice.tax_total)}</span>
-                    </div>
-                    <div className="flex justify-between border-t pt-1.5 text-sm font-semibold">
-                      <span>Grand Total</span>
-                      <span>
-                        {invoice.currency} {fmt(invoice.grand_total)}
-                      </span>
-                    </div>
+              </div>
+              <div className="mt-4 flex justify-end">
+                <div className="w-56 space-y-1.5">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Subtotal</span>
+                    <span>{fmt(invoice.subtotal)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Discount</span>
+                    <span className="text-rose-500">
+                      - {fmt(invoice.discount_total)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Tax</span>
+                    <span>{fmt(invoice.tax_total)}</span>
+                  </div>
+                  <div className="flex justify-between border-t pt-1.5 text-sm font-semibold">
+                    <span>Grand Total</span>
+                    <span>
+                      {invoice.currency} {fmt(invoice.grand_total)}
+                    </span>
                   </div>
                 </div>
-              </section>
-            </div>
-          )}
+              </div>
+            </SectionCard>
+          </TabPanel>
+        )}
 
-          {/* Tab 3: Related Documents (document flow) */}
-          {activeTab === 'related' && (
-            <div className="space-y-5 pt-5">
-              <RelatedDocumentsPanel
+        {/* Tab 3: Related Documents (document flow) */}
+        {activeTab === 'related' && (
+          <TabPanel>
+            <RelatedDocumentsPanel
                 source={[
                   ...(invoice.sales_order_id
                     ? [
@@ -582,39 +599,38 @@ export default function SaleInvoiceDetail({
                   ],
                 }))}
                 generatedEmptyText="No payments received yet."
-                summary={
-                  <div className="flex flex-wrap gap-4 rounded-xl border border-slate-100 bg-slate-50 px-4 py-2.5 font-mono text-xs">
-                    <span className="text-slate-400">
-                      Invoice Total{' '}
-                      <span className="font-semibold text-slate-700">
-                        {invoice.currency} {fmt(invoice.grand_total)}
-                      </span>
+              summary={
+                <div className="flex flex-wrap gap-4 rounded-xl border border-slate-100 bg-slate-50 px-4 py-2.5">
+                  <span className="text-slate-400">
+                    Invoice Total{' '}
+                    <span className="font-semibold text-slate-700">
+                      {invoice.currency} {fmt(invoice.grand_total)}
                     </span>
-                    <span className="text-emerald-600">
-                      Paid{' '}
-                      <span className="font-semibold">
-                        {fmt(invoice.amount_paid)}
-                      </span>
+                  </span>
+                  <span className="text-emerald-600">
+                    Paid{' '}
+                    <span className="font-semibold">
+                      {fmt(invoice.amount_paid)}
                     </span>
-                    <span
-                      className={
-                        invoice.outstanding > 0
-                          ? 'text-amber-600'
-                          : 'text-slate-400'
-                      }
-                    >
-                      Outstanding{' '}
-                      <span className="font-semibold">
-                        {fmt(invoice.outstanding)}
-                      </span>
+                  </span>
+                  <span
+                    className={
+                      invoice.outstanding > 0
+                        ? 'text-amber-600'
+                        : 'text-slate-400'
+                    }
+                  >
+                    Outstanding{' '}
+                    <span className="font-semibold">
+                      {fmt(invoice.outstanding)}
                     </span>
-                  </div>
-                }
-              />
-            </div>
-          )}
-        </div>
-      </div>
+                  </span>
+                </div>
+              }
+            />
+          </TabPanel>
+        )}
+      </FormLayout>
     </div>
   );
 }

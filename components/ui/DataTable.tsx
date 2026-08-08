@@ -70,6 +70,12 @@ export interface DataTableColumn<T> {
     sortKey?: string;
     /** May be hidden via the column-visibility menu. Default true. */
     hideable?: boolean;
+    /**
+     * Pin the column to the right edge so it stays reachable while the rest of
+     * the table scrolls horizontally. Intended for the row-actions column on
+     * wide tables — without it the actions sit past the fold.
+     */
+    sticky?: 'right';
 }
 
 /** One filter control in the serverQuery filter bar. */
@@ -459,6 +465,8 @@ export function DataTable<T>({
                                             className={cn(
                                                 'text-xs tracking-wide text-muted-foreground',
                                                 alignClass(col.align),
+                                                col.sticky === 'right' &&
+                                                    'sticky right-0 z-20 border-l border-border/60 bg-muted shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.12)]',
                                                 col.headerClassName,
                                             )}
                                         >
@@ -498,7 +506,7 @@ export function DataTable<T>({
                             {visible.map((row, index) => (
                                 <TableRow
                                     key={keyExtractor(row)}
-                                    className="border-b border-border/40 text-sm text-foreground transition-colors hover:bg-muted/30"
+                                    className="group border-b border-border/40 text-sm text-foreground transition-colors hover:bg-muted/30"
                                 >
                                     {visibleColumns.map((col) => {
                                         const value = col.cell(
@@ -511,6 +519,14 @@ export function DataTable<T>({
                                                 className={cn(
                                                     'py-3',
                                                     alignClass(col.align),
+                                                    // A pinned cell needs an opaque
+                                                    // background of its own — the
+                                                    // row's translucent hover tint
+                                                    // would let scrolled cells show
+                                                    // through, so the pinned rail
+                                                    // keeps the flat card colour.
+                                                    col.sticky === 'right' &&
+                                                        'sticky right-0 z-10 border-l border-border/60 bg-card shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.12)]',
                                                     col.cellClassName,
                                                 )}
                                             >

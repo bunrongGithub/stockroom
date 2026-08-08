@@ -6,6 +6,16 @@ import { saleOrderApi, saleShipmentApi } from '@/lib/api/sale';
 import { financesInvoiceApi } from '@/lib/api/finances';
 import ItemClassBadge from '@/components/ui/ItemClassBadge';
 import { RelatedDocumentsPanel } from '@/components/ui/RelatedDocuments';
+import { FieldLabel } from '@/components/ui/FieldLabel';
+import { ReadonlyInput } from '@/components/ui/Readonly';
+import {
+  FieldGrid,
+  FormLayout,
+  SectionCard,
+  SidebarCard,
+  TabNav,
+  TabPanel,
+} from '@/components/ui/FormShell';
 import { behaviorOf } from '@/service/core/item-behavior';
 import type {
   SalesOrder,
@@ -18,10 +28,12 @@ import { useParams, useRouter } from 'next/navigation';
 import {
   ArrowLeftIcon,
   CheckCircleIcon,
+  ClipboardList,
   Loader2Icon,
   Package,
   PackageIcon,
   PencilIcon,
+  ReceiptText,
   ReceiptTextIcon,
   TruckIcon,
   XCircleIcon,
@@ -266,62 +278,59 @@ export default function SaleOrderDetail({
         </h2>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[350px_minmax(0,1fr)]">
-        {/* LEFT SIDEBAR — order summary + actions */}
-        <aside className="space-y-4 self-start xl:sticky xl:top-6">
-          <section className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
-            <div className="border-b border-slate-50 bg-slate-50/80 px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">
-              Order Summary
-            </div>
-            <div className="space-y-2 p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">Customer</span>
-                <span className="font-semibold text-slate-700">
-                  {order.customer_name}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">Order Date</span>
-                <span className="font-semibold text-slate-700">
-                  {order.order_date}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">Warehouse</span>
-                <span className="font-semibold text-slate-700">
-                  {order.warehouse_name}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">Shipments</span>
-                <span className="font-semibold text-slate-700">
-                  {shipments.length}
-                </span>
-              </div>
-              <div className="mt-2 space-y-1.5 rounded-xl bg-slate-50 p-3">
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Subtotal</span>
-                  <span>{fmt(order.subtotal)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Discount</span>
-                  <span className="text-rose-500">
-                    - {fmt(order.discount_total)}
+      <FormLayout
+        sidebar={
+          <>
+            <SidebarCard icon={<ReceiptText size={13} />} title="Order Summary">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Customer</span>
+                  <span className="font-semibold text-slate-700">
+                    {order.customer_name}
                   </span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Tax</span>
-                  <span>{fmt(order.tax_total)}</span>
-                </div>
-                <div className="flex justify-between border-t pt-1.5 text-sm font-semibold">
-                  <span>Grand Total</span>
-                  <span>
-                    {order.currency} {fmt(order.grand_total)}
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Order Date</span>
+                  <span className="font-semibold text-slate-700">
+                    {order.order_date}
                   </span>
                 </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Warehouse</span>
+                  <span className="font-semibold text-slate-700">
+                    {order.warehouse_name}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Shipments</span>
+                  <span className="font-semibold text-slate-700">
+                    {shipments.length}
+                  </span>
+                </div>
+                <div className="mt-2 space-y-1.5 rounded-xl bg-slate-50 p-3">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Subtotal</span>
+                    <span>{fmt(order.subtotal)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Discount</span>
+                    <span className="text-rose-500">
+                      - {fmt(order.discount_total)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Tax</span>
+                    <span>{fmt(order.tax_total)}</span>
+                  </div>
+                  <div className="flex justify-between border-t pt-1.5 text-sm font-semibold">
+                    <span>Grand Total</span>
+                    <span>
+                      {order.currency} {fmt(order.grand_total)}
+                    </span>
+                  </div>
+                </div>
               </div>
-            </div>
-          </section>
+            </SidebarCard>
 
           {(a?.can_update ||
             a?.can_ship ||
@@ -388,71 +397,64 @@ export default function SaleOrderDetail({
               )}
             </div>
           )}
-        </aside>
+          </>
+        }
+      >
+        <TabNav tabs={TABS} active={activeTab} onChangeAction={setActiveTab} />
 
-        {/* RIGHT — tabs */}
-        <div className="min-w-0">
-          <div className="flex gap-0 border-b border-slate-200">
-            {TABS.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 border-b-2 px-5 py-3 transition-all ${
-                  activeTab === tab.id
-                    ? 'border-[#1a9e52] text-[#1a9e52]'
-                    : 'border-transparent text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Tab 1: Order Information */}
-          {activeTab === 'info' && (
-            <div className="space-y-5 pt-5">
-              <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-                <h3 className="mb-4 text-xs font-bold uppercase tracking-wider text-slate-500">
-                  Order Information
-                </h3>
-                <div className="grid grid-cols-2 gap-y-3 lg:grid-cols-4">
-                  <span className="text-slate-400">Reference No</span>
-                  <span>{order.reference_no || '—'}</span>
-                  <span className="text-slate-400">Customer</span>
-                  <span className="font-medium">{order.customer_name}</span>
-                  <span className="text-slate-400">Phone</span>
-                  <span>{order.customer_phone || '—'}</span>
-                  <span className="text-slate-400">Order Date</span>
-                  <span>{order.order_date}</span>
-                  <span className="text-slate-400">Expected Delivery</span>
-                  <span>{order.expected_delivery_date || '—'}</span>
-                  <span className="text-slate-400">Warehouse</span>
-                  <span>{order.warehouse_name}</span>
-                  <span className="text-slate-400">Currency</span>
-                  <span>{order.currency}</span>
-                  {order.notes && (
-                    <>
-                      <span className="text-slate-400">Notes</span>
-                      <span>{order.notes}</span>
-                    </>
-                  )}
+        {/* Tab 1: Order Information */}
+        {activeTab === 'info' && (
+          <TabPanel>
+            <SectionCard
+              icon={<ClipboardList size={13} />}
+              title="Order Information"
+            >
+              <FieldGrid>
+                <div>
+                  <FieldLabel>Reference No</FieldLabel>
+                  <ReadonlyInput value={order.reference_no ?? ''} />
                 </div>
-                <p className="mt-4 text-[11px] text-slate-400">
-                  Last updated {new Date(order.updated_at).toLocaleString()}
-                </p>
-              </section>
-            </div>
-          )}
+                <div>
+                  <FieldLabel>Customer</FieldLabel>
+                  <ReadonlyInput value={order.customer_name} />
+                </div>
+                <div>
+                  <FieldLabel>Phone</FieldLabel>
+                  <ReadonlyInput value={order.customer_phone ?? ''} />
+                </div>
+                <div>
+                  <FieldLabel>Order Date</FieldLabel>
+                  <ReadonlyInput value={order.order_date} />
+                </div>
+                <div>
+                  <FieldLabel>Expected Delivery</FieldLabel>
+                  <ReadonlyInput value={order.expected_delivery_date ?? ''} />
+                </div>
+                <div>
+                  <FieldLabel>Warehouse</FieldLabel>
+                  <ReadonlyInput value={order.warehouse_name ?? ''} />
+                </div>
+                <div>
+                  <FieldLabel>Currency</FieldLabel>
+                  <ReadonlyInput value={order.currency} />
+                </div>
+                <div className="lg:col-span-2">
+                  <FieldLabel>Notes</FieldLabel>
+                  <ReadonlyInput value={order.notes ?? ''} />
+                </div>
+              </FieldGrid>
+              <p className="mt-4 text-[11px] text-slate-400">
+                Last updated {new Date(order.updated_at).toLocaleString()}
+              </p>
+            </SectionCard>
+          </TabPanel>
+        )}
 
-          {/* Tab 2: Order Items */}
-          {activeTab === 'items' && (
-            <div className="space-y-5 pt-5">
-              <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-                <h3 className="mb-4 text-xs font-bold uppercase tracking-wider text-slate-500">
-                  Order Items
-                </h3>
-                <div className="overflow-x-auto">
+        {/* Tab 2: Order Items */}
+        {activeTab === 'items' && (
+          <TabPanel>
+            <SectionCard icon={<PackageIcon size={13} />} title="Order Items">
+              <div className="overflow-x-auto">
                   <table className="w-full text-xs font-mono">
                     <thead>
                       <tr className="border-b text-muted-foreground">
@@ -546,15 +548,15 @@ export default function SaleOrderDetail({
                       })}
                     </tbody>
                   </table>
-                </div>
-              </section>
-            </div>
-          )}
+              </div>
+            </SectionCard>
+          </TabPanel>
+        )}
 
-          {/* Tab 3: Related Documents (document flow) */}
-          {activeTab === 'related' && (
-            <div className="space-y-5 pt-5">
-              <RelatedDocumentsPanel
+        {/* Tab 3: Related Documents (document flow) */}
+        {activeTab === 'related' && (
+          <TabPanel>
+            <RelatedDocumentsPanel
                 source={[]}
                 sourceEmptyText="This sales order is the start of the document flow."
                 generated={shipments.map((s) => ({
@@ -572,12 +574,11 @@ export default function SaleOrderDetail({
                     },
                   ],
                 }))}
-                generatedEmptyText="No shipments have been created for this order yet."
-              />
-            </div>
-          )}
-        </div>
-      </div>
+              generatedEmptyText="No shipments have been created for this order yet."
+            />
+          </TabPanel>
+        )}
+      </FormLayout>
     </div>
   );
 }

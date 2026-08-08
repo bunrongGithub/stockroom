@@ -6,6 +6,14 @@ import { PERMISSIONS } from '@/service/core/authz/permissions';
 import type { ModuleProps } from '@/lib/registry';
 import { financesPaymentApi } from '@/lib/api/finances';
 import { AuditInformationCard } from '@/components/ui/AuditInformationCard';
+import { FieldLabel } from '@/components/ui/FieldLabel';
+import { ReadonlyInput } from '@/components/ui/Readonly';
+import {
+  FieldGrid,
+  FormLayout,
+  SectionCard,
+  SidebarCard,
+} from '@/components/ui/FormShell';
 import type { AuditMeta } from '@/types/audit';
 import type { CustomerPayment, PaymentStatus } from '@/types/sales/payment';
 import { useEffect, useState } from 'react';
@@ -16,6 +24,7 @@ import {
   FileWarning,
   Loader2Icon,
   PencilIcon,
+  ReceiptText,
   SendIcon,
   WalletIcon,
 } from 'lucide-react';
@@ -132,104 +141,162 @@ export default function SalePaymentDetail({
   const a = payment.actions;
 
   return (
-    <div className="space-y-5 font-mono text-xs">
+    <div className="space-y-4 font-mono text-xs">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <h1 className="flex items-center gap-2 text-xl font-bold text-slate-800">
-            <WalletIcon size={18} className="text-[#1a9e52]" />
-            {payment.payment_no}
-          </h1>
+      <div>
+        <button
+          onClick={() => router.push('/finances/payment')}
+          className="inline-flex items-center gap-2 text-slate-500 transition-colors hover:text-slate-700"
+        >
+          <ArrowLeftIcon size={16} /> Back to Payments
+        </button>
+        <h2 className="mt-3 flex items-center gap-3 text-2xl font-bold text-slate-800 md:text-3xl">
+          <WalletIcon className="text-[#1a9e52]" />
+          {payment.payment_no}
           <StatusBadge status={payment.status} />
-        </div>
-        <div className="flex gap-1.5">
-          {a?.can_update && (
-            <button
-              onClick={() => router.push(`/finances/payment/${payment.id}/update`)}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-violet-200 px-3 py-2 text-violet-600 hover:bg-violet-50"
-            >
-              <PencilIcon size={13} /> Edit
-            </button>
-          )}
-          {a?.can_post && mayPost && (
-            <button
-              onClick={() => act('post')}
-              disabled={busy}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-white hover:bg-emerald-500 disabled:opacity-60"
-            >
-              {busy ? (
-                <Loader2Icon className="animate-spin" size={13} />
-              ) : (
-                <SendIcon size={13} />
-              )}
-              Post
-            </button>
-          )}
-          {a?.can_cancel && mayCancel && (
-            <button
-              onClick={() => act('cancel')}
-              disabled={busy}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-rose-700 hover:bg-rose-100 disabled:opacity-60"
-            >
-              {busy ? (
-                <Loader2Icon className="animate-spin" size={13} />
-              ) : (
-                <Ban size={13} />
-              )}
-              Cancel
-            </button>
-          )}
-          <button
-            onClick={() => router.push('/finances/payment')}
-            className="inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 hover:bg-muted"
-          >
-            <ArrowLeftIcon size={13} /> Back
-          </button>
-        </div>
+        </h2>
       </div>
 
-      {actionError && (
-        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-rose-700">
-          {actionError}
-        </div>
-      )}
+      <FormLayout
+        sidebar={
+          <>
+            <SidebarCard
+              icon={<WalletIcon size={13} />}
+              title="Payment Summary"
+            >
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Customer</span>
+                  <span className="font-semibold text-slate-700">
+                    {payment.customer_name || '—'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Payment Date</span>
+                  <span className="font-semibold text-slate-700">
+                    {payment.payment_date}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Allocations</span>
+                  <span className="font-semibold text-slate-700">
+                    {payment.allocations.length}
+                  </span>
+                </div>
+                <div className="mt-2 flex justify-between rounded-xl bg-slate-50 p-3 text-sm font-semibold">
+                  <span>Amount</span>
+                  <span>
+                    {payment.currency} {money(payment.amount)}
+                  </span>
+                </div>
+              </div>
+            </SidebarCard>
 
-      {/* Payment information */}
-      <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-        <h3 className="mb-4 text-xs font-bold uppercase tracking-wider text-slate-500">
-          Payment Information
-        </h3>
-        <div className="grid grid-cols-2 gap-y-3 lg:grid-cols-4">
-          <span className="text-slate-400">Customer</span>
-          <span className="font-medium">{payment.customer_name}</span>
-          <span className="text-slate-400">Phone</span>
-          <span>{payment.customer_phone || '—'}</span>
-          <span className="text-slate-400">Payment Date</span>
-          <span>{payment.payment_date}</span>
-          <span className="text-slate-400">Method</span>
-          <span>
-            {METHOD_LABEL[payment.payment_method] ?? payment.payment_method}
-          </span>
-          <span className="text-slate-400">Reference No</span>
-          <span>{payment.reference_no || '—'}</span>
-          <span className="text-slate-400">Amount</span>
-          <span className="font-semibold">
-            {payment.currency} {money(payment.amount)}
-          </span>
-          <span className="text-slate-400">Remarks</span>
-          <span className="col-span-3">{payment.remarks || '—'}</span>
-        </div>
-      </section>
+            {actionError && (
+              <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-rose-700">
+                {actionError}
+              </div>
+            )}
 
-      {/* Allocations */}
-      <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-        <h3 className="mb-4 text-xs font-bold uppercase tracking-wider text-slate-500">
-          Allocated Invoices ({payment.allocations.length})
-        </h3>
-        {payment.allocations.length === 0 ? (
-          <p className="py-6 text-center text-slate-400">No allocations.</p>
-        ) : (
-          <div className="overflow-x-auto">
+            <div className="flex flex-col gap-2">
+              {a?.can_update && (
+                <button
+                  onClick={() =>
+                    router.push(`/finances/payment/${payment.id}/update`)
+                  }
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-violet-200 px-4 py-2.5 text-violet-600 transition-colors hover:bg-violet-50"
+                >
+                  <PencilIcon size={14} /> Edit
+                </button>
+              )}
+              {a?.can_post && mayPost && (
+                <button
+                  onClick={() => act('post')}
+                  disabled={busy}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#1a9e52] px-4 py-2.5 font-semibold text-white transition-colors hover:bg-[#158042] disabled:opacity-60"
+                >
+                  {busy ? (
+                    <Loader2Icon className="animate-spin" size={14} />
+                  ) : (
+                    <SendIcon size={14} />
+                  )}
+                  Post
+                </button>
+              )}
+              {a?.can_cancel && mayCancel && (
+                <button
+                  onClick={() => act('cancel')}
+                  disabled={busy}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-rose-700 transition-colors hover:bg-rose-100 disabled:opacity-60"
+                >
+                  {busy ? (
+                    <Loader2Icon className="animate-spin" size={14} />
+                  ) : (
+                    <Ban size={14} />
+                  )}
+                  Cancel
+                </button>
+              )}
+            </div>
+
+            <AuditInformationCard audit={payment as Partial<AuditMeta>} />
+          </>
+        }
+      >
+        <div className="space-y-5">
+          {/* Payment information */}
+          <SectionCard
+            icon={<WalletIcon size={13} />}
+            title="Payment Information"
+          >
+            <FieldGrid>
+              <div>
+                <FieldLabel>Customer</FieldLabel>
+                <ReadonlyInput value={payment.customer_name} />
+              </div>
+              <div>
+                <FieldLabel>Phone</FieldLabel>
+                <ReadonlyInput value={payment.customer_phone ?? ''} />
+              </div>
+              <div>
+                <FieldLabel>Payment Date</FieldLabel>
+                <ReadonlyInput value={payment.payment_date} />
+              </div>
+              <div>
+                <FieldLabel>Method</FieldLabel>
+                <ReadonlyInput
+                  value={
+                    METHOD_LABEL[payment.payment_method] ??
+                    payment.payment_method
+                  }
+                />
+              </div>
+              <div>
+                <FieldLabel>Reference No</FieldLabel>
+                <ReadonlyInput value={payment.reference_no ?? ''} />
+              </div>
+              <div>
+                <FieldLabel>Amount</FieldLabel>
+                <div className="flex min-h-11.5 items-center rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
+                  {payment.currency} {money(payment.amount)}
+                </div>
+              </div>
+              <div className="lg:col-span-2">
+                <FieldLabel>Remarks</FieldLabel>
+                <ReadonlyInput value={payment.remarks ?? ''} />
+              </div>
+            </FieldGrid>
+          </SectionCard>
+
+          {/* Allocations */}
+          <SectionCard
+            icon={<ReceiptText size={13} />}
+            title={`Allocated Invoices (${payment.allocations.length})`}
+          >
+            {payment.allocations.length === 0 ? (
+              <p className="py-6 text-center text-slate-400">No allocations.</p>
+            ) : (
+              <div className="overflow-x-auto">
             <table className="w-full tabular-nums">
               <thead>
                 <tr className="border-b text-[10px] uppercase tracking-wider text-slate-500">
@@ -273,13 +340,13 @@ export default function SalePaymentDetail({
                     {payment.currency} {money(payment.amount)}
                   </td>
                 </tr>
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-
-      <AuditInformationCard audit={payment as Partial<AuditMeta>} />
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </SectionCard>
+        </div>
+      </FormLayout>
     </div>
   );
 }

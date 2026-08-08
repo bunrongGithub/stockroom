@@ -3,6 +3,7 @@
 import { DataTable, type DataTableColumn } from '@/components/ui/DataTable';
 import { auditUserColumns } from '@/components/ui/audit-columns';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { RowAction, RowActions } from '@/components/ui/button-action';
 import { Button } from '@/components/ui/button';
 import { useRegisterModule } from '@/hook/useModule';
 import { useTableQuery } from '@/hook/useTableQuery';
@@ -129,32 +130,29 @@ export default function SaleCashSaleList({
         {
             key: 'actions',
             header: 'Actions',
+            sticky: 'right',
             align: 'right',
             cardFooter: true,
             cell: (row) => (
-                <div className="flex flex-wrap items-center justify-end gap-1.5">
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => router.push(`/sale/order/${row.id}/view`)}
-                    >
-                        <EyeIcon size={13} /> View
-                    </Button>
+                <RowActions>
+                    <RowAction
+                        label="View"
+                        icon={<EyeIcon size={13} />}
+                        href={`/sale/order/${row.id}/view`}
+                    />
                     {row.invoice_id && (
-                        <Button
-                            variant="outline"
-                            size="sm"
+                        <RowAction
+                            label="Reprint"
+                            icon={<PrinterIcon size={13} />}
                             onClick={() =>
                                 window.open(
                                     `/finances/invoice/${row.invoice_id}/print`,
                                     '_blank',
                                 )
                             }
-                        >
-                            <PrinterIcon size={13} /> Reprint
-                        </Button>
+                        />
                     )}
-                </div>
+                </RowActions>
             ),
         },
     ];
@@ -178,7 +176,7 @@ export default function SaleCashSaleList({
                 data={table.data}
                 keyExtractor={(row) => row.id}
                 mobileVariant="cards"
-                minTableWidth="760px"
+                minTableWidth="1180px"
                 searchPlaceholder="Search by sale no, reference, or customer..."
                 pageSizeOptions={[10, 20, 50]}
                 serverQuery={table.binding}

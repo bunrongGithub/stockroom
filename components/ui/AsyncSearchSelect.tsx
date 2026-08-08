@@ -138,7 +138,7 @@ export default function AsyncSearchSelect<
 
   return (
     <div className="relative" ref={containerRef}>
-      <FieldLabel>{label}</FieldLabel>
+      <FieldLabel required={required}>{label}</FieldLabel>
 
       {/* Trigger button */}
       <button

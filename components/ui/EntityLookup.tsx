@@ -14,6 +14,7 @@
  */
 
 import { useInfiniteQuery } from '@/hook/useInfiniteQuery';
+import { FieldLabel } from '@/components/ui/FieldLabel';
 import { Loader2, Plus, Search, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -180,16 +181,11 @@ export default function EntityLookup<T extends { id: number }>({
     }, [active, open]);
 
     return (
-        <div className={`space-y-1.5 ${className}`} ref={boxRef}>
-            {label && (
-                <label className="text-xs text-slate-600">
-                    {label}
-                    {required && <span className="ml-0.5 text-rose-500">*</span>}
-                </label>
-            )}
+        <div className={className} ref={boxRef}>
+            {label && <FieldLabel required={required}>{label}</FieldLabel>}
 
             {value && !open ? (
-                <div className="flex items-center justify-between gap-2 rounded-xl border border-[#1a9e52]/40 bg-emerald-50/50 px-3 py-2.5">
+                <div className="flex min-h-11.5 items-center justify-between gap-2 rounded-xl border border-[#1a9e52]/40 bg-emerald-50/50 px-4 py-3">
                     <span className="min-w-0 flex-1">
                         {renderValue ? renderValue(value) : renderRow(value, false)}
                     </span>
@@ -238,7 +234,7 @@ export default function EntityLookup<T extends { id: number }>({
                         role="combobox"
                         aria-expanded={open}
                         aria-controls="entity-lookup-list"
-                        className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-8 text-xs font-mono transition focus:border-[#1a9e52] focus:outline-none focus:ring-2 focus:ring-[#1a9e52]/20 disabled:bg-slate-50"
+                        className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-9 text-sm shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:bg-slate-50"
                     />
                     {loading && (
                         <Loader2

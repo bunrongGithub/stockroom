@@ -3,8 +3,21 @@
 import AsyncSearchSelect from '@/components/ui/AsyncSearchSelect';
 import BusinessPartnerLookup from '@/components/master-data/BusinessPartnerLookup';
 import ItemClassBadge from '@/components/ui/ItemClassBadge';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import {
+  EditableInput,
+  EditableTextarea,
+  FieldLabel,
+} from '@/components/ui/FieldLabel';
+import { ReadonlyInput } from '@/components/ui/Readonly';
+import {
+  FieldGrid,
+  FormLayout,
+  SectionCard,
+  SidebarCard,
+  StepButton,
+  TabNav,
+  TabPanel,
+} from '@/components/ui/FormShell';
 import { API } from '@/lib/constant';
 import { saleOrderApi } from '@/lib/api/sale';
 import { useItemAutoFill } from '@/hook/useItemAutoFill';
@@ -15,9 +28,11 @@ import {
   AlertCircle,
   ArrowLeftIcon,
   ChevronRight,
+  ClipboardList,
   Loader2Icon,
   Package,
   PlusIcon,
+  ReceiptText,
   SaveIcon,
   Trash2Icon,
   X,
@@ -295,7 +310,7 @@ export default function OrderForm({
         <h2 className="mt-3 flex items-center gap-2 text-2xl font-bold text-slate-800 md:text-3xl">
           <Package className="text-[#1a9e52]" />
           {mode === 'create'
-            ? 'New Sales Order'
+            ? 'Sale Order'
             : `Edit ${initial?.order_no ?? 'Sales Order'}`}
         </h2>
       </div>
@@ -314,368 +329,330 @@ export default function OrderForm({
         </div>
       )}
 
-      <div className="grid gap-6 xl:grid-cols-[350px_minmax(0,1fr)]">
-        {/* LEFT SIDEBAR — summary + actions */}
-        <aside className="space-y-4 self-start xl:sticky xl:top-6">
-          <section className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
-            <div className="border-b border-slate-50 bg-slate-50/80 px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">
-              Order Summary
-            </div>
-            <div className="space-y-2 p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">Customer</span>
-                <span className="font-semibold text-slate-700">
-                  {customerName || '—'}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">Items</span>
-                <span className="font-semibold text-slate-700">
-                  {items.length}
-                </span>
-              </div>
-              <div className="mt-2 space-y-1.5 rounded-xl bg-slate-50 p-3">
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Subtotal</span>
-                  <span>{fmt(subtotal)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Discount</span>
-                  <span className="text-rose-500">- {fmt(discountTotal)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Tax</span>
-                  <span>{fmt(taxTotal)}</span>
-                </div>
-                <div className="flex justify-between border-t pt-1.5 text-sm font-semibold">
-                  <span>Grand Total</span>
-                  <span>
-                    {currency} {fmt(grandTotal)}
+      <FormLayout
+        sidebar={
+          <>
+            <SidebarCard icon={<ReceiptText size={13} />} title="Order Summary">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Customer</span>
+                  <span className="font-semibold text-slate-700">
+                    {customerName || '—'}
                   </span>
                 </div>
-              </div>
-            </div>
-          </section>
-
-          <div className="flex flex-col-reverse gap-2">
-            <button
-              type="button"
-              onClick={() => router.push('/sale/order')}
-              className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-center text-slate-600 transition-colors hover:bg-slate-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={handleSubmit}
-              disabled={saving}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1a9e52] px-4 py-2.5 font-semibold text-white transition-colors hover:bg-[#158042] disabled:opacity-50"
-            >
-              {saving ? (
-                <Loader2Icon className="animate-spin" size={16} />
-              ) : (
-                <SaveIcon size={16} />
-              )}
-              {saving ? 'Saving...' : 'Save Order'}
-            </button>
-          </div>
-        </aside>
-
-        {/* RIGHT — tabs */}
-        <div className="min-w-0">
-          <div className="flex gap-0 border-b border-slate-200">
-            {TABS.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 border-b-2 px-5 py-3 transition-all ${
-                  activeTab === tab.id
-                    ? 'border-[#1a9e52] text-[#1a9e52]'
-                    : 'border-transparent text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Tab 1: Details */}
-          {activeTab === 'details' && (
-            <div className="space-y-5 pt-5">
-              <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-                <h3 className="mb-4 text-xs font-bold uppercase tracking-wider text-slate-500">
-                  Order Information
-                </h3>
-                <div className="grid gap-4 lg:grid-cols-2">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Reference No</Label>
-                    <Input
-                      value={referenceNo}
-                      onChange={(e) => setReferenceNo(e.target.value)}
-                      placeholder="Customer PO / manual reference (optional)"
-                      className="text-xs font-mono"
-                    />
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Items</span>
+                  <span className="font-semibold text-slate-700">
+                    {items.length}
+                  </span>
+                </div>
+                <div className="mt-2 space-y-1.5 rounded-xl bg-slate-50 p-3">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Subtotal</span>
+                    <span>{fmt(subtotal)}</span>
                   </div>
-                  <BusinessPartnerLookup
-                    label="Customer"
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Discount</span>
+                    <span className="text-rose-500">
+                      - {fmt(discountTotal)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Tax</span>
+                    <span>{fmt(taxTotal)}</span>
+                  </div>
+                  <div className="flex justify-between border-t pt-1.5 text-sm font-semibold">
+                    <span>Grand Total</span>
+                    <span>
+                      {currency} {fmt(grandTotal)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </SidebarCard>
+
+            <div className="flex flex-col-reverse gap-2">
+              <button
+                type="button"
+                onClick={() => router.push('/sale/order')}
+                className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-center text-slate-600 transition-colors hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={saving}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1a9e52] px-4 py-2.5 font-semibold text-white transition-colors hover:bg-[#158042] disabled:opacity-50"
+              >
+                {saving ? (
+                  <Loader2Icon className="animate-spin" size={16} />
+                ) : (
+                  <SaveIcon size={16} />
+                )}
+                {saving ? 'Saving...' : 'Save Order'}
+              </button>
+            </div>
+          </>
+        }
+      >
+        <TabNav tabs={TABS} active={activeTab} onChangeAction={setActiveTab} />
+
+        {/* Tab 1: Details */}
+        {activeTab === 'details' && (
+          <TabPanel>
+            <SectionCard
+              icon={<ClipboardList size={13} />}
+              title="Order Information"
+            >
+              <FieldGrid>
+                <div>
+                  <FieldLabel>Reference No</FieldLabel>
+                  <EditableInput
+                    value={referenceNo}
+                    onChange={(e) => setReferenceNo(e.target.value)}
+                    placeholder="Customer PO / manual reference (optional)"
+                  />
+                </div>
+                <BusinessPartnerLookup
+                  label="Customer"
+                  required
+                  role="customer"
+                  value={partner}
+                  onChange={(p) => {
+                    setPartner(p);
+                    // The document keeps its own snapshot of the name/phone so
+                    // a later rename never rewrites an issued order.
+                    if (p) {
+                      setCustomerName(p.name);
+                      setCustomerPhone(p.phone ?? '');
+                    }
+                  }}
+                />
+                {needsWarehouse ? (
+                  <AsyncSearchSelect
+                    label="Warehouse"
                     required
-                    role="customer"
-                    value={partner}
-                    onChange={(p) => {
-                      setPartner(p);
-                      // The document keeps its own snapshot of the name/phone so
-                      // a later rename never rewrites an issued order.
-                      if (p) {
-                        setCustomerName(p.name);
-                        setCustomerPhone(p.phone ?? '');
-                      }
+                    placeholder="Select warehouse..."
+                    apiUrl={API.inventory.warehouse.root}
+                    value={warehouseId}
+                    selectedLabel={warehouseName}
+                    enablePopupSearch
+                    onChangeAction={(sel) => {
+                      setWarehouseId(sel?.id ? Number(sel.id) : null);
+                      setWarehouseName(sel?.name ?? '');
                     }}
                   />
-                  {needsWarehouse ? (
-                    <AsyncSearchSelect
-                      label="Warehouse *"
-                      placeholder="Select warehouse..."
-                      apiUrl={API.inventory.warehouse.root}
-                      value={warehouseId}
-                      selectedLabel={warehouseName}
-                      enablePopupSearch
-                      onChangeAction={(sel) => {
-                        setWarehouseId(sel?.id ? Number(sel.id) : null);
-                        setWarehouseName(sel?.name ?? '');
-                      }}
-                    />
-                  ) : (
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Warehouse</Label>
-                      <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-400">
-                        Not needed — no stock items on this order
+                ) : (
+                  <div>
+                    <FieldLabel>Warehouse</FieldLabel>
+                    <ReadonlyInput placeholder="Not needed — no stock items on this order" />
+                  </div>
+                )}
+                <div>
+                  <FieldLabel>Currency</FieldLabel>
+                  <EditableInput
+                    value={currency}
+                    onChange={(e) => setCurrency(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <FieldLabel required>Order Date</FieldLabel>
+                  <EditableInput
+                    type="date"
+                    value={orderDate}
+                    onChange={(e) => setOrderDate(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <FieldLabel>Expected Delivery Date</FieldLabel>
+                  <EditableInput
+                    type="date"
+                    value={expectedDate}
+                    onChange={(e) => setExpectedDate(e.target.value)}
+                  />
+                </div>
+                <div className="lg:col-span-2">
+                  <FieldLabel>Notes</FieldLabel>
+                  <EditableTextarea
+                    value={notes ?? ''}
+                    onChange={(e) => setNotes(e.target.value)}
+                    rows={3}
+                    placeholder="Optional notes..."
+                  />
+                </div>
+              </FieldGrid>
+            </SectionCard>
+
+            <div className="flex justify-end">
+              <StepButton onClick={() => setActiveTab('items')}>
+                Order Items <ChevronRight size={16} />
+              </StepButton>
+            </div>
+          </TabPanel>
+        )}
+
+        {/* Tab 2: Order Items */}
+        {activeTab === 'items' && (
+          <TabPanel>
+            <SectionCard
+              icon={<Package size={13} />}
+              title="Order Items"
+              action={
+                <button
+                  type="button"
+                  onClick={() => setItems((p) => [...p, emptyLine()])}
+                  className="inline-flex items-center gap-1 rounded-lg bg-[#1a9e52] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#158042]"
+                >
+                  <PlusIcon size={12} /> Add Item
+                </button>
+              }
+            >
+              <div className="space-y-4">
+                {items.map((line, idx) => {
+                  const lineTotal =
+                    line.ordered_qty *
+                    line.unit_price *
+                    (1 - line.discount / 100) *
+                    (1 + line.tax / 100);
+                  return (
+                    <div
+                      key={line.key}
+                      className="space-y-3 rounded-xl border border-slate-200 p-3"
+                    >
+                      <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3">
+                        <div className="relative">
+                          <AsyncSearchSelect
+                            label="Product"
+                            required
+                            placeholder="Select product..."
+                            apiUrl={`${API.inventory.item.root}?sellable=true`}
+                            value={line.item_id}
+                            selectedLabel={line.product_name}
+                            enablePopupSearch
+                            onChangeAction={(sel) =>
+                              onPickItem(idx, line.key, sel)
+                            }
+                          />
+                          {line.item_class && (
+                            <span className="absolute right-0 top-0">
+                              <ItemClassBadge itemClass={line.item_class} />
+                            </span>
+                          )}
+                        </div>
+                        {items.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setItems((p) => p.filter((_, i) => i !== idx))
+                            }
+                            className="mt-7 h-11.5 w-11.5 shrink-0 rounded-xl border border-rose-200 text-rose-400 transition-colors hover:bg-rose-50 hover:text-rose-600"
+                            title="Remove item"
+                          >
+                            <Trash2Icon size={14} className="mx-auto" />
+                          </button>
+                        )}
+                      </div>
+                      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+                        {line.item_id ? (
+                          <AsyncSearchSelect
+                            key={line.item_id}
+                            label="UOM"
+                            placeholder="Select UOM..."
+                            apiUrl={`${API.inventory.itemUom.root}?item_id=${line.item_id}`}
+                            value={line.item_uom_id}
+                            selectedLabel={line.uom}
+                            enablePopupSearch
+                            onChangeAction={(sel) =>
+                              setLine(idx, {
+                                item_uom_id: sel?.id ? Number(sel.id) : null,
+                                uom: sel?.name ?? '',
+                              })
+                            }
+                          />
+                        ) : (
+                          <div>
+                            <FieldLabel>UOM</FieldLabel>
+                            <ReadonlyInput placeholder="" />
+                          </div>
+                        )}
+                        <div>
+                          <FieldLabel required>Qty</FieldLabel>
+                          <EditableInput
+                            data-qty={line.key}
+                            type="number"
+                            min={0}
+                            step="0.001"
+                            value={line.ordered_qty}
+                            onChange={(e) =>
+                              setLine(idx, {
+                                ordered_qty: Number(e.target.value),
+                              })
+                            }
+                          />
+                        </div>
+                        <div>
+                          <FieldLabel required>Unit Price</FieldLabel>
+                          <EditableInput
+                            type="number"
+                            min={0}
+                            step="0.0001"
+                            value={line.unit_price}
+                            onChange={(e) =>
+                              setLine(idx, {
+                                unit_price: Number(e.target.value),
+                              })
+                            }
+                          />
+                        </div>
+                        <div>
+                          <FieldLabel>Disc %</FieldLabel>
+                          <EditableInput
+                            type="number"
+                            min={0}
+                            max={100}
+                            step="0.01"
+                            value={line.discount}
+                            onChange={(e) =>
+                              setLine(idx, {
+                                discount: Number(e.target.value),
+                              })
+                            }
+                          />
+                        </div>
+                        <div>
+                          <FieldLabel>Tax %</FieldLabel>
+                          <EditableInput
+                            type="number"
+                            min={0}
+                            max={100}
+                            step="0.01"
+                            value={line.tax}
+                            onChange={(e) =>
+                              setLine(idx, {
+                                tax: Number(e.target.value),
+                              })
+                            }
+                          />
+                        </div>
+                      </div>
+                      <div className="text-right font-semibold text-slate-600">
+                        Line Total: {fmt(lineTotal)}
                       </div>
                     </div>
-                  )}
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Currency</Label>
-                    <Input
-                      value={currency}
-                      onChange={(e) => setCurrency(e.target.value)}
-                      className="text-xs font-mono"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Order Date *</Label>
-                    <Input
-                      type="date"
-                      value={orderDate}
-                      onChange={(e) => setOrderDate(e.target.value)}
-                      className="text-xs font-mono"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Expected Delivery Date</Label>
-                    <Input
-                      type="date"
-                      value={expectedDate}
-                      onChange={(e) => setExpectedDate(e.target.value)}
-                      className="text-xs font-mono"
-                    />
-                  </div>
-                  <div className="space-y-1.5 lg:col-span-2">
-                    <Label className="text-xs">Notes</Label>
-                    <textarea
-                      value={notes ?? ''}
-                      onChange={(e) => setNotes(e.target.value)}
-                      rows={3}
-                      placeholder="Optional notes..."
-                      className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-ring"
-                    />
-                  </div>
-                </div>
-              </section>
-
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('items')}
-                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-slate-600 transition-colors hover:bg-slate-50"
-                >
-                  Order Items <ChevronRight size={16} />
-                </button>
+                  );
+                })}
               </div>
+            </SectionCard>
+
+            <div className="flex justify-start">
+              <StepButton onClick={() => setActiveTab('details')}>
+                <ArrowLeftIcon size={16} /> Details
+              </StepButton>
             </div>
-          )}
-
-          {/* Tab 2: Order Items */}
-          {activeTab === 'items' && (
-            <div className="space-y-5 pt-5">
-              <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-                <div className="mb-4 flex items-center justify-between">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                    Order Items
-                  </h3>
-                  <button
-                    type="button"
-                    onClick={() => setItems((p) => [...p, emptyLine()])}
-                    className="inline-flex items-center gap-1 rounded-lg bg-[#1a9e52] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#158042]"
-                  >
-                    <PlusIcon size={12} /> Add Item
-                  </button>
-                </div>
-
-                <div className="space-y-4">
-                  {items.map((line, idx) => {
-                    const lineTotal =
-                      line.ordered_qty *
-                      line.unit_price *
-                      (1 - line.discount / 100) *
-                      (1 + line.tax / 100);
-                    return (
-                      <div
-                        key={line.key}
-                        className="rounded-xl border border-slate-200 p-3 space-y-3"
-                      >
-                        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3">
-                          <div className="relative">
-                            <AsyncSearchSelect
-                              label="Product *"
-                              placeholder="Select product..."
-                              apiUrl={`${API.inventory.item.root}?sellable=true`}
-                              value={line.item_id}
-                              selectedLabel={line.product_name}
-                              enablePopupSearch
-                              onChangeAction={(sel) =>
-                                onPickItem(idx, line.key, sel)
-                              }
-                            />
-                            {line.item_class && (
-                              <span className="absolute right-0 top-0">
-                                <ItemClassBadge itemClass={line.item_class} />
-                              </span>
-                            )}
-                          </div>
-                          {items.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setItems((p) => p.filter((_, i) => i !== idx))
-                              }
-                              className="mt-6 h-9 w-9 shrink-0 rounded-lg border border-rose-200 text-rose-400 transition-colors hover:bg-rose-50 hover:text-rose-600"
-                              title="Remove item"
-                            >
-                              <Trash2Icon size={14} className="mx-auto" />
-                            </button>
-                          )}
-                        </div>
-                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-                          {line.item_id ? (
-                            <AsyncSearchSelect
-                              key={line.item_id}
-                              label="UOM"
-                              placeholder="Select UOM..."
-                              apiUrl={`${API.inventory.itemUom.root}?item_id=${line.item_id}`}
-                              value={line.item_uom_id}
-                              selectedLabel={line.uom}
-                              enablePopupSearch
-                              onChangeAction={(sel) =>
-                                setLine(idx, {
-                                  item_uom_id: sel?.id ? Number(sel.id) : null,
-                                  uom: sel?.name ?? '',
-                                })
-                              }
-                            />
-                          ) : (
-                            <div className="space-y-1.5">
-                              <Label className="text-xs">UOM</Label>
-                              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-400">
-                                Select a product first
-                              </div>
-                            </div>
-                          )}
-                          <div className="space-y-1.5">
-                            <Label className="text-xs">Qty *</Label>
-                            <Input
-                              data-qty={line.key}
-                              type="number"
-                              min={0}
-                              step="0.001"
-                              value={line.ordered_qty}
-                              onChange={(e) =>
-                                setLine(idx, {
-                                  ordered_qty: Number(e.target.value),
-                                })
-                              }
-                              className="text-xs font-mono"
-                            />
-                          </div>
-                          <div className="space-y-1.5">
-                            <Label className="text-xs">Unit Price *</Label>
-                            <Input
-                              type="number"
-                              min={0}
-                              step="0.0001"
-                              value={line.unit_price}
-                              onChange={(e) =>
-                                setLine(idx, {
-                                  unit_price: Number(e.target.value),
-                                })
-                              }
-                              className="text-xs font-mono"
-                            />
-                          </div>
-                          <div className="space-y-1.5">
-                            <Label className="text-xs">Disc %</Label>
-                            <Input
-                              type="number"
-                              min={0}
-                              max={100}
-                              step="0.01"
-                              value={line.discount}
-                              onChange={(e) =>
-                                setLine(idx, {
-                                  discount: Number(e.target.value),
-                                })
-                              }
-                              className="text-xs font-mono"
-                            />
-                          </div>
-                          <div className="space-y-1.5">
-                            <Label className="text-xs">Tax %</Label>
-                            <Input
-                              type="number"
-                              min={0}
-                              max={100}
-                              step="0.01"
-                              value={line.tax}
-                              onChange={(e) =>
-                                setLine(idx, {
-                                  tax: Number(e.target.value),
-                                })
-                              }
-                              className="text-xs font-mono"
-                            />
-                          </div>
-                        </div>
-                        <div className="text-right text-xs font-mono font-semibold text-slate-600">
-                          Line Total: {fmt(lineTotal)}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
-
-              <div className="flex justify-start">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('details')}
-                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-slate-600 transition-colors hover:bg-slate-50"
-                >
-                  <ArrowLeftIcon size={16} /> Details
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
+          </TabPanel>
+        )}
+      </FormLayout>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { DataTable, type DataTableColumn } from '@/components/ui/DataTable';
+import { RowAction, RowActions } from '@/components/ui/button-action';
 import { auditUserColumns } from '@/components/ui/audit-columns';
 import { useRegisterModule } from '@/hook/useModule';
 import { useTableQuery } from '@/hook/useTableQuery';
@@ -93,34 +94,49 @@ export default function SaleShipmentPage({ currentPath, permission, currentPathA
         {
             key: 'actions',
             header: 'Actions',
+            sticky: 'right',
+            align: 'right',
             cell: (row) => {
                 const a = row.actions;
                 return (
-                    <div className="flex items-center gap-1.5">
-                        <button onClick={() => router.push(`/sale/delivery-note/${row.id}/view`)} className="inline-flex items-center gap-1 rounded-lg border border-sky-200 px-2 py-1 text-xs text-sky-600 hover:bg-sky-50 font-mono">
-                            <EyeIcon size={11} /> View
-                        </button>
+                    <RowActions>
+                        <RowAction
+                            label="View"
+                            icon={<EyeIcon size={13} />}
+                            href={`/sale/delivery-note/${row.id}/view`}
+                        />
                         {a?.can_update && (
-                            <button onClick={() => router.push(`/sale/delivery-note/${row.id}/update`)} className="inline-flex items-center gap-1 rounded-lg border border-violet-200 px-2 py-1 text-xs text-violet-600 hover:bg-violet-50 font-mono">
-                                <PencilIcon size={11} /> Edit
-                            </button>
+                            <RowAction
+                                label="Edit"
+                                icon={<PencilIcon size={13} />}
+                                href={`/sale/delivery-note/${row.id}/update`}
+                            />
                         )}
                         {a?.can_post && (
-                            <button onClick={() => setConfirm({ type: 'post', id: row.id, no: row.shipment_no })} className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 px-2 py-1 text-xs text-emerald-600 hover:bg-emerald-50 font-mono">
-                                <SendIcon size={11} /> Post
-                            </button>
+                            <RowAction
+                                label="Post"
+                                icon={<SendIcon size={13} />}
+                                tone="primary"
+                                onClick={() => setConfirm({ type: 'post', id: row.id, no: row.shipment_no })}
+                            />
                         )}
                         {a?.can_void && (
-                            <button onClick={() => setConfirm({ type: 'void', id: row.id, no: row.shipment_no })} className="inline-flex items-center gap-1 rounded-lg border border-rose-200 px-2 py-1 text-xs text-rose-600 hover:bg-rose-50 font-mono">
-                                <Ban size={11} /> Void
-                            </button>
+                            <RowAction
+                                label="Void"
+                                icon={<Ban size={13} />}
+                                tone="danger"
+                                onClick={() => setConfirm({ type: 'void', id: row.id, no: row.shipment_no })}
+                            />
                         )}
                         {a?.can_update && (
-                            <button onClick={() => setConfirm({ type: 'delete', id: row.id, no: row.shipment_no })} className="inline-flex items-center gap-1 rounded-lg border border-rose-200 px-2 py-1 text-xs text-rose-600 hover:bg-rose-50 font-mono">
-                                <Trash2Icon size={11} /> Delete
-                            </button>
+                            <RowAction
+                                label="Delete"
+                                icon={<Trash2Icon size={13} />}
+                                tone="danger"
+                                onClick={() => setConfirm({ type: 'delete', id: row.id, no: row.shipment_no })}
+                            />
                         )}
-                    </div>
+                    </RowActions>
                 );
             },
         },
@@ -162,6 +178,8 @@ export default function SaleShipmentPage({ currentPath, permission, currentPathA
                 columns={columns}
                 data={table.data}
                 keyExtractor={(row) => row.id}
+                mobileVariant="cards"
+                minTableWidth="1440px"
                 searchPlaceholder="Search by shipment no, reference, or customer..."
                 pageSizeOptions={[10, 20, 50]}
                 serverQuery={table.binding}

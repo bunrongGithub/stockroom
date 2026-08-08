@@ -5,6 +5,7 @@ import { auditUserColumns } from '@/components/ui/audit-columns';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { RowAction, RowActions } from '@/components/ui/button-action';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/Toast';
 import { useRegisterModule } from '@/hook/useModule';
@@ -101,44 +102,52 @@ export default function SaleOrderPage({ currentPath, permission, currentPathActi
         {
             key: 'actions',
             header: 'Actions',
+            sticky: 'right',
             align: 'right',
             hideOnCard: false,
             cardFooter: true,
             cell: (row) => {
                 const a = row.actions;
                 return (
-                    <div className="flex flex-wrap items-center justify-end gap-1.5">
-                        <Button variant="outline" size="sm" onClick={() => router.push(`/sale/order/${row.id}/view`)}>
-                            <EyeIcon size={14} /> View
-                        </Button>
+                    <RowActions>
+                        <RowAction
+                            label="View"
+                            icon={<EyeIcon size={13} />}
+                            href={`/sale/order/${row.id}/view`}
+                        />
                         {a?.can_update && (
-                            <Button variant="outline" size="sm" onClick={() => router.push(`/sale/order/${row.id}/update`)}>
-                                <PencilIcon size={14} /> Edit
-                            </Button>
+                            <RowAction
+                                label="Edit"
+                                icon={<PencilIcon size={13} />}
+                                href={`/sale/order/${row.id}/update`}
+                            />
                         )}
                         {a?.can_ship && (
-                            <Button
-                                variant="outline"
-                                size="sm"
+                            <RowAction
+                                label="Ship"
+                                icon={<TruckIcon size={13} />}
                                 onClick={() => {
                                     if (typeof window !== 'undefined') sessionStorage.setItem('pending_dn_order_id', String(row.id));
                                     router.push('/sale/delivery-note/create');
                                 }}
-                            >
-                                <TruckIcon size={14} /> Ship
-                            </Button>
+                            />
                         )}
                         {a?.can_close && (
-                            <Button variant="outline" size="sm" onClick={() => setConfirmAction({ type: 'close', id: row.id, no: row.order_no })}>
-                                <CheckCircleIcon size={14} /> Close
-                            </Button>
+                            <RowAction
+                                label="Close"
+                                icon={<CheckCircleIcon size={13} />}
+                                onClick={() => setConfirmAction({ type: 'close', id: row.id, no: row.order_no })}
+                            />
                         )}
                         {a?.can_cancel && (
-                            <Button variant="outline" size="sm" className="text-danger hover:text-danger" onClick={() => setConfirmAction({ type: 'cancel', id: row.id, no: row.order_no })}>
-                                <XCircleIcon size={14} /> Cancel
-                            </Button>
+                            <RowAction
+                                label="Cancel"
+                                icon={<XCircleIcon size={13} />}
+                                tone="danger"
+                                onClick={() => setConfirmAction({ type: 'cancel', id: row.id, no: row.order_no })}
+                            />
                         )}
-                    </div>
+                    </RowActions>
                 );
             },
         },
@@ -163,7 +172,7 @@ export default function SaleOrderPage({ currentPath, permission, currentPathActi
                 data={table.data}
                 keyExtractor={(row) => row.id}
                 mobileVariant="cards"
-                minTableWidth="860px"
+                minTableWidth="1640px"
                 searchPlaceholder="Search by order no, reference, or customer..."
                 pageSizeOptions={[10, 20, 50]}
                 serverQuery={table.binding}

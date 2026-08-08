@@ -1,8 +1,20 @@
 'use client';
 
 import ItemClassBadge from '@/components/ui/ItemClassBadge';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import {
+  EditableInput,
+  EditableTextarea,
+  FieldLabel,
+} from '@/components/ui/FieldLabel';
+import {
+  FieldGrid,
+  FormLayout,
+  SectionCard,
+  SidebarCard,
+  StepButton,
+  TabNav,
+  TabPanel,
+} from '@/components/ui/FormShell';
 import { financesInvoiceApi } from '@/lib/api/finances';
 import {
   AlertCircle,
@@ -10,6 +22,8 @@ import {
   ChevronRight,
   FileText,
   Loader2Icon,
+  Package,
+  ReceiptText,
   SaveIcon,
   X,
 } from 'lucide-react';
@@ -177,7 +191,7 @@ export default function InvoiceForm({
     <div className="space-y-4 font-mono text-xs">
       <div>
         <button
-          onClick={() => router.push('/sale/invoice')}
+          onClick={() => router.push('/finances/invoice')}
           className="inline-flex items-center gap-2 text-slate-500 transition-colors hover:text-slate-700"
         >
           <ArrowLeftIcon size={16} /> Back to Invoices
@@ -206,295 +220,254 @@ export default function InvoiceForm({
         </div>
       )}
 
-      <div className="grid gap-6 xl:grid-cols-[350px_minmax(0,1fr)]">
-        {/* LEFT SIDEBAR */}
-        <aside className="space-y-4 self-start xl:sticky xl:top-6">
-          <section className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
-            <div className="border-b border-slate-50 bg-slate-50/80 px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">
-              Invoice Summary
-            </div>
-            <div className="space-y-2 p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">Customer</span>
-                <span className="font-semibold text-slate-700">
-                  {header.customer_name || '—'}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">Shipment</span>
-                <span className="font-semibold text-slate-700">
-                  {shipmentNo}
-                </span>
-              </div>
-              <div className="mt-2 space-y-1.5 rounded-xl bg-slate-50 p-3">
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Subtotal</span>
-                  <span>{fmt(subtotal)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Discount</span>
-                  <span className="text-rose-500">- {fmt(discountTotal)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Tax</span>
-                  <span>{fmt(taxTotal)}</span>
-                </div>
-                <div className="flex justify-between border-t pt-1.5 text-sm font-semibold">
-                  <span>Grand Total</span>
-                  <span>
-                    {header.currency} {fmt(grandTotal)}
+      <FormLayout
+        sidebar={
+          <>
+            <SidebarCard
+              icon={<ReceiptText size={13} />}
+              title="Invoice Summary"
+            >
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Customer</span>
+                  <span className="font-semibold text-slate-700">
+                    {header.customer_name || '—'}
                   </span>
                 </div>
-              </div>
-            </div>
-          </section>
-
-          <div className="flex flex-col-reverse gap-2">
-            <button
-              type="button"
-              onClick={() => router.push('/sale/invoice')}
-              className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-center text-slate-600 transition-colors hover:bg-slate-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={handleSubmit}
-              disabled={saving}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1a9e52] px-4 py-2.5 font-semibold text-white transition-colors hover:bg-[#158042] disabled:opacity-50"
-            >
-              {saving ? (
-                <Loader2Icon className="animate-spin" size={16} />
-              ) : (
-                <SaveIcon size={16} />
-              )}
-              {saving ? 'Saving...' : 'Save Invoice'}
-            </button>
-          </div>
-        </aside>
-
-        {/* RIGHT — tabs */}
-        <div className="min-w-0">
-          <div className="flex gap-0 border-b border-slate-200">
-            {TABS.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 border-b-2 px-5 py-3 transition-all ${
-                  activeTab === tab.id
-                    ? 'border-[#1a9e52] text-[#1a9e52]'
-                    : 'border-transparent text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Tab 1: Details */}
-          {activeTab === 'details' && (
-            <div className="space-y-5 pt-5">
-              <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-                <h3 className="mb-4 text-xs font-bold uppercase tracking-wider text-slate-500">
-                  Invoice Information
-                </h3>
-                <div className="grid gap-4 lg:grid-cols-2">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Reference No</Label>
-                    <Input
-                      value={header.reference_no}
-                      onChange={(e) => setH('reference_no', e.target.value)}
-                      placeholder="Customer PO (optional)"
-                      className="text-xs font-mono"
-                    />
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Shipment</span>
+                  <span className="font-semibold text-slate-700">
+                    {shipmentNo}
+                  </span>
+                </div>
+                <div className="mt-2 space-y-1.5 rounded-xl bg-slate-50 p-3">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Subtotal</span>
+                    <span>{fmt(subtotal)}</span>
                   </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Customer Name *</Label>
-                    <Input
-                      value={header.customer_name}
-                      onChange={(e) => setH('customer_name', e.target.value)}
-                      className="text-xs font-mono"
-                    />
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Discount</span>
+                    <span className="text-rose-500">
+                      - {fmt(discountTotal)}
+                    </span>
                   </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Customer Phone</Label>
-                    <Input
-                      value={header.customer_phone}
-                      onChange={(e) => setH('customer_phone', e.target.value)}
-                      className="text-xs font-mono"
-                    />
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Tax</span>
+                    <span>{fmt(taxTotal)}</span>
                   </div>
-                  <div className="space-y-1.5 lg:col-span-2">
-                    <Label className="text-xs">Customer Address</Label>
-                    <Input
-                      value={header.customer_address}
-                      onChange={(e) => setH('customer_address', e.target.value)}
-                      className="text-xs font-mono"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Invoice Date *</Label>
-                    <Input
-                      type="date"
-                      value={header.invoice_date}
-                      onChange={(e) => setH('invoice_date', e.target.value)}
-                      className="text-xs font-mono"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Currency</Label>
-                    <Input
-                      value={header.currency}
-                      onChange={(e) => setH('currency', e.target.value)}
-                      className="text-xs font-mono"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Exchange Rate</Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      step="0.0001"
-                      value={header.exchange_rate}
-                      onChange={(e) =>
-                        setH('exchange_rate', Number(e.target.value))
-                      }
-                      className="text-xs font-mono"
-                    />
-                  </div>
-                  <div className="space-y-1.5 lg:col-span-2">
-                    <Label className="text-xs">Remarks</Label>
-                    <textarea
-                      value={header.remarks}
-                      onChange={(e) => setH('remarks', e.target.value)}
-                      rows={3}
-                      placeholder="Optional remarks..."
-                      className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-ring"
-                    />
+                  <div className="flex justify-between border-t pt-1.5 text-sm font-semibold">
+                    <span>Grand Total</span>
+                    <span>
+                      {header.currency} {fmt(grandTotal)}
+                    </span>
                   </div>
                 </div>
-              </section>
-
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('items')}
-                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-slate-600 transition-colors hover:bg-slate-50"
-                >
-                  Invoice Items <ChevronRight size={16} />
-                </button>
               </div>
-            </div>
-          )}
+            </SidebarCard>
 
-          {/* Tab 2: Invoice Items */}
-          {activeTab === 'items' && (
-            <div className="space-y-5 pt-5">
-              <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-                <h3 className="mb-4 text-xs font-bold uppercase tracking-wider text-slate-500">
-                  Invoice Items
-                </h3>
-                <div className="space-y-4">
-                  {lines.map((line, idx) => (
-                    <div
-                      key={line.key}
-                      className="rounded-xl border border-slate-200 p-3 space-y-3"
-                    >
-                      <div className="flex items-center gap-2 text-xs font-mono font-semibold text-slate-700">
-                        {line.product_name}
-                        <ItemClassBadge
-                          itemClass={line.item_class}
-                          iconOnly
-                        />
-                        <span className="font-normal text-slate-400">
-                          {line.uom || ''}
+            <div className="flex flex-col-reverse gap-2">
+              <button
+                type="button"
+                onClick={() => router.push('/finances/invoice')}
+                className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-center text-slate-600 transition-colors hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={saving}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1a9e52] px-4 py-2.5 font-semibold text-white transition-colors hover:bg-[#158042] disabled:opacity-50"
+              >
+                {saving ? (
+                  <Loader2Icon className="animate-spin" size={16} />
+                ) : (
+                  <SaveIcon size={16} />
+                )}
+                {saving ? 'Saving...' : 'Save Invoice'}
+              </button>
+            </div>
+          </>
+        }
+      >
+        <TabNav tabs={TABS} active={activeTab} onChangeAction={setActiveTab} />
+
+        {/* Tab 1: Details */}
+        {activeTab === 'details' && (
+          <TabPanel>
+            <SectionCard
+              icon={<FileText size={13} />}
+              title="Invoice Information"
+            >
+              <FieldGrid>
+                <div>
+                  <FieldLabel>Reference No</FieldLabel>
+                  <EditableInput
+                    value={header.reference_no}
+                    onChange={(e) => setH('reference_no', e.target.value)}
+                    placeholder="Customer PO (optional)"
+                  />
+                </div>
+                <div>
+                  <FieldLabel required>Customer Name</FieldLabel>
+                  <EditableInput
+                    value={header.customer_name}
+                    onChange={(e) => setH('customer_name', e.target.value)}
+                  />
+                </div>
+                <div>
+                  <FieldLabel>Customer Phone</FieldLabel>
+                  <EditableInput
+                    value={header.customer_phone}
+                    onChange={(e) => setH('customer_phone', e.target.value)}
+                  />
+                </div>
+                <div className="lg:col-span-2">
+                  <FieldLabel>Customer Address</FieldLabel>
+                  <EditableInput
+                    value={header.customer_address}
+                    onChange={(e) => setH('customer_address', e.target.value)}
+                  />
+                </div>
+                <div>
+                  <FieldLabel required>Invoice Date</FieldLabel>
+                  <EditableInput
+                    type="date"
+                    value={header.invoice_date}
+                    onChange={(e) => setH('invoice_date', e.target.value)}
+                  />
+                </div>
+                <div>
+                  <FieldLabel>Currency</FieldLabel>
+                  <EditableInput
+                    value={header.currency}
+                    onChange={(e) => setH('currency', e.target.value)}
+                  />
+                </div>
+                <div>
+                  <FieldLabel>Exchange Rate</FieldLabel>
+                  <EditableInput
+                    type="number"
+                    min={0}
+                    step="0.0001"
+                    value={header.exchange_rate}
+                    onChange={(e) =>
+                      setH('exchange_rate', Number(e.target.value))
+                    }
+                  />
+                </div>
+                <div className="lg:col-span-2">
+                  <FieldLabel>Remarks</FieldLabel>
+                  <EditableTextarea
+                    value={header.remarks}
+                    onChange={(e) => setH('remarks', e.target.value)}
+                    rows={3}
+                    placeholder="Optional remarks..."
+                  />
+                </div>
+              </FieldGrid>
+            </SectionCard>
+
+            <div className="flex justify-end">
+              <StepButton onClick={() => setActiveTab('items')}>
+                Invoice Items <ChevronRight size={16} />
+              </StepButton>
+            </div>
+          </TabPanel>
+        )}
+
+        {/* Tab 2: Invoice Items */}
+        {activeTab === 'items' && (
+          <TabPanel>
+            <SectionCard icon={<Package size={13} />} title="Invoice Items">
+              <div className="space-y-4">
+                {lines.map((line, idx) => (
+                  <div
+                    key={line.key}
+                    className="space-y-3 rounded-xl border border-slate-200 p-3"
+                  >
+                    <div className="flex items-center gap-2 font-semibold text-slate-700">
+                      {line.product_name}
+                      <ItemClassBadge itemClass={line.item_class} iconOnly />
+                      <span className="font-normal text-slate-400">
+                        {line.uom || ''}
+                      </span>
+                      {line.shipment_item_id == null && (
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-normal text-slate-500">
+                          from order — no shipment needed
                         </span>
-                        {line.shipment_item_id == null && (
-                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-normal text-slate-500">
-                            from order — no shipment needed
-                          </span>
-                        )}
+                      )}
+                    </div>
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                      <div>
+                        <FieldLabel required>Qty</FieldLabel>
+                        <EditableInput
+                          type="number"
+                          min={0}
+                          step="0.001"
+                          value={line.quantity}
+                          onChange={(e) =>
+                            setLine(idx, { quantity: Number(e.target.value) })
+                          }
+                        />
                       </div>
-                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                        <div className="space-y-1.5">
-                          <Label className="text-xs">Qty *</Label>
-                          <Input
-                            type="number"
-                            min={0}
-                            step="0.001"
-                            value={line.quantity}
-                            onChange={(e) =>
-                              setLine(idx, { quantity: Number(e.target.value) })
-                            }
-                            className="text-xs font-mono"
-                          />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label className="text-xs">Unit Price *</Label>
-                          <Input
-                            type="number"
-                            min={0}
-                            step="0.0001"
-                            value={line.unit_price}
-                            onChange={(e) =>
-                              setLine(idx, {
-                                unit_price: Number(e.target.value),
-                              })
-                            }
-                            className="text-xs font-mono"
-                          />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label className="text-xs">Disc %</Label>
-                          <Input
-                            type="number"
-                            min={0}
-                            max={100}
-                            step="0.01"
-                            value={line.discount}
-                            onChange={(e) =>
-                              setLine(idx, { discount: Number(e.target.value) })
-                            }
-                            className="text-xs font-mono"
-                          />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label className="text-xs">Tax %</Label>
-                          <Input
-                            type="number"
-                            min={0}
-                            max={100}
-                            step="0.01"
-                            value={line.tax}
-                            onChange={(e) =>
-                              setLine(idx, { tax: Number(e.target.value) })
-                            }
-                            className="text-xs font-mono"
-                          />
-                        </div>
+                      <div>
+                        <FieldLabel required>Unit Price</FieldLabel>
+                        <EditableInput
+                          type="number"
+                          min={0}
+                          step="0.0001"
+                          value={line.unit_price}
+                          onChange={(e) =>
+                            setLine(idx, {
+                              unit_price: Number(e.target.value),
+                            })
+                          }
+                        />
                       </div>
-                      <div className="text-right text-xs font-mono font-semibold text-slate-600">
-                        Line Total: {fmt(lineTotal(line))}
+                      <div>
+                        <FieldLabel>Disc %</FieldLabel>
+                        <EditableInput
+                          type="number"
+                          min={0}
+                          max={100}
+                          step="0.01"
+                          value={line.discount}
+                          onChange={(e) =>
+                            setLine(idx, { discount: Number(e.target.value) })
+                          }
+                        />
+                      </div>
+                      <div>
+                        <FieldLabel>Tax %</FieldLabel>
+                        <EditableInput
+                          type="number"
+                          min={0}
+                          max={100}
+                          step="0.01"
+                          value={line.tax}
+                          onChange={(e) =>
+                            setLine(idx, { tax: Number(e.target.value) })
+                          }
+                        />
                       </div>
                     </div>
-                  ))}
-                </div>
-              </section>
-
-              <div className="flex justify-start">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('details')}
-                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-slate-600 transition-colors hover:bg-slate-50"
-                >
-                  <ArrowLeftIcon size={16} /> Details
-                </button>
+                    <div className="text-right font-semibold text-slate-600">
+                      Line Total: {fmt(lineTotal(line))}
+                    </div>
+                  </div>
+                ))}
               </div>
+            </SectionCard>
+
+            <div className="flex justify-start">
+              <StepButton onClick={() => setActiveTab('details')}>
+                <ArrowLeftIcon size={16} /> Details
+              </StepButton>
             </div>
-          )}
-        </div>
-      </div>
+          </TabPanel>
+        )}
+      </FormLayout>
     </div>
   );
 }

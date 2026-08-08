@@ -8,6 +8,16 @@ import {saleOrderApi, saleShipmentApi } from '@/lib/api/sale';
 import { financesInvoiceApi } from '@/lib/api/finances';
 import { RelatedDocumentsPanel } from '@/components/ui/RelatedDocuments';
 import { AuditInformationCard } from '@/components/ui/AuditInformationCard';
+import { FieldLabel } from '@/components/ui/FieldLabel';
+import { ReadonlyInput } from '@/components/ui/Readonly';
+import {
+  FieldGrid,
+  FormLayout,
+  SectionCard,
+  SidebarCard,
+  TabNav,
+  TabPanel,
+} from '@/components/ui/FormShell';
 import type { AuditMeta } from '@/types/audit';
 import type {
   SalesInvoice,
@@ -28,6 +38,7 @@ import {
   PackageIcon,
   PencilIcon,
   SendIcon,
+  Truck,
 } from 'lucide-react';
 
 const TABS = [
@@ -209,7 +220,7 @@ export default function SaleShipmentDetail({
           onClick={() => router.push('/sale/delivery-note')}
           className="inline-flex items-center gap-2 text-slate-500 transition-colors hover:text-slate-700"
         >
-          <ArrowLeftIcon size={16} /> Back to Shipments
+          <ArrowLeftIcon size={16} /> Back to Delivery
         </button>
         <h2 className="mt-3 flex items-center gap-3 text-2xl font-bold text-slate-800 md:text-3xl">
           <Package className="text-[#1a9e52]" />
@@ -218,45 +229,42 @@ export default function SaleShipmentDetail({
         </h2>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[350px_minmax(0,1fr)]">
-        {/* LEFT SIDEBAR — summary + actions */}
-        <aside className="space-y-4 self-start xl:sticky xl:top-6">
-          <section className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
-            <div className="border-b border-slate-50 bg-slate-50/80 px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">
-              Shipment Summary
-            </div>
-            <div className="space-y-2 p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">Order</span>
-                <button
-                  onClick={() =>
-                    router.push(`/sale/order/${shipment.sales_order_id}/view`)
-                  }
-                  className="font-semibold text-sky-600 hover:underline"
-                >
-                  {shipment.sales_order_no}
-                </button>
+      <FormLayout
+        sidebar={
+          <>
+            <SidebarCard icon={<Truck size={13} />} title="Shipment Summary">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Order</span>
+                  <button
+                    onClick={() =>
+                      router.push(`/sale/order/${shipment.sales_order_id}/view`)
+                    }
+                    className="font-semibold text-sky-600 hover:underline"
+                  >
+                    {shipment.sales_order_no}
+                  </button>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Customer</span>
+                  <span className="font-semibold text-slate-700">
+                    {shipment.customer_name || '—'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Delivery Date</span>
+                  <span className="font-semibold text-slate-700">
+                    {shipment.delivery_date}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Warehouse</span>
+                  <span className="font-semibold text-slate-700">
+                    {shipment.warehouse_name}
+                  </span>
+                </div>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">Customer</span>
-                <span className="font-semibold text-slate-700">
-                  {shipment.customer_name || '—'}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">Delivery Date</span>
-                <span className="font-semibold text-slate-700">
-                  {shipment.delivery_date}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">Warehouse</span>
-                <span className="font-semibold text-slate-700">
-                  {shipment.warehouse_name}
-                </span>
-              </div>
-            </div>
-          </section>
+            </SidebarCard>
 
           <div className="flex flex-col-reverse gap-2">
             {a?.can_update && (
@@ -314,74 +322,65 @@ export default function SaleShipmentDetail({
             )}
           </div>
 
-          <AuditInformationCard audit={shipment as Partial<AuditMeta>} />
-        </aside>
+            <AuditInformationCard audit={shipment as Partial<AuditMeta>} />
+          </>
+        }
+      >
+        <TabNav tabs={TABS} active={activeTab} onChangeAction={setActiveTab} />
 
-        {/* RIGHT — tabs */}
-        <div className="min-w-0">
-          <div className="flex gap-0 border-b border-slate-200">
-            {TABS.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 border-b-2 px-5 py-3 transition-all ${
-                  activeTab === tab.id
-                    ? 'border-[#1a9e52] text-[#1a9e52]'
-                    : 'border-transparent text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Tab 1: Details */}
-          {activeTab === 'details' && (
-            <div className="space-y-5 pt-5">
-              <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-                <h3 className="mb-4 text-xs font-bold uppercase tracking-wider text-slate-500">
-                  Shipment Information
-                </h3>
-                <div className="grid grid-cols-2 gap-y-3">
-                  <span className="text-slate-400">Reference No</span>
-                  <span>{shipment.reference_no || '—'}</span>
-                  <span className="text-slate-400">Customer</span>
-                  <span className="font-medium">
-                    {shipment.customer_name || '—'}
-                  </span>
-                  <span className="text-slate-400">Customer Phone</span>
-                  <span>{shipment.customer_phone || '—'}</span>
-                  <span className="text-slate-400">Delivery Date</span>
-                  <span>{shipment.delivery_date}</span>
-                  <span className="text-slate-400">Warehouse</span>
-                  <span>{shipment.warehouse_name}</span>
-                  <span className="text-slate-400">Receiver</span>
-                  <span>{shipment.receiver_name || '—'}</span>
-                  <span className="text-slate-400">Address</span>
-                  <span>{shipment.delivery_address || '—'}</span>
-                  {shipment.notes && (
-                    <>
-                      <span className="text-slate-400">Notes</span>
-                      <span>{shipment.notes}</span>
-                    </>
-                  )}
+        {/* Tab 1: Details */}
+        {activeTab === 'details' && (
+          <TabPanel>
+            <SectionCard
+              icon={<Truck size={13} />}
+              title="Shipment Information"
+            >
+              <FieldGrid>
+                <div>
+                  <FieldLabel>Reference No</FieldLabel>
+                  <ReadonlyInput value={shipment.reference_no ?? ''} />
                 </div>
-                <p className="mt-4 text-[11px] text-slate-400">
-                  Last updated {new Date(shipment.updated_at).toLocaleString()}
-                </p>
-              </section>
-            </div>
-          )}
+                <div>
+                  <FieldLabel>Customer</FieldLabel>
+                  <ReadonlyInput value={shipment.customer_name ?? ''} />
+                </div>
+                <div>
+                  <FieldLabel>Customer Phone</FieldLabel>
+                  <ReadonlyInput value={shipment.customer_phone ?? ''} />
+                </div>
+                <div>
+                  <FieldLabel>Delivery Date</FieldLabel>
+                  <ReadonlyInput value={shipment.delivery_date} />
+                </div>
+                <div>
+                  <FieldLabel>Warehouse</FieldLabel>
+                  <ReadonlyInput value={shipment.warehouse_name ?? ''} />
+                </div>
+                <div>
+                  <FieldLabel>Receiver</FieldLabel>
+                  <ReadonlyInput value={shipment.receiver_name ?? ''} />
+                </div>
+                <div className="lg:col-span-2">
+                  <FieldLabel>Address</FieldLabel>
+                  <ReadonlyInput value={shipment.delivery_address ?? ''} />
+                </div>
+                <div className="lg:col-span-2">
+                  <FieldLabel>Notes</FieldLabel>
+                  <ReadonlyInput value={shipment.notes ?? ''} />
+                </div>
+              </FieldGrid>
+              <p className="mt-4 text-[11px] text-slate-400">
+                Last updated {new Date(shipment.updated_at).toLocaleString()}
+              </p>
+            </SectionCard>
+          </TabPanel>
+        )}
 
-          {/* Tab 2: Shipment Items */}
-          {activeTab === 'items' && (
-            <div className="space-y-5 pt-5">
-              <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-                <h3 className="mb-4 text-xs font-bold uppercase tracking-wider text-slate-500">
-                  Shipment Items
-                </h3>
-                <div className="overflow-x-auto">
+        {/* Tab 2: Shipment Items */}
+        {activeTab === 'items' && (
+          <TabPanel>
+            <SectionCard icon={<Package size={13} />} title="Shipment Items">
+              <div className="overflow-x-auto">
                   <table className="w-full text-xs font-mono">
                     <thead>
                       <tr className="border-b text-muted-foreground">
@@ -435,15 +434,15 @@ export default function SaleShipmentDetail({
                       ))}
                     </tbody>
                   </table>
-                </div>
-              </section>
-            </div>
-          )}
+              </div>
+            </SectionCard>
+          </TabPanel>
+        )}
 
-          {/* Tab 3: Related Documents (document flow) */}
-          {activeTab === 'related' && (
-            <div className="space-y-5 pt-5">
-              {(() => {
+        {/* Tab 3: Related Documents (document flow) */}
+        {activeTab === 'related' && (
+          <TabPanel>
+            {(() => {
                 const shippedTotal = shipment.items.reduce(
                   (s, i) => s + i.shipment_qty,
                   0,
@@ -509,7 +508,7 @@ export default function SaleShipmentDetail({
                     }))}
                     generatedEmptyText="No invoices created for this shipment yet."
                     summary={
-                      <div className="flex gap-4 font-mono text-xs">
+                      <div className="flex flex-wrap gap-4 rounded-xl border border-slate-100 bg-slate-50 px-4 py-2.5">
                         <span className="text-slate-400">
                           Shipped{' '}
                           <span className="font-semibold text-slate-700">
@@ -532,11 +531,10 @@ export default function SaleShipmentDetail({
                     }
                   />
                 );
-              })()}
-            </div>
-          )}
-        </div>
-      </div>
+            })()}
+          </TabPanel>
+        )}
+      </FormLayout>
     </div>
   );
 }

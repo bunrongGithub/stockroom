@@ -1,15 +1,11 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
+    EditableInput,
+    EditableSelect,
+    FieldLabel,
+} from '@/components/ui/FieldLabel';
 import BusinessPartnerLookup from '@/components/master-data/BusinessPartnerLookup';
 import ItemClassBadge from '@/components/ui/ItemClassBadge';
 import SerialLookupPanel from '@/components/ui/serial/SerialLookupPanel';
@@ -348,9 +344,9 @@ export default function CashSaleModule({
                                     </div>
 
                                     <div className="mt-3 grid grid-cols-2 items-end gap-3 sm:grid-cols-[7rem_9rem_1fr]">
-                                        <div className="space-y-1">
-                                            <Label>Qty</Label>
-                                            <Input
+                                        <div>
+                                            <FieldLabel>Qty</FieldLabel>
+                                            <EditableInput
                                                 type="number"
                                                 min={1}
                                                 step="any"
@@ -366,9 +362,9 @@ export default function CashSaleModule({
                                                 }
                                             />
                                         </div>
-                                        <div className="space-y-1">
-                                            <Label>Unit price</Label>
-                                            <Input
+                                        <div>
+                                            <FieldLabel>Unit price</FieldLabel>
+                                            <EditableInput
                                                 type="number"
                                                 min={0}
                                                 step="any"
@@ -475,60 +471,60 @@ export default function CashSaleModule({
 
                             {switchOpen && (
                                 <div className="mt-3 space-y-2 border-t border-slate-200 pt-3">
-                                    <div className="space-y-1">
-                                        <Label>Warehouse</Label>
-                                        <Select
+                                    <div>
+                                        <FieldLabel>Warehouse</FieldLabel>
+                                        <EditableSelect
                                             value={
                                                 warehouseId
                                                     ? String(warehouseId)
                                                     : ''
                                             }
-                                            onValueChange={(v) =>
-                                                changeWarehouse(Number(v))
+                                            onChange={(e) =>
+                                                changeWarehouse(
+                                                    Number(e.target.value),
+                                                )
                                             }
                                         >
-                                            <SelectTrigger className="bg-white">
-                                                <SelectValue placeholder="Select a warehouse" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {warehouses.map((w) => (
-                                                    <SelectItem
-                                                        key={w.id}
-                                                        value={String(w.id)}
-                                                    >
-                                                        {w.name}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
+                                            <option value="" disabled>
+                                                Select a warehouse
+                                            </option>
+                                            {warehouses.map((w) => (
+                                                <option
+                                                    key={w.id}
+                                                    value={String(w.id)}
+                                                >
+                                                    {w.name}
+                                                </option>
+                                            ))}
+                                        </EditableSelect>
                                     </div>
-                                    <div className="space-y-1">
-                                        <Label>Location</Label>
-                                        <Select
+                                    <div>
+                                        <FieldLabel>Location</FieldLabel>
+                                        <EditableSelect
                                             value={
                                                 locationId
                                                     ? String(locationId)
                                                     : ''
                                             }
-                                            onValueChange={(v) =>
-                                                changeLocation(Number(v))
+                                            onChange={(e) =>
+                                                changeLocation(
+                                                    Number(e.target.value),
+                                                )
                                             }
                                             disabled={!warehouseId}
                                         >
-                                            <SelectTrigger className="bg-white">
-                                                <SelectValue placeholder="Select a location" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {locations.map((l) => (
-                                                    <SelectItem
-                                                        key={l.id}
-                                                        value={String(l.id)}
-                                                    >
-                                                        {l.name}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
+                                            <option value="" disabled>
+                                                Select a location
+                                            </option>
+                                            {locations.map((l) => (
+                                                <option
+                                                    key={l.id}
+                                                    value={String(l.id)}
+                                                >
+                                                    {l.name}
+                                                </option>
+                                            ))}
+                                        </EditableSelect>
                                     </div>
                                     {lines.some((l) => l.track_serial) && (
                                         <p className="text-amber-600">
@@ -572,9 +568,9 @@ export default function CashSaleModule({
                         </div>
 
                         {method === 'CASH' && (
-                            <div className="space-y-1">
-                                <Label>Cash received</Label>
-                                <Input
+                            <div>
+                                <FieldLabel>Cash received</FieldLabel>
+                                <EditableInput
                                     type="number"
                                     min={0}
                                     step="any"
