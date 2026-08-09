@@ -217,11 +217,7 @@ export class StockAdjustmentRepository extends BaseRepository {
             .insert({
                 company_id: companyId,
                 user_id: ctx.userId,
-                adjustment_no: await getNextDocumentNumber(
-                    ctx,
-                    'stock_adjustment',
-                    'ADJ',
-                ),
+                adjustment_no: await getNextDocumentNumber(ctx, 'stock_adjustment'),
                 reference_no: input.reference_no ?? null,
                 adjustment_date: input.adjustment_date,
                 warehouse_id: input.warehouse_id,

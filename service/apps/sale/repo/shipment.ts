@@ -235,11 +235,7 @@ export class SalesShipmentRepository extends BaseRepository {
         const order = await this.loadShippableOrder(ctx, input.sales_order_id);
         this.validateLines(order, input.items);
 
-        const shipment_no = await getNextDocumentNumber(
-            ctx,
-            'sales_shipment',
-            'SHP',
-        );
+        const shipment_no = await getNextDocumentNumber(ctx, 'sales_shipment');
         const { data: header, error } = await this.db
             .from(HEADER_TABLE)
             .insert(

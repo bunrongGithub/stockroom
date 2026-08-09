@@ -227,11 +227,7 @@ export class InventoryRepository extends BaseRepository {
             input.item_class === 'non_stock' ? 'non_stock_item'
             : input.item_class === 'service' ? 'service_item'
             : 'stock_item';
-        const docPrefix =
-            input.item_class === 'non_stock' ? 'NSTK'
-            : input.item_class === 'service' ? 'SRVC'
-            : 'STCK';
-        const referenceNo = await getNextDocumentNumber(ctx, docType, docPrefix);
+        const referenceNo = await getNextDocumentNumber(ctx, docType);
         const sku = input.sku ? input.sku : generateSKU('SKU');
 
         const { data, error } = await this.scopedDb(Number(ctx.companyId))

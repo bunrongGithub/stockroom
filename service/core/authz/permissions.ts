@@ -91,6 +91,14 @@ export const PERMISSIONS = {
         user: res('/setting/users', 'setting.user', CRUD),
         role: res('/setting/role', 'setting.role', CRUD),
         module: res('/setting/module', 'setting.module', CRUD),
+        // No 'delete': removing a sequence discards a live counter, and the
+        // next allocation would re-seed at 1 and collide with existing
+        // documents. Retiring one is `is_active = false`, an update.
+        documentSequence: res(
+            '/setting/document-numbering',
+            'setting.document_sequence',
+            ['view', 'create', 'update'],
+        ),
     },
 } as const;
 

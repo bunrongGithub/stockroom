@@ -314,11 +314,7 @@ export class ReceiptRepository extends BaseRepository {
         ctx: RequestContext,
         input: CreateReceiptInput,
     ): Promise<ReceiptTxnType> {
-        const reference_no = await getNextDocumentNumber(
-            ctx,
-            'inventory_receipt',
-            'RCT',
-        );
+        const reference_no = await getNextDocumentNumber(ctx, 'inventory_receipt');
         const { items, ...header } = input;
 
         const { data: headerData, error: headerError } = await this.db

@@ -593,11 +593,7 @@ export class SalesInvoiceRepository extends BaseRepository {
                 this.stampCreate(ctx, {
                     company_id: companyId,
                     user_id: ctx.userId,
-                    invoice_no: await getNextDocumentNumber(
-                        ctx,
-                        'sales_invoice',
-                        'INV',
-                    ),
+                    invoice_no: await getNextDocumentNumber(ctx, 'sales_invoice'),
                     reference_no: args.input.reference_no ?? null,
                     shipment_id: args.shipment_id,
                     sales_order_id: args.sales_order_id,

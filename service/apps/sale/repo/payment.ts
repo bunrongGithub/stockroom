@@ -197,11 +197,7 @@ export class CustomerPaymentRepository extends BaseRepository {
                 this.stampCreate(ctx, {
                     company_id: companyId,
                     user_id: ctx.userId,
-                    payment_no: await getNextDocumentNumber(
-                        ctx,
-                        'customer_payment',
-                        'PAY',
-                    ),
+                    payment_no: await getNextDocumentNumber(ctx, 'customer_payment'),
                     reference_no: input.reference_no ?? null,
                     payment_date: input.payment_date,
                     customer_id: input.customer_id ?? null,

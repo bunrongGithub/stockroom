@@ -221,11 +221,7 @@ export class ItemUomRepository extends BaseRepository {
             }
         }
 
-        const reference_no = await getNextDocumentNumber(
-            ctx,
-            'item_uom',
-            'IUOM',
-        );
+        const reference_no = await getNextDocumentNumber(ctx, 'item_uom');
         const { data, error } = await this.db
             .from(TABLE)
             .insert({

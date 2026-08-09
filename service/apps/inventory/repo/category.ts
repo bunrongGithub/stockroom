@@ -66,7 +66,7 @@ export class CategoryRepository extends BaseRepository {
         ctx: RequestContext,
         input: CreateCategoryInput,
     ): Promise<Category> {
-        const referenceNo = await getNextDocumentNumber(ctx, 'item_category', 'C');
+        const referenceNo = await getNextDocumentNumber(ctx, 'item_category');
         const insertData = { ...input, reference_no: referenceNo };
         const { data, error } = await this.scopedDb(Number(ctx.companyId))
             .from(TABLE)

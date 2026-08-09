@@ -210,7 +210,7 @@ export class StockCountRepository extends BaseRepository {
             {
                 company_id: Number(ctx.companyId),
                 user_id: ctx.userId,
-                count_no: await getNextDocumentNumber(ctx, 'stock_count', 'SC'),
+                count_no: await getNextDocumentNumber(ctx, 'stock_count'),
                 count_date: input.count_date,
                 warehouse_id: input.warehouse_id,
                 location_id: input.location_id ?? null,

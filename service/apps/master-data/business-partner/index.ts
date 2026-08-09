@@ -225,7 +225,7 @@ export class BusinessPartnerRepository extends BaseRepository {
     ): Promise<BusinessPartner> {
         const companyId = Number(ctx.companyId);
         const roles = normalizeRoles(input.roles);
-        const code = await getNextDocumentNumber(ctx, 'business_partner', 'BP');
+        const code = await getNextDocumentNumber(ctx, 'business_partner');
 
         const { data, error } = await this.db
             .from(TABLE)

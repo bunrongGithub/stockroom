@@ -300,7 +300,15 @@ export class SalesOrderRepository extends BaseRepository {
             ...classes.values(),
         ]);
 
-        const order_no = await getNextDocumentNumber(ctx, 'sales_order', 'SO');
+        // A cash sale is stored in this table and moves through the same
+        // fulfilment chain, but it is a different business document — a walk-in
+        // counter sale rather than an ordered-then-delivered one. It therefore
+        // draws from its own sequence (CS-…), which is why numbering is keyed
+        // on the business process rather than on the table the row lands in.
+        const order_no = await getNextDocumentNumber(
+            ctx,
+            input.source_channel === 'cash_sale' ? 'cash_sale' : 'sales_order',
+        );
         const totals = orderTotals(input.items);
 
         const { data: header, error } = await this.db

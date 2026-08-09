@@ -21,6 +21,12 @@ export const settingRegistry: RegistryEntry[] = [
         () => import('@/components/modules/setting/user/actions/Update'),
     ],
 
+    // ── Document Numbering ────────────────────────────────────────────────────
+    [
+        'DocumentNumbering',
+        () => import('@/components/modules/setting/document-numbering/page'),
+    ],
+
     // ── Role ──────────────────────────────────────────────────────────────────
     [
         'Role',

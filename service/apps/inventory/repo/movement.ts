@@ -200,11 +200,7 @@ export class MovementRepository extends BaseRepository {
         // fails before anything is persisted.
         const resolved = resolveMovementItems(input.items);
 
-        const reference_no = await getNextDocumentNumber(
-            ctx,
-            'inventory_movement',
-            'MOV',
-        );
+        const reference_no = await getNextDocumentNumber(ctx, 'inventory_movement');
 
         // 1. header
         const { data: header, error: headerError } = await this.db
