@@ -4,7 +4,6 @@ import { EditableSelect, FieldLabel } from '@/components/ui/FieldLabel';
 import { ReadonlyInput } from '@/components/ui/Readonly';
 import { API } from '@/lib/constant';
 import {
-    describeConversion,
     itemUomBaseFactor,
     type ConversionType,
 } from '@/service/core/uom-conversion';
@@ -80,9 +79,9 @@ export function baseOptionOf(options: ItemUomOption[]) {
  * Transaction unit picker for a document line.
  *
  * The item's base UOM is preselected — that is the existing behaviour and it
- * stays — but any other unit the item defines can now be chosen. Each option
- * states its own conversion ("Box — 1 Box = 12 Piece") so the person entering
- * the line never has to remember what a Box holds.
+ * stays — but any other unit the item defines can now be chosen. Options show
+ * the unit name alone; the conversion is surfaced by QuantityInBase next to
+ * the quantity field rather than crammed into the option text.
  *
  * Renders a plain read-only field when the item has only its base unit, so
  * nothing changes for items that were never given alternates.
@@ -189,16 +188,14 @@ export default function ItemUomSelect({
                 }}
             >
                 {value == null && <option value="">Select UOM…</option>}
+                {/* Just the unit name. The conversion used to be spelled out
+                    here ("Pack — 1 Pack = 6 Bottle"), which made the closed
+                    select too wide to read. It is still shown where it is
+                    actually needed: the QuantityInBase hint under the quantity
+                    field, which reads the entered qty back in base units. */}
                 {options.map((o) => (
                     <option key={o.id} value={String(o.id)}>
-                        {o.isDefault || !base
-                            ? `${o.name} (base)`
-                            : `${o.name} — ${describeConversion(
-                                  o.conversion,
-                                  o.conversionType,
-                                  o.name,
-                                  base.name,
-                              )}`}
+                        {o.name}
                     </option>
                 ))}
             </EditableSelect>
