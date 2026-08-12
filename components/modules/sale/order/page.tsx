@@ -188,7 +188,7 @@ export default function SaleOrderPage({ currentPath, permission, currentPathActi
                 data={table.data}
                 keyExtractor={(row) => row.id}
                 mobileVariant="cards"
-                minTableWidth="1640px"
+                minTableWidth="1860px"
                 searchPlaceholder="Search by order no, reference, or customer..."
                 pageSizeOptions={[10, 20, 50]}
                 serverQuery={table.binding}

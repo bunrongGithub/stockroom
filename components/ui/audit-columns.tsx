@@ -8,9 +8,10 @@ type AuditRow = {
 };
 
 /**
- * Reusable "Created By" + "Updated By" list columns — avatar (photo or initials)
- * + name, from the enriched audit users the list endpoints attach. Spread into
- * any transaction/master list's column array:
+ * Reusable "Created By" + "Updated By" list columns — the same avatar + name
+ * over email identity card the User module's list uses, from the enriched audit
+ * users the list endpoints attach. Spread into any transaction/master list's
+ * column array:
  *
  *   columns={[ ...cols, ...auditUserColumns<Row>() ]}
  *
@@ -26,7 +27,8 @@ export function auditUserColumns<T>(): DataTableColumn<T>[] {
             cell: (row: T) => (
                 <UserBadge
                     user={(row as AuditRow).created_by_user ?? null}
-                    size={22}
+                    size={32}
+                    stacked
                 />
             ),
         },
@@ -36,9 +38,9 @@ export function auditUserColumns<T>(): DataTableColumn<T>[] {
             cell: (row: T) => {
                 const u = (row as AuditRow).updated_by_user ?? null;
                 return u ? (
-                    <UserBadge user={u} size={22} />
+                    <UserBadge user={u} size={32} stacked />
                 ) : (
-                    <span className="text-slate-400">—</span>
+                    <span className="text-muted-foreground">—</span>
                 );
             },
         },

@@ -303,7 +303,7 @@ export default function SaleInvoicePage({
         data={table.data}
         keyExtractor={(row) => row.id}
         mobileVariant="cards"
-        minTableWidth="1560px"
+        minTableWidth="1640px"
         searchPlaceholder="Search by invoice no, reference, or customer..."
         pageSizeOptions={[10, 20, 50]}
         serverQuery={table.binding}

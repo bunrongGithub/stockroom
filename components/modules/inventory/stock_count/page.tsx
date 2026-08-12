@@ -155,7 +155,7 @@ export default function InventoryStockCountModule({
                 data={table.data}
                 keyExtractor={(row) => row.id}
                 mobileVariant="cards"
-                minTableWidth="1700px"
+                minTableWidth="1760px"
                 searchPlaceholder="Search by count no..."
                 pageSizeOptions={[10, 20, 50]}
                 serverQuery={table.binding}

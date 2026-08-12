@@ -115,6 +115,8 @@ function Receipt({
         })}
         data={receipts}
         keyExtractor={(row) => row.id ?? 0}
+        mobileVariant="cards"
+        minTableWidth="1360px"
         searchPlaceholder="Search by reference or source reference..."
         pageSizeOptions={[10, 20, 50]}
         serverQuery={serverQuery}

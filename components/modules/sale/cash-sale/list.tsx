@@ -183,7 +183,7 @@ export default function SaleCashSaleList({
                 data={table.data}
                 keyExtractor={(row) => row.id}
                 mobileVariant="cards"
-                minTableWidth="1180px"
+                minTableWidth="1280px"
                 searchPlaceholder="Search by sale no, reference, or customer..."
                 pageSizeOptions={[10, 20, 50]}
                 serverQuery={table.binding}

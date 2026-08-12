@@ -295,6 +295,8 @@ export default function InventoryStockAdjModule({
                 columns={columns}
                 data={table.data}
                 keyExtractor={(row) => row.id}
+                mobileVariant="cards"
+                minTableWidth="1360px"
                 searchPlaceholder="Search by adjustment no or reference..."
                 pageSizeOptions={[10, 20, 50]}
                 serverQuery={table.binding}
