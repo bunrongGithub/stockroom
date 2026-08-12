@@ -1,4 +1,6 @@
 import { BaseRepository, PaginationParams } from '@/service/core';
+import type { QueryConfig } from '@/service/core/query/config.ts';
+import type { QueryObject } from '@/service/core/query/types.ts';
 import {
     ApiError,
     NotFoundError,
@@ -23,6 +25,29 @@ export class Role extends BaseRepository {
     constructor() {
         super();
     }
+
+    /** Query Framework registry. */
+    protected readonly queryConfig: QueryConfig = {
+        table: 'roles',
+        defaultSelect:
+            'id, name, description, is_active, created_at, company(id, name)',
+        searchable: ['name', 'description'],
+        sortable: ['id', 'name', 'is_active', 'created_at'],
+        filterable: {
+            is_active: { type: 'boolean' },
+            company_id: { type: 'foreign-key' },
+            created_at: { type: 'date' },
+        },
+        defaultSort: [{ field: 'id', direction: 'desc' }],
+        // Role dropdowns pull the whole list in one request.
+        maxLimit: 1000,
+    };
+
+    /** Standardized list path (Query Framework). */
+    async findAllV2(context: RequestContext, query: QueryObject) {
+        return this.findAllQuery(context, query);
+    }
+
     async findAll(
         context: RequestContext,
         params: PaginationParams,

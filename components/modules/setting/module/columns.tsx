@@ -2,7 +2,7 @@
 
 import { ButtonActionDynamicRender } from '@/components/ui/button-action';
 import type { DataTableColumn } from '@/components/ui/DataTable';
-import type { Action } from '@/types';
+import { StatusBadge } from '@/components/ui/StatusBadge';
 import type { AppModule, ColumnsOptionsProps } from '@/types/app';
 
 export function getModuleColumns({
@@ -11,44 +11,41 @@ export function getModuleColumns({
 }: ColumnsOptionsProps): DataTableColumn<AppModule>[] {
     return [
         {
-            key: 'key',
-            header: 'Key',
-            cell: (row) => <span className="font-mono text-xs">{row.key}</span>,
-        },
-        {
             key: 'label',
             header: 'Label',
+            primary: true,
+            sortable: true,
             cell: (row) => (
-                <span className="font-mono text-xs">{row.label}</span>
+                <span className="font-medium text-foreground">{row.label}</span>
+            ),
+        },
+        {
+            key: 'key',
+            header: 'Key',
+            sortable: true,
+            cell: (row) => (
+                <span className="text-xs text-muted-foreground">{row.key}</span>
             ),
         },
         {
             key: 'path',
             header: 'Path',
-            cell: (row) => (
-                <span className="font-mono text-xs">{row.path}</span>
-            ),
+            sortable: true,
+            cell: (row) => <span className="text-xs">{row.path}</span>,
         },
         {
             key: 'type',
             header: 'Type',
-            cell: (row) => (
-                <span className="font-mono text-xs">{row.type}</span>
-            ),
+            sortable: true,
+            cell: (row) => <span className="text-xs capitalize">{row.type}</span>,
         },
         {
             key: 'status',
             header: 'Status',
+            sortable: true,
+            sortKey: 'is_active',
             cell: (row) => (
-                <span
-                    className={`inline-block rounded-full px-2 py-1 font-mono text-xs ${
-                        row.is_active
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-gray-100 text-gray-800'
-                    }`}
-                >
-                    {row.is_active ? 'Active' : 'Inactive'}
-                </span>
+                <StatusBadge status={row.is_active ? 'ACTIVE' : 'INACTIVE'} />
             ),
         },
         ...(dynamicActions.length > 0
@@ -56,6 +53,9 @@ export function getModuleColumns({
                   {
                       key: 'actions',
                       header: 'Actions',
+                      sticky: 'right',
+                      align: 'right',
+                      cardFooter: true,
                       cell: (row: AppModule) =>
                           ButtonActionDynamicRender(dynamicActions, row, () =>
                               onDelete(row.id),

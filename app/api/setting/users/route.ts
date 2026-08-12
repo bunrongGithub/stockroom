@@ -3,21 +3,17 @@ import { getRequestContext } from '@/lib/request-context';
 import { ApiError } from '@/service/core/api-response';
 import { companyUserService } from '@/service/apps/base/user';
 import { createUserSchema } from '@/service/schema/user.schema';
+import { parseListParams } from '@/service/core/query/http';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
-// GET /api/setting/users — company-scoped list (search / status / pagination).
+// GET /api/setting/users — company-scoped list (Query Framework).
 export async function GET(request: NextRequest) {
     try {
         const ctx = getRequestContext(request);
         await requirePermission(ctx, PERMISSIONS.setting.user.view, { req: request });
-        const sp = request.nextUrl.searchParams;
-        const data = await companyUserService.list(ctx, {
-            page: Number(sp.get('page') || 1),
-            limit: Number(sp.get('limit') || 20),
-            search: sp.get('search') ?? undefined,
-            status: sp.get('status') ?? undefined,
-        });
+        const query = parseListParams(request);
+        const data = await companyUserService.listV2(ctx, query);
         return NextResponse.json(data, { status: 200 });
     } catch (error) {
         if (error instanceof ApiError) return error.toResponse();

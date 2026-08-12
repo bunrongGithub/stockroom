@@ -1,6 +1,7 @@
 'use client';
 import { ButtonActionStaticRender } from '@/components/ui/button-action';
 import { DataTable, type DataTableFilterDef } from '@/components/ui/DataTable';
+import { PageHeader } from '@/components/ui/PageHeader';
 import PopUpDeleteTransactionModal from '@/components/ui/PopUpDeleteModal';
 import { usePageActions } from '@/hook/usePageAction';
 import type { ServerQueryBinding } from '@/hook/useTableQuery';
@@ -25,20 +26,18 @@ const FILTER_DEFS: DataTableFilterDef[] = [
 ];
 
 const Header = ({ staticActions }: { staticActions: Action }) => (
-  <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
-    <div>
-      <h2 className="flex items-center gap-2 text-2xl text-slate-800">
+  <PageHeader
+    title={
+      <span className="flex items-center gap-2">
         <ReceiptIcon className="text-[#1a9e52]" />
         Receipt
-      </h2>
-      <p className="mt-1 text-slate-500">Transaction Receipt</p>
-    </div>
-    <div className="flex items-center gap-2">
-      {staticActions.map((action) => (
-        <span key={action.key}>{ButtonActionStaticRender(action, false)}</span>
-      ))}
-    </div>
-  </div>
+      </span>
+    }
+    description="Transaction Receipt"
+    actions={staticActions.map((action) => (
+      <span key={action.key}>{ButtonActionStaticRender(action, false)}</span>
+    ))}
+  />
 );
 
 function Receipt({

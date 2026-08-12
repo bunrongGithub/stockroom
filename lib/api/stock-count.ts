@@ -2,7 +2,7 @@
 
 import { API } from '@/lib/constant';
 import type {
-    ApprovalPreview,
+    CompletionPreview,
     StockCount,
     StockCountItem,
     StockCountSerial,
@@ -92,37 +92,25 @@ export const stockCountApi = {
         );
         return body.data;
     },
-    async submit(
+    async completePreview(
+        id: number | string,
+        uncountedPolicy?: UncountedPolicy,
+    ): Promise<CompletionPreview> {
+        const url = uncountedPolicy
+            ? `${API.inventory.stockCount.completePreview(id)}?uncounted_policy=${uncountedPolicy}`
+            : API.inventory.stockCount.completePreview(id);
+        const body = await unwrap<{ data: CompletionPreview }>(await fetch(url));
+        return body.data;
+    },
+    async complete(
         id: number | string,
         uncountedPolicy: UncountedPolicy,
     ): Promise<StockCount> {
         const body = await unwrap<{ data: StockCount }>(
             await fetch(
-                API.inventory.stockCount.submit(id),
+                API.inventory.stockCount.complete(id),
                 jsonInit('POST', { uncounted_policy: uncountedPolicy }),
             ),
-        );
-        return body.data;
-    },
-    async reopen(id: number | string): Promise<StockCount> {
-        const body = await unwrap<{ data: StockCount }>(
-            await fetch(API.inventory.stockCount.reopen(id), {
-                method: 'POST',
-            }),
-        );
-        return body.data;
-    },
-    async approvePreview(id: number | string): Promise<ApprovalPreview> {
-        const body = await unwrap<{ data: ApprovalPreview }>(
-            await fetch(API.inventory.stockCount.approvePreview(id)),
-        );
-        return body.data;
-    },
-    async approve(id: number | string): Promise<StockCount> {
-        const body = await unwrap<{ data: StockCount }>(
-            await fetch(API.inventory.stockCount.approve(id), {
-                method: 'POST',
-            }),
         );
         return body.data;
     },

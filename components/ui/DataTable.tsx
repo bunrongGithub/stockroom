@@ -336,11 +336,16 @@ export function DataTable<T>({
 
     const showSearch = Boolean(searchFn || serverQuery);
     const showColumnMenu = Boolean(enableColumnVisibility);
+    // Filters are server-driven, so the bar only appears in serverQuery mode.
+    const showFilterBar = Boolean(
+        serverQuery && filterDefs && filterDefs.length > 0,
+    );
 
     return (
         <div className={cn('space-y-3 text-sm', className)}>
-            {/* Toolbar row */}
-            {(showSearch || toolbar || showColumnMenu) && (
+            {/* Search row — the page's own actions (Create…) live in the
+                PageHeader above, so this row holds only the search box. */}
+            {(showSearch || toolbar) && (
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     {showSearch ? (
                         <div className="relative max-w-md flex-1">
@@ -357,27 +362,34 @@ export function DataTable<T>({
                     ) : (
                         <div />
                     )}
-                    {(toolbar || showColumnMenu) && (
+                    {toolbar && (
                         <div className="flex shrink-0 items-center gap-2">
-                            {showColumnMenu && (
-                                <ColumnVisibilityMenu
-                                    columns={columns}
-                                    hidden={hiddenColumns}
-                                    onChange={setHiddenColumns}
-                                />
-                            )}
                             {toolbar}
                         </div>
                     )}
                 </div>
             )}
 
-            {/* Filter bar (serverQuery mode) */}
-            {serverQuery && filterDefs && filterDefs.length > 0 && (
-                <FilterBar
-                    defs={filterDefs}
-                    values={serverQuery.state.filters}
-                    onFilter={serverQuery.onFilter}
+            {/* View bar — everything that changes how this table is *displayed*:
+                filters on the left, the column toggle on the right. Keeping the
+                column toggle here rather than in the row above stops it sitting
+                directly under the page's Create button, where the two read as
+                one button group even though one writes data and the other only
+                hides columns. */}
+            {(showFilterBar || showColumnMenu) && (
+                <TableViewBar
+                    defs={showFilterBar ? filterDefs : undefined}
+                    values={serverQuery?.state.filters}
+                    onFilter={serverQuery?.onFilter}
+                    trailing={
+                        showColumnMenu && (
+                            <ColumnVisibilityMenu
+                                columns={columns}
+                                hidden={hiddenColumns}
+                                onChange={setHiddenColumns}
+                            />
+                        )
+                    }
                 />
             )}
 
@@ -679,6 +691,14 @@ export function DataTable<T>({
 
 /* ── serverQuery mode internals ── */
 
+/**
+ * Column show/hide menu.
+ *
+ * Wears the same pill as the filter controls beside it — idle and dashed while
+ * every column is showing, emerald with a count once some are hidden. Without
+ * that count a hidden column looks like missing data, because nothing else on
+ * the page says a column was taken away.
+ */
 function ColumnVisibilityMenu<T>({
     columns,
     hidden,
@@ -689,27 +709,57 @@ function ColumnVisibilityMenu<T>({
     onChange: (next: ReadonlySet<string>) => void;
 }) {
     const hideable = columns.filter((col) => col.hideable !== false);
+    const hiddenCount = hideable.filter((col) => hidden.has(col.key)).length;
+    const active = hiddenCount > 0;
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
                 <Button
                     variant="outline"
-                    className="h-8 gap-1.5 rounded-full border-border/80 px-3 text-xs text-muted-foreground shadow-none hover:text-foreground"
+                    aria-label={
+                        active
+                            ? `Columns — ${hiddenCount} hidden`
+                            : 'Show or hide columns'
+                    }
+                    className={cn(
+                        PILL_BASE,
+                        active ? PILL_ACTIVE : PILL_IDLE,
+                        'gap-1.5',
+                    )}
                 >
-                    <Settings2 className="size-3.5" />
+                    <Settings2 className="size-3.5 opacity-70" />
                     Columns
+                    {active && (
+                        <span className="rounded-full bg-emerald-600/15 px-1.5 py-px text-[11px] font-medium tabular-nums">
+                            {hiddenCount} hidden
+                        </span>
+                    )}
                 </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-44">
-                <DropdownMenuLabel className="text-xs">
-                    Toggle columns
-                </DropdownMenuLabel>
+            <DropdownMenuContent align="end" className="w-52">
+                <div className="flex items-center justify-between gap-2 px-2 py-1.5">
+                    <DropdownMenuLabel className="p-0 text-xs">
+                        Toggle columns
+                    </DropdownMenuLabel>
+                    {active && (
+                        <button
+                            type="button"
+                            onClick={() => onChange(new Set())}
+                            className="rounded-md px-1.5 py-0.5 text-[11px] font-medium text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/40"
+                        >
+                            Show all
+                        </button>
+                    )}
+                </div>
                 <DropdownMenuSeparator />
                 {hideable.map((col) => (
                     <DropdownMenuCheckboxItem
                         key={col.key}
                         className="text-xs"
                         checked={!hidden.has(col.key)}
+                        // Keep the menu open: hiding columns is a several-clicks
+                        // job, and Radix closes on select by default.
+                        onSelect={(e) => e.preventDefault()}
                         onCheckedChange={(checked) => {
                             const next = new Set(hidden);
                             if (checked) next.delete(col.key);
@@ -725,103 +775,131 @@ function ColumnVisibilityMenu<T>({
     );
 }
 
-function FilterBar({
+/**
+ * The bar that owns how the table is *viewed*: filter pills on the left, the
+ * column toggle pushed to the right edge. Both are "narrow what you see"
+ * controls, so they share one surface and one pill language, well clear of the
+ * page's Create action in the header above.
+ *
+ * Filters are server-driven, so a client-side table renders this bar with the
+ * column toggle alone.
+ */
+function TableViewBar({
     defs,
     values,
     onFilter,
+    trailing,
 }: {
-    defs: DataTableFilterDef[];
-    values: Record<string, string>;
-    onFilter: (key: string, value: string | null) => void;
+    defs?: DataTableFilterDef[];
+    values?: Record<string, string>;
+    onFilter?: (key: string, value: string | null) => void;
+    trailing?: React.ReactNode;
 }) {
-    const hasActive = defs.some((def) => values[def.key]);
+    const hasFilters = Boolean(defs?.length && values && onFilter);
+    const hasActive = Boolean(
+        hasFilters && defs!.some((def) => values![def.key]),
+    );
     return (
         <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border/60 bg-muted/30 px-3 py-2">
-            <span className="inline-flex items-center gap-1.5 pr-1 text-xs font-medium text-muted-foreground">
-                <ListFilter className="size-3.5" />
-                Filters
-            </span>
-            <span aria-hidden className="h-4 w-px bg-border/80" />
-            {defs.map((def) => {
-                const value = values[def.key] ?? '';
-                if (def.type === 'date-range') {
-                    return (
-                        <DateRangeFilter
+            {hasFilters && (
+                <>
+                    <span className="inline-flex items-center gap-1.5 pr-1 text-xs font-medium text-muted-foreground">
+                        <ListFilter className="size-3.5" />
+                        Filters
+                    </span>
+                    <span aria-hidden className="h-4 w-px bg-border/80" />
+                    {defs!.map((def) => (
+                        <FilterControl
                             key={def.key}
                             def={def}
-                            value={value}
-                            onFilter={onFilter}
+                            value={values![def.key] ?? ''}
+                            onFilter={onFilter!}
                         />
-                    );
-                }
-                if (def.type === 'text') {
-                    return (
-                        <TextFilter
-                            key={def.key}
-                            def={def}
-                            value={value}
-                            onFilter={onFilter}
-                        />
-                    );
-                }
-                const options =
-                    def.type === 'boolean'
-                        ? [
-                              { value: 'true', label: 'Yes' },
-                              { value: 'false', label: 'No' },
-                          ]
-                        : (def.options ?? []);
-                const active = Boolean(value);
-                return (
-                    <Select
-                        key={def.key}
-                        value={value || ALL_VALUE}
-                        onValueChange={(next) =>
-                            onFilter(def.key, next === ALL_VALUE ? null : next)
-                        }
-                    >
-                        <SelectTrigger
-                            size="sm"
-                            className={cn(
-                                PILL_BASE,
-                                active ? PILL_ACTIVE : PILL_IDLE,
-                                'gap-1.5 [&_svg:not([class*=text-])]:text-current [&_svg]:opacity-60',
-                            )}
+                    ))}
+                    {hasActive && (
+                        <Button
+                            variant="ghost"
+                            className="h-8 gap-1 rounded-full px-2.5 text-xs text-muted-foreground hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 dark:hover:text-rose-400"
+                            onClick={() =>
+                                defs!.forEach((def) => onFilter!(def.key, null))
+                            }
                         >
-                            <PillLabel text={def.label} active={active} />
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="min-w-36 rounded-xl">
-                            <SelectItem
-                                value={ALL_VALUE}
-                                className="rounded-lg text-xs text-muted-foreground"
-                            >
-                                All
-                            </SelectItem>
-                            {options.map((option) => (
-                                <SelectItem
-                                    key={option.value}
-                                    value={option.value}
-                                    className="rounded-lg text-xs"
-                                >
-                                    {option.label}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                );
-            })}
-            {hasActive && (
-                <Button
-                    variant="ghost"
-                    className="h-8 gap-1 rounded-full px-2.5 text-xs text-muted-foreground hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 dark:hover:text-rose-400"
-                    onClick={() => defs.forEach((def) => onFilter(def.key, null))}
-                >
-                    <X className="size-3.5" />
-                    Clear all
-                </Button>
+                            <X className="size-3.5" />
+                            Clear all
+                        </Button>
+                    )}
+                </>
+            )}
+            {/* Always pushed right, filters or not: the column toggle keeps the
+                same position on every table, so a list without filters does not
+                read as a differently-built page. */}
+            {trailing && (
+                <div className="ml-auto flex items-center gap-2">{trailing}</div>
             )}
         </div>
+    );
+}
+
+/** One filter pill, dispatched on the def's type. */
+function FilterControl({
+    def,
+    value,
+    onFilter,
+}: {
+    def: DataTableFilterDef;
+    value: string;
+    onFilter: (key: string, value: string | null) => void;
+}) {
+    if (def.type === 'date-range') {
+        return <DateRangeFilter def={def} value={value} onFilter={onFilter} />;
+    }
+    if (def.type === 'text') {
+        return <TextFilter def={def} value={value} onFilter={onFilter} />;
+    }
+    const options =
+        def.type === 'boolean'
+            ? [
+                  { value: 'true', label: 'Yes' },
+                  { value: 'false', label: 'No' },
+              ]
+            : (def.options ?? []);
+    const active = Boolean(value);
+    return (
+        <Select
+            value={value || ALL_VALUE}
+            onValueChange={(next) =>
+                onFilter(def.key, next === ALL_VALUE ? null : next)
+            }
+        >
+            <SelectTrigger
+                size="sm"
+                className={cn(
+                    PILL_BASE,
+                    active ? PILL_ACTIVE : PILL_IDLE,
+                    'gap-1.5 [&_svg:not([class*=text-])]:text-current [&_svg]:opacity-60',
+                )}
+            >
+                <PillLabel text={def.label} active={active} />
+                <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="min-w-36 rounded-xl">
+                <SelectItem
+                    value={ALL_VALUE}
+                    className="rounded-lg text-xs text-muted-foreground"
+                >
+                    All
+                </SelectItem>
+                {options.map((option) => (
+                    <SelectItem
+                        key={option.value}
+                        value={option.value}
+                        className="rounded-lg text-xs"
+                    >
+                        {option.label}
+                    </SelectItem>
+                ))}
+            </SelectContent>
+        </Select>
     );
 }
 

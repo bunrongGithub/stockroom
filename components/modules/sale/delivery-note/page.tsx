@@ -3,6 +3,7 @@
 import { DataTable, type DataTableColumn } from '@/components/ui/DataTable';
 import { RowAction, RowActions } from '@/components/ui/button-action';
 import { auditUserColumns } from '@/components/ui/audit-columns';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { useRegisterModule } from '@/hook/useModule';
 import { useTableQuery } from '@/hook/useTableQuery';
 import type { ModuleProps } from '@/lib/registry';
@@ -143,7 +144,7 @@ export default function SaleShipmentPage({ currentPath, permission, currentPathA
     ];
 
     return (
-        <main className="space-y-4">
+        <main className="space-y-4 font-mono">
             {toast && <div className={`fixed right-4 top-4 z-50 rounded-xl px-4 py-3 text-sm font-medium shadow-lg ${toast.type === 'success' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'}`}>{toast.msg}</div>}
 
             {confirm && (
@@ -167,12 +168,10 @@ export default function SaleShipmentPage({ currentPath, permission, currentPathA
                 </div>
             )}
 
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold tracking-tight">Delivery Note</h1>
-                    <p className="text-xs text-muted-foreground mt-0.5">Delivery notes and stock issue on posting</p>
-                </div>
-            </div>
+            <PageHeader
+                title="Delivery Note"
+                description="Delivery notes and stock issue on posting"
+            />
 
             <DataTable<SalesShipment>
                 columns={columns}

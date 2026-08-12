@@ -1,21 +1,21 @@
 // ── Physical Stock Count ────────────────────────────────────────────────────
-// A count session DISCOVERS variance against a frozen snapshot; approval
-// CORRECTS it by generating Stock Adjustments (one per location) through the
-// existing adjustment service. Displayed variance = counted − snapshot; the
-// generated adjustment targets counted − LIVE on-hand (drift is surfaced).
+// A count session DISCOVERS variance against a frozen snapshot; completing it
+// CORRECTS that variance by generating Stock Adjustments (one per location)
+// through the existing adjustment service. There is no approval step — the
+// counter who finishes the count is the one who commits it. Displayed variance
+// = counted − snapshot; the generated adjustment targets counted − LIVE
+// on-hand (drift is surfaced).
 
 export type StockCountStatus =
     | 'DRAFT'
     | 'PREPARED'
     | 'COUNTING'
-    | 'PENDING_APPROVAL'
-    | 'APPROVED'
     | 'COMPLETED'
     | 'CANCELLED';
 
 export type StockCountMode = 'full' | 'location' | 'category' | 'items';
 
-/** How uncounted lines are treated at approval. */
+/** How uncounted lines are treated at completion. */
 export type UncountedPolicy = 'ignore' | 'zero';
 
 export type SerialClassification = 'matched' | 'missing' | 'new' | 'foreign';
@@ -31,9 +31,8 @@ export interface StockCountActions {
     can_prepare: boolean;
     can_start: boolean;
     can_count: boolean;
-    can_submit: boolean;
-    can_reopen: boolean;
-    can_approve: boolean;
+    /** Finish the count: generate and post the adjustments, then close it. */
+    can_complete: boolean;
     can_cancel: boolean;
 }
 
@@ -60,7 +59,6 @@ export interface StockCount {
     snapshot_at: string | null;
     counting_started_at: string | null;
     submitted_at: string | null;
-    approved_at: string | null;
     completed_at: string | null;
     cancelled_at: string | null;
     cancel_reason: string | null;
@@ -121,9 +119,9 @@ export interface StockCountSummary {
     progress_pct: number;
 }
 
-// ── Approval preview (dry run of the approve algorithm) ─────────────────────
+// ── Completion preview (dry run of the completion algorithm) ───────────────
 
-export interface ApprovalPreviewLine {
+export interface CompletionPreviewLine {
     line_id: number;
     item_id: number;
     sku: string | null;
@@ -141,19 +139,19 @@ export interface ApprovalPreviewLine {
     serial_numbers: string[];
 }
 
-export interface ApprovalPreviewLocation {
+export interface CompletionPreviewLocation {
     location_id: number;
     location_name?: string | null;
     /** Adjustment already generated for this location (idempotent resume). */
     already_generated: boolean;
-    lines: ApprovalPreviewLine[];
+    lines: CompletionPreviewLine[];
 }
 
-export interface ApprovalPreview {
+export interface CompletionPreview {
     count_id: number;
     uncounted_policy: UncountedPolicy;
     uncounted_lines: number;
-    locations: ApprovalPreviewLocation[];
+    locations: CompletionPreviewLocation[];
     /** Expected-missing serials no longer available (consumed mid-count) —
      *  dropped from the OUT set and reported here. */
     dropped_serials: { line_id: number; serial_number: string }[];

@@ -8,6 +8,7 @@ import {
 import type { RequestContext } from '@/types/request-context';
 import type { CompanyBrief } from '@/types/setting/company';
 import type { PaginationParams } from '@/service/core';
+import type { QueryObject } from '@/service/core/query/types.ts';
 import { CompanyRepository } from './repo/company.repo';
 import { z } from 'zod';
 
@@ -26,6 +27,14 @@ export async function listCompanies(
     params: PaginationParams,
 ) {
     return repo.findAll(ctx, params);
+}
+
+/** Standardized list path (Query Framework). */
+export async function listCompaniesV2(
+    ctx: RequestContext,
+    query: QueryObject,
+) {
+    return repo.findAllV2(ctx, query);
 }
 
 export async function createCompany(ctx: RequestContext, body: unknown) {

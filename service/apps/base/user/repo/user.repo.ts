@@ -1,4 +1,6 @@
-import { BaseRepository } from '@/service/core/base-repository';
+import { BaseRepository, type QueryScope } from '@/service/core/base-repository';
+import type { QueryConfig } from '@/service/core/query/config.ts';
+import type { QueryObject } from '@/service/core/query/types.ts';
 import type {
     PaginationParams,
     PaginatedResult,
@@ -33,6 +35,23 @@ const VIEW = 'user_profiles_view' as const;
 // the target company from the session — never from client input — so a user can
 // only ever see/manage members of their own company.
 export class CompanyUserRepository extends BaseRepository {
+    /** Every member of a company sees the whole directory; super users see all. */
+    protected readonly scope: QueryScope = 'company';
+
+    /** Query Framework registry — the list reads the profile VIEW. */
+    protected readonly queryConfig: QueryConfig = {
+        table: VIEW,
+        searchable: ['full_name', 'email', 'phone'],
+        sortable: ['full_name', 'email', 'status', 'last_login_at', 'created_at'],
+        filterable: {
+            status: { type: 'enum', values: ['active', 'inactive'] },
+            company_id: { type: 'foreign-key' },
+            last_login_at: { type: 'date' },
+            created_at: { type: 'date' },
+        },
+        defaultSort: [{ field: 'created_at', direction: 'desc' }],
+    };
+
     private static instance: CompanyUserRepository;
     private constructor() {
         super();
@@ -91,6 +110,14 @@ export class CompanyUserRepository extends BaseRepository {
         throw new BadRequesstExceptionError(
             'User is not a member of this company',
         );
+    }
+
+    /** Standardized list path (Query Framework). */
+    async findAllV2(
+        ctx: RequestContext,
+        query: QueryObject,
+    ): Promise<PaginatedResult<CompanyUser>> {
+        return this.findAllQuery<CompanyUser>(ctx, query);
     }
 
     async listUsers(

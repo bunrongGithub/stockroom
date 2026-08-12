@@ -20,6 +20,7 @@ export function getCompanyColumns({
             key: 'name',
             header: 'Company',
             primary: true,
+            sortable: true,
             cell: (row) => (
                 <div className="flex items-center gap-2.5">
                     <Avatar src={row.logo_url} name={row.name} size={32} />
@@ -47,6 +48,7 @@ export function getCompanyColumns({
         {
             key: 'registration_number',
             header: 'Registration No',
+            hideOnCard: true,
             cell: (row) => (
                 <span className="font-mono text-xs text-muted-foreground">
                     {row.registration_number || '—'}
@@ -56,6 +58,7 @@ export function getCompanyColumns({
         {
             key: 'status',
             header: 'Status',
+            sortable: true,
             cell: (row) => (
                 <StatusBadge
                     status={row.status.toUpperCase()}
@@ -66,6 +69,7 @@ export function getCompanyColumns({
         {
             key: 'created_at',
             header: 'Created',
+            sortable: true,
             cell: (row) => (
                 <span className="font-mono text-xs text-muted-foreground">
                     {DateTimeFormat(row.created_at)}
@@ -77,6 +81,9 @@ export function getCompanyColumns({
                   {
                       key: 'actions',
                       header: 'Actions',
+                      sticky: 'right',
+                      align: 'right',
+                      cardFooter: true,
                       cell: (row: TCompany) =>
                           ButtonActionDynamicRender(dynamicActions, row),
                   } satisfies DataTableColumn<TCompany>,

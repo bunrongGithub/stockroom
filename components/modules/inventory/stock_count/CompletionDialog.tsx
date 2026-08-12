@@ -11,30 +11,62 @@ import {
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/Toast';
 import { stockCountApi } from '@/lib/api/stock-count';
-import type { ApprovalPreview, StockCount } from '@/types/inventory/stock-count';
+import type {
+    CompletionPreview,
+    StockCount,
+    UncountedPolicy,
+} from '@/types/inventory/stock-count';
 import { AlertTriangle, CheckCircle2, Loader2Icon } from 'lucide-react';
 import { useEffect, useState } from 'react';
+
+/**
+ * The single step that closes a count.
+ *
+ * There is no approval gate, so choosing how to treat uncounted lines and
+ * reviewing what the adjustments will move happen in one place: the policy
+ * radio re-runs the dry run, and the confirm button generates and posts the
+ * adjustments for real.
+ */
+
+const POLICY_OPTIONS = [
+    [
+        'ignore',
+        'Adjust only counted lines',
+        'Uncounted lines are left untouched.',
+    ],
+    [
+        'zero',
+        'Treat uncounted as zero',
+        'Every uncounted line is adjusted down to zero.',
+    ],
+] as const;
 
 function signed(v: number) {
     return v > 0 ? `+${v}` : String(v);
 }
 
-export default function ApprovalDialog({
+export default function CompletionDialog({
     count,
+    pendingLines,
     open,
     onOpenChange,
-    onApproved,
+    onCompleted,
 }: {
     count: StockCount;
+    /** Lines still uncounted, used to explain why the policy matters. */
+    pendingLines: number;
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    onApproved: () => void;
+    onCompleted: () => void;
 }) {
     const toast = useToast();
-    const [preview, setPreview] = useState<ApprovalPreview | null>(null);
+    const [policy, setPolicy] = useState<UncountedPolicy>(
+        count.uncounted_policy ?? 'ignore',
+    );
+    const [preview, setPreview] = useState<CompletionPreview | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-    const [approving, setApproving] = useState(false);
+    const [completing, setCompleting] = useState(false);
 
     useEffect(() => {
         if (!open) return;
@@ -46,7 +78,10 @@ export default function ApprovalDialog({
             setError('');
             setPreview(null);
             try {
-                const data = await stockCountApi.approvePreview(count.id);
+                const data = await stockCountApi.completePreview(
+                    count.id,
+                    policy,
+                );
                 if (!cancelled) setPreview(data);
             } catch (e) {
                 if (!cancelled)
@@ -59,35 +94,70 @@ export default function ApprovalDialog({
             cancelled = true;
             clearTimeout(timer);
         };
-    }, [open, count.id]);
+    }, [open, count.id, policy]);
 
-    async function handleApprove() {
-        setApproving(true);
+    async function handleComplete() {
+        setCompleting(true);
         setError('');
         try {
-            await stockCountApi.approve(count.id);
-            toast.success('Count approved — adjustments generated.');
+            await stockCountApi.complete(count.id, policy);
+            toast.success('Count completed — adjustments generated.');
             onOpenChange(false);
-            onApproved();
+            onCompleted();
         } catch (e) {
-            // The API error explains partial progress; re-running approve resumes.
-            setError(e instanceof Error ? e.message : 'Approval failed');
+            // The API error explains partial progress; re-running resumes at
+            // the locations that have no adjustment yet.
+            setError(e instanceof Error ? e.message : 'Completion failed');
         } finally {
-            setApproving(false);
+            setCompleting(false);
         }
     }
 
+    const locked = completing || loading;
+
     return (
-        <Dialog open={open} onOpenChange={(o) => !approving && onOpenChange(o)}>
+        <Dialog open={open} onOpenChange={(o) => !completing && onOpenChange(o)}>
             <DialogContent className="max-h-[85vh] overflow-hidden sm:max-w-3xl">
                 <DialogHeader>
-                    <DialogTitle>Approve {count.count_no}</DialogTitle>
+                    <DialogTitle>Complete {count.count_no}</DialogTitle>
                     <DialogDescription>
-                        Review the adjustments this approval will generate.
+                        Review the adjustments this will generate. Posting them
+                        closes the count.
                     </DialogDescription>
                 </DialogHeader>
 
                 <div className="max-h-[55vh] space-y-4 overflow-y-auto pr-1">
+                    <section className="space-y-2">
+                        <p className="text-xs text-muted-foreground">
+                            {pendingLines > 0
+                                ? `${pendingLines} line${pendingLines !== 1 ? 's are' : ' is'} still uncounted. Choose how to treat them.`
+                                : 'All lines are counted.'}
+                        </p>
+                        <div className="space-y-2 text-sm">
+                            {POLICY_OPTIONS.map(([value, label, help]) => (
+                                <label
+                                    key={value}
+                                    className="flex min-h-11 cursor-pointer items-start gap-2.5 rounded-lg border border-border/60 px-3 py-2.5 hover:bg-muted/40"
+                                >
+                                    <input
+                                        type="radio"
+                                        name="uncounted_policy"
+                                        className="mt-1"
+                                        disabled={completing}
+                                        checked={policy === value}
+                                        onChange={() => setPolicy(value)}
+                                    />
+                                    <span>
+                                        <span className="block font-medium">{label}</span>
+                                        <span className="block text-xs text-muted-foreground">
+                                            {help}
+                                        </span>
+                                    </span>
+                                </label>
+                            ))}
+                        </div>
+                    </section>
+
                     {loading && (
                         <div className="flex h-32 items-center justify-center">
                             <Loader2Icon className="animate-spin text-muted-foreground" size={22} />
@@ -222,12 +292,12 @@ export default function ApprovalDialog({
                 </div>
 
                 <DialogFooter>
-                    <Button variant="outline" disabled={approving} onClick={() => onOpenChange(false)}>
+                    <Button variant="outline" disabled={completing} onClick={() => onOpenChange(false)}>
                         Cancel
                     </Button>
-                    <Button disabled={approving || loading || !preview} onClick={handleApprove}>
-                        {approving && <Loader2Icon size={15} className="animate-spin" />}
-                        Approve &amp; Generate Adjustments
+                    <Button disabled={locked || !preview} onClick={handleComplete}>
+                        {completing && <Loader2Icon size={15} className="animate-spin" />}
+                        Complete &amp; Generate Adjustments
                     </Button>
                 </DialogFooter>
             </DialogContent>

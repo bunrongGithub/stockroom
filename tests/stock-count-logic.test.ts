@@ -18,17 +18,14 @@ test('computeCountActions maps each status to its allowed actions', () => {
         can_prepare: true,
         can_start: false,
         can_count: false,
-        can_submit: false,
-        can_reopen: false,
-        can_approve: false,
+        can_complete: false,
         can_cancel: true,
     });
     assert.equal(computeCountActions('PREPARED').can_start, true);
     assert.equal(computeCountActions('COUNTING').can_count, true);
-    assert.equal(computeCountActions('COUNTING').can_submit, true);
-    assert.equal(computeCountActions('PENDING_APPROVAL').can_approve, true);
-    assert.equal(computeCountActions('PENDING_APPROVAL').can_reopen, true);
-    for (const status of ['APPROVED', 'COMPLETED', 'CANCELLED'] as const) {
+    // Completing is the only way out of COUNTING — there is no approval gate.
+    assert.equal(computeCountActions('COUNTING').can_complete, true);
+    for (const status of ['COMPLETED', 'CANCELLED'] as const) {
         const actions = computeCountActions(status);
         assert.ok(
             Object.values(actions).every((allowed) => allowed === false),

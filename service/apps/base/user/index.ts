@@ -14,6 +14,7 @@ const repo = CompanyUserRepository.getInstance();
 
 export const companyUserService = {
     list: repo.listUsers.bind(repo),
+    listV2: repo.findAllV2.bind(repo),
     get: repo.getUser.bind(repo),
 
     /**

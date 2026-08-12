@@ -16,6 +16,8 @@ import { SalesShipmentRepository } from '@/service/apps/sale/repo/shipment';
 import { StockAdjustmentRepository } from '@/service/apps/inventory/repo/adjustment';
 import { StockCountRepository } from '@/service/apps/inventory/repo/stock-count';
 import { CashSaleService } from '@/service/apps/sale/cash-sale';
+import { CompanyUserRepository } from '@/service/apps/base/user/repo/user.repo';
+import { listCompaniesV2 } from '@/service/apps/base/company';
 
 // ─── Server-side initial-data registry ──────────────────────────────────────
 // Maps a module path (the `modules.path` pattern) to the repository call that
@@ -229,17 +231,21 @@ const dataRegistry = new Map<string, DataLoader>([
     // ── Setting ─────────────────────────────────────────────────────────────
     [
         '/setting/module',
-        (ctx, { page, limit, search }) =>
-            ModuleRepository.getInstance().findAll(ctx, {
-                page,
-                limit,
-                search,
-                searchColumn: 'label',
-            }),
+        (ctx, args) =>
+            ModuleRepository.getInstance().findAllV2(ctx, toWireQuery(args)),
     ],
     [
         '/setting/role',
-        (ctx, { page, limit }) => roleService.findAll(ctx, { page, limit }),
+        (ctx, args) => roleService.findAllV2(ctx, toWireQuery(args)),
+    ],
+    [
+        '/setting/users',
+        (ctx, args) =>
+            CompanyUserRepository.getInstance().findAllV2(ctx, toWireQuery(args)),
+    ],
+    [
+        '/setting/company',
+        (ctx, args) => listCompaniesV2(ctx, toWireQuery(args)),
     ],
 ]);
 

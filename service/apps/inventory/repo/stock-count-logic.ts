@@ -3,12 +3,15 @@
 // directly, mirroring serial-validation.ts. The repository layer feeds it
 // database rows and translates its output into StockAdjustment payloads.
 
+/**
+ * There is no approval step: the counter who finishes the count is the one who
+ * commits it. Completing a count is therefore a single action that generates
+ * and posts the corrective adjustments in the same breath.
+ */
 export type StockCountStatus =
     | 'DRAFT'
     | 'PREPARED'
     | 'COUNTING'
-    | 'PENDING_APPROVAL'
-    | 'APPROVED'
     | 'COMPLETED'
     | 'CANCELLED';
 
@@ -20,9 +23,8 @@ export type StockCountActions = {
     can_prepare: boolean;
     can_start: boolean;
     can_count: boolean;
-    can_submit: boolean;
-    can_reopen: boolean;
-    can_approve: boolean;
+    /** Finish the count: generate and post the adjustments, then close it. */
+    can_complete: boolean;
     can_cancel: boolean;
 };
 
@@ -35,10 +37,8 @@ export function computeCountActions(status: StockCountStatus): StockCountActions
         can_prepare: status === 'DRAFT',
         can_start: status === 'PREPARED',
         can_count: status === 'COUNTING',
-        can_submit: status === 'COUNTING',
-        can_reopen: status === 'PENDING_APPROVAL',
-        can_approve: status === 'PENDING_APPROVAL',
-        can_cancel: !['APPROVED', 'COMPLETED', 'CANCELLED'].includes(status),
+        can_complete: status === 'COUNTING',
+        can_cancel: !['COMPLETED', 'CANCELLED'].includes(status),
     };
 }
 
@@ -112,7 +112,7 @@ export function classifyScannedSerials(
     return { accepted, rejected };
 }
 
-// ── Adjustment plan (the approve algorithm's pure core) ─────────────────────
+// ── Adjustment plan (the completion algorithm's pure core) ──────────────────
 
 export type CountLineInput = {
     line_id: number;

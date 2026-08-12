@@ -7,7 +7,7 @@ import { stockCountApi } from '@/lib/api/stock-count';
 import { API } from '@/lib/constant';
 import { formatDate, formatDateTime } from '@/lib/utils/date';
 import type {
-    ApprovalPreview,
+    CompletionPreview,
     StockCount,
     StockCountItem,
     StockCountSummary,
@@ -33,7 +33,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import KpiCard from '@/components/modules/dashboard/widgets/KpiCard';
 import CountWorksheet from '../CountWorksheet';
-import ApprovalDialog from '../ApprovalDialog';
+import CompletionDialog from '../CompletionDialog';
 import {
     AlertTriangle,
     ArrowLeftIcon,
@@ -99,11 +99,9 @@ export default function InventoryStockCountDetail({
 
     const [confirmPrepare, setConfirmPrepare] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState(false);
-    const [submitOpen, setSubmitOpen] = useState(false);
-    const [submitPolicy, setSubmitPolicy] = useState<UncountedPolicy>('ignore');
     const [cancelOpen, setCancelOpen] = useState(false);
     const [cancelReason, setCancelReason] = useState('');
-    const [approvalOpen, setApprovalOpen] = useState(false);
+    const [completeOpen, setCompleteOpen] = useState(false);
 
     async function load() {
         try {
@@ -206,29 +204,9 @@ export default function InventoryStockCountDetail({
                                 <PlayIcon size={15} /> Start Counting
                             </Button>
                         )}
-                        {canWork && a?.can_submit && (
-                            <Button
-                                disabled={busy}
-                                onClick={() => {
-                                    setSubmitPolicy(count.uncounted_policy ?? 'ignore');
-                                    setSubmitOpen(true);
-                                }}
-                            >
-                                <SendIcon size={15} /> Submit for Approval
-                            </Button>
-                        )}
-                        {canWork && a?.can_reopen && (
-                            <Button
-                                variant="outline"
-                                disabled={busy}
-                                onClick={() => run(() => stockCountApi.reopen(count.id), 'Count reopened for recounting.')}
-                            >
-                                <RotateCcwIcon size={15} /> Reopen
-                            </Button>
-                        )}
-                        {canWork && a?.can_approve && (
-                            <Button disabled={busy} onClick={() => setApprovalOpen(true)}>
-                                <CheckCircle2 size={15} /> Approve
+                        {canWork && a?.can_complete && (
+                            <Button disabled={busy} onClick={() => setCompleteOpen(true)}>
+                                <CheckCircle2 size={15} /> Complete Count
                             </Button>
                         )}
                         {canWork && a?.can_update && (
@@ -330,7 +308,7 @@ export default function InventoryStockCountDetail({
                         </h3>
                         {count.adjustments.length === 0 ? (
                             <p className="text-muted-foreground">
-                                No adjustments generated yet — they appear here after approval.
+                                No adjustments generated yet — they appear here once the count is completed.
                             </p>
                         ) : (
                             <ul className="space-y-2">
@@ -410,63 +388,6 @@ export default function InventoryStockCountDetail({
                 }}
             />
 
-            {/* Submit dialog — the operator picks the uncounted policy here */}
-            <Dialog open={submitOpen} onOpenChange={(o) => !busy && setSubmitOpen(o)}>
-                <DialogContent className="sm:max-w-md">
-                    <DialogHeader>
-                        <DialogTitle>Submit for Approval</DialogTitle>
-                        <DialogDescription>
-                            {(summary?.pending_lines ?? 0) > 0
-                                ? `${summary?.pending_lines} line${(summary?.pending_lines ?? 0) !== 1 ? 's are' : ' is'} still uncounted. Choose how to treat them at approval.`
-                                : 'All lines are counted.'}
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-2 text-sm">
-                        {(
-                            [
-                                ['ignore', 'Adjust only counted lines', 'Uncounted lines are left untouched.'],
-                                ['zero', 'Treat uncounted as zero', 'Every uncounted line is adjusted down to zero.'],
-                            ] as const
-                        ).map(([value, label, help]) => (
-                            <label
-                                key={value}
-                                className="flex min-h-11 cursor-pointer items-start gap-2.5 rounded-lg border border-border/60 px-3 py-2.5 hover:bg-muted/40"
-                            >
-                                <input
-                                    type="radio"
-                                    name="uncounted_policy"
-                                    className="mt-1"
-                                    checked={submitPolicy === value}
-                                    onChange={() => setSubmitPolicy(value)}
-                                />
-                                <span>
-                                    <span className="block font-medium">{label}</span>
-                                    <span className="block text-xs text-muted-foreground">{help}</span>
-                                </span>
-                            </label>
-                        ))}
-                    </div>
-                    <DialogFooter>
-                        <Button variant="outline" disabled={busy} onClick={() => setSubmitOpen(false)}>
-                            Back
-                        </Button>
-                        <Button
-                            disabled={busy}
-                            onClick={async () => {
-                                const ok = await run(
-                                    () => stockCountApi.submit(count.id, submitPolicy),
-                                    'Count submitted for approval.',
-                                );
-                                if (ok) setSubmitOpen(false);
-                            }}
-                        >
-                            {busy && <Loader2Icon size={15} className="animate-spin" />}
-                            Submit
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-
             {/* Cancel dialog — danger, with an optional reason */}
             <Dialog open={cancelOpen} onOpenChange={(o) => !busy && setCancelOpen(o)}>
                 <DialogContent className="sm:max-w-md">
@@ -507,11 +428,12 @@ export default function InventoryStockCountDetail({
                 </DialogContent>
             </Dialog>
 
-            <ApprovalDialog
+            <CompletionDialog
                 count={count}
-                open={approvalOpen}
-                onOpenChange={setApprovalOpen}
-                onApproved={() => {
+                pendingLines={summary?.pending_lines ?? 0}
+                open={completeOpen}
+                onOpenChange={setCompleteOpen}
+                onCompleted={() => {
                     load();
                     router.refresh();
                 }}
@@ -522,8 +444,8 @@ export default function InventoryStockCountDetail({
 
 // ── Variance tab ────────────────────────────────────────────────────────────
 // A read-only view over the same lines endpoint, defaulting to positive
-// variances. At PENDING_APPROVAL the approval preview overlays drift badges
-// and serial warnings so the reviewer sees them before opening the dialog.
+// variances. While COUNTING the completion preview overlays drift badges and
+// serial warnings so the counter sees them before opening the dialog.
 
 const VARIANCE_PILLS = [
     ['gt:0', 'Positive'],
@@ -538,7 +460,7 @@ function VarianceTab({ count }: { count: StockCount }) {
         syncToUrl: false,
         defaultLimit: 20,
     });
-    const [previewState, setPreview] = useState<ApprovalPreview | null>(null);
+    const [previewState, setPreview] = useState<CompletionPreview | null>(null);
     const seeded = useRef(false);
 
     // Default the tab to positive variances (deferred: filter changes set
@@ -552,10 +474,10 @@ function VarianceTab({ count }: { count: StockCount }) {
     }, [onFilter]);
 
     useEffect(() => {
-        if (count.status !== 'PENDING_APPROVAL') return;
+        if (count.status !== 'COUNTING') return;
         let cancelled = false;
         stockCountApi
-            .approvePreview(count.id)
+            .completePreview(count.id)
             .then((data) => {
                 if (!cancelled) setPreview(data);
             })
@@ -565,8 +487,9 @@ function VarianceTab({ count }: { count: StockCount }) {
         };
     }, [count.id, count.status]);
 
-    // Drift/serial warnings only apply while the count awaits approval.
-    const preview = count.status === 'PENDING_APPROVAL' ? previewState : null;
+    // Drift/serial warnings only apply while the count is still open — once it
+    // is completed the adjustments have already settled them.
+    const preview = count.status === 'COUNTING' ? previewState : null;
     const driftIds = new Set(
         preview?.locations.flatMap((loc) => loc.lines.filter((l) => l.drift).map((l) => l.line_id)) ?? [],
     );
@@ -662,7 +585,7 @@ function VarianceTab({ count }: { count: StockCount }) {
                     {preview.foreign_serials.length > 0 && (
                         <p>
                             <span className="font-semibold">{preview.foreign_serials.length} foreign serial(s)</span>{' '}
-                            exist elsewhere — excluded, investigate before approving.
+                            exist elsewhere — excluded, investigate before completing.
                         </p>
                     )}
                 </div>

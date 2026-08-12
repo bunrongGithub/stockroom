@@ -1,6 +1,7 @@
 import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { NextRequest, NextResponse } from 'next/server';
 import { getRequestContext } from '@/lib/request-context';
+import { parseListParams } from '@/service/core/query/http';
 import { z } from 'zod';
 import { service } from '.';
 
@@ -8,18 +9,7 @@ export async function GET(request: NextRequest) {
     try {
         const ctx = getRequestContext(request);
         await requirePermission(ctx, PERMISSIONS.setting.module.view, { req: request });
-        const searchParams = request.nextUrl.searchParams;
-
-        const page = Number(searchParams.get('page') || 1);
-        const limit = Number(searchParams.get('limit') || 10);
-        const search = searchParams.get('search') ?? undefined;
-
-        const items = await service.findAll(ctx, {
-            page,
-            limit,
-            search,
-            searchColumn: 'label',
-        });
+        const items = await service.findAllV2(ctx, parseListParams(request));
         return NextResponse.json(items, { status: 200 });
     } catch (error) {
         const message =

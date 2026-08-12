@@ -4,9 +4,10 @@ import { ApiError, ApiResponseSuccess } from '@/service/core/api-response';
 import {
     createCompany,
     getCompany,
-    listCompanies,
+    listCompaniesV2,
     updateCompany,
 } from '@/service/apps/base/company';
+import { parseListParams } from '@/service/core/query/http';
 import { NextRequest, NextResponse } from 'next/server';
 
 // GET /api/setting/company — paginated company list. Super users see every
@@ -26,11 +27,7 @@ export async function GET(request: NextRequest) {
             return new ApiResponseSuccess({ data }).toResponse();
         }
 
-        const result = await listCompanies(context, {
-            page: Math.max(1, Number(sp.get('page') ?? 1)),
-            limit: Math.min(100, Math.max(1, Number(sp.get('limit') ?? 10))),
-            search: sp.get('search') ?? undefined,
-        });
+        const result = await listCompaniesV2(context, parseListParams(request));
         return NextResponse.json(result, { status: 200 });
     } catch (exception) {
         if (exception instanceof ApiError) return exception.toResponse();

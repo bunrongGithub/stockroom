@@ -147,7 +147,7 @@ export default function PaymentForm({
         icon={<WalletIcon />}
         title={
           mode === 'create'
-            ? 'New Payment'
+            ? 'Payment'
             : `Edit ${header.payment_no || 'Payment'}`
         }
         actions={

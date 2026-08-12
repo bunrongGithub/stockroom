@@ -56,10 +56,10 @@ function StatusBadge({ status }: { status: SalesOrderStatus }) {
     cancelled: 'bg-rose-100 text-rose-700',
   };
   const labels: Record<SalesOrderStatus, string> = {
-    open: 'Open',
-    partial_shipment: 'Partial Shipment',
-    closed: 'Closed',
-    cancelled: 'Cancelled',
+    open: 'OPEN',
+    partial_shipment: 'PARTIAL DELIVERY',
+    closed: 'CLOSED',
+    cancelled: 'CANCELLED',
   };
   return (
     <span

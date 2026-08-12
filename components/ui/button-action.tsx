@@ -1,3 +1,5 @@
+import { Button } from '@/components/ui/button';
+import { PAGE_ACTION_CLASS } from '@/components/ui/PageHeader';
 import { resolveHref } from '@/utils/utils';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
@@ -116,34 +118,38 @@ export function ButtonActionDynamicRender(
   }
 }
 
+/**
+ * A module's page-level action (Create…), driven by the `modules` table.
+ *
+ * Renders through `Button` + `PAGE_ACTION_CLASS` so a registry-driven action
+ * and a hand-written one (`<Button className={PAGE_ACTION_CLASS}>`) are the
+ * same object on screen.
+ */
 export function ButtonActionStaticRender(
   staticAction: any,
   isPopup = false,
   onClick?: () => void,
 ) {
-  if (staticAction && isPopup === false) {
-    const Icon = staticAction.icon;
-    return (
-      <Link
-        href={staticAction.href as string}
-        className="inline-flex items-center gap-1 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-xl text-sm shadow-sm transition- font-mono"
-      >
-        {Icon && <Icon size={16} />}
-        {staticAction.label}
-      </Link>
-    );
-  } else if (staticAction && isPopup === true) {
-    const Icon = staticAction.icon;
+  if (!staticAction) return;
+  const Icon = staticAction.icon;
+  const content = (
+    <>
+      {Icon && <Icon size={16} />}
+      {staticAction.label}
+    </>
+  );
 
+  if (isPopup === false) {
     return (
-      <button
-        onClick={onClick}
-        className="inline-flex items-center gap-1 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-xl text-sm shadow-sm transition- font-mono"
-      >
-        {Icon && <Icon size={16} />}
-        {staticAction.label}
-      </button>
+      <Button asChild className={PAGE_ACTION_CLASS}>
+        <Link href={staticAction.href as string}>{content}</Link>
+      </Button>
     );
   }
-  return;
+
+  return (
+    <Button onClick={onClick} className={PAGE_ACTION_CLASS}>
+      {content}
+    </Button>
+  );
 }

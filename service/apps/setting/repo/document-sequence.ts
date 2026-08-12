@@ -10,9 +10,14 @@ import {
 import type { RequestContext } from '@/types/request-context';
 import {
     DOCUMENT_TYPES,
+    configurableDocumentTypes,
     isDocumentType,
+    type DocumentGroup,
     type DocumentType,
 } from '@/service/core/document-types';
+import type { PaginatedResult } from '@/service/core/pagination';
+import type { QueryConfig } from '@/service/core/query/config.ts';
+import type { QueryObject } from '@/service/core/query/types.ts';
 import {
     effectiveNextValue,
     renderDocumentNumber,
@@ -67,6 +72,17 @@ export class DocumentSequenceRepository extends BaseRepository {
     /** Numbering belongs to the company; every member sees the same rows. */
     protected readonly scope: QueryScope = 'company';
 
+    /**
+     * No super-user bypass, unlike most repositories.
+     *
+     * A sequence is configuration for ONE company, and every screen here edits
+     * "the Sales Order sequence" as if there were one. Letting a super user see
+     * every company's rows would show ten identically-labelled entries with
+     * nothing to tell them apart — and the write paths all resolve the company
+     * from the session anyway, so the extra rows would not even be editable.
+     */
+    protected readonly allowSuperBypass = false;
+
     private constructor() {
         super();
     }
@@ -76,6 +92,65 @@ export class DocumentSequenceRepository extends BaseRepository {
             DocumentSequenceRepository.instance = new DocumentSequenceRepository();
         }
         return DocumentSequenceRepository.instance;
+    }
+
+    /** Query Framework registry. */
+    protected readonly queryConfig: QueryConfig = {
+        table: TABLE,
+        searchable: ['doc_type', 'prefix', 'format'],
+        sortable: [
+            'doc_type',
+            'prefix',
+            'padding',
+            'reset_rule',
+            'next_value',
+            'is_active',
+            'updated_at',
+        ],
+        filterable: {
+            doc_type: { type: 'multi-select' },
+            reset_rule: {
+                type: 'enum',
+                values: ['never', 'yearly', 'monthly', 'daily'],
+            },
+            is_active: { type: 'boolean' },
+        },
+        // doc_type ordering ≈ the registry's own grouping, and unlike `label`
+        // it is a real column the database can sort on.
+        defaultSort: [{ field: 'doc_type', direction: 'asc' }],
+    };
+
+    /**
+     * Standardized list path (Query Framework).
+     *
+     * The registry — not the client — decides which rows exist to configure:
+     * a doc_type that is not `live` in DOCUMENT_TYPES has no module behind it,
+     * and master reference codes are hidden unless asked for, because those
+     * codes are printed on labels and embedded in existing records. Both rules
+     * are pinned as a forced `doc_type IN (…)`, so no query string can reach a
+     * sequence the screen is not meant to expose.
+     */
+    async findAllV2(
+        ctx: RequestContext,
+        query: QueryObject,
+        opts: { includeMaster?: boolean; group?: DocumentGroup } = {},
+    ): Promise<PaginatedResult<DocumentSequenceView>> {
+        const now = new Date();
+        const allowed = configurableDocumentTypes()
+            .filter((meta) =>
+                opts.group
+                    ? meta.group === opts.group
+                    : opts.includeMaster || meta.group !== 'master',
+            )
+            .map((meta) => meta.docType);
+
+        return this.findAllQuery<DocumentSequenceView>(ctx, query, {
+            forced: [
+                { column: 'doc_type', operator: 'in', value: allowed },
+            ],
+            map: (row) =>
+                this.decorate(row as unknown as DocumentSequence, now),
+        });
     }
 
     /**

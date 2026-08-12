@@ -41,7 +41,7 @@ test('extended actions bind to the correct module keys', () => {
     assert.equal(invoicePost.key, 'sales.invoice.post');
 
     assert.equal(PERMISSIONS.inventory.receipt.post.moduleKey, '/inventory/receipts');
-    assert.equal(PERMISSIONS.inventory.stockCount.approve.action, 'approve');
+    assert.equal(PERMISSIONS.inventory.stockCount.complete.action, 'complete');
     assert.equal(PERMISSIONS.setting.role.delete.key, 'setting.role.delete');
 });
 

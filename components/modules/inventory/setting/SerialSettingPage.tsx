@@ -2,8 +2,18 @@
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { PageHeader } from '@/components/ui/PageHeader';
+import { FieldLabel } from '@/components/ui/FieldLabel';
+import {
+    FieldGrid,
+    FormLayout,
+    SectionCard,
+    SidebarCard,
+    SummaryRow,
+} from '@/components/ui/FormShell';
+import { PAGE_ACTION_CLASS, PageHeader } from '@/components/ui/PageHeader';
+import { LoadingState, Spinner } from '@/components/ui/Spinner';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { useToast } from '@/components/ui/Toast';
 import {
     Select,
     SelectContent,
@@ -20,7 +30,14 @@ import {
     type SerialResetRule,
     type SerialStrategy,
 } from '@/service/apps/inventory/serial/strategies';
-import { Barcode, Loader2, Settings } from 'lucide-react';
+import {
+    Barcode,
+    FileWarning,
+    Hash,
+    RotateCcw,
+    Save,
+    Sparkles,
+} from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 const STRATEGIES: { value: SerialStrategy; label: string; hint: string }[] = [
@@ -33,18 +50,50 @@ const STRATEGIES: { value: SerialStrategy; label: string; hint: string }[] = [
     { value: 'custom', label: 'Custom Pattern', hint: 'Token template, e.g. {PREFIX}{YY}{MM}-{SEQ}' },
 ];
 
-const RESET_RULES: { value: SerialResetRule; label: string }[] = [
-    { value: 'never', label: 'Never Reset' },
-    { value: 'yearly', label: 'Yearly' },
-    { value: 'monthly', label: 'Monthly' },
-    { value: 'daily', label: 'Daily' },
+const RESET_RULES: { value: SerialResetRule; label: string; hint: string }[] = [
+    { value: 'never', label: 'Never Reset', hint: 'One running count forever.' },
+    { value: 'yearly', label: 'Yearly', hint: 'The counter restarts each January.' },
+    { value: 'monthly', label: 'Monthly', hint: 'The counter restarts each month.' },
+    { value: 'daily', label: 'Daily', hint: 'The counter restarts each day.' },
 ];
+
+/**
+ * What each strategy means for the counter — the part that is not obvious from
+ * the example alone, since it decides whether numbers are shared or per-entity.
+ */
+const STRATEGY_NOTE: Record<SerialStrategy, string> = {
+    sequential:
+        'One company-wide counter. Every serial continues the same sequence regardless of item or warehouse.',
+    date_prefix:
+        'The issue date leads the serial, followed by the counter — useful when serials are filed by day.',
+    item_prefix:
+        'Each item keeps its own counter, so two different items can both hold serial 000001.',
+    warehouse_prefix:
+        'Each warehouse keeps its own counter, so a serial identifies where it was received.',
+    company_prefix:
+        'One company-wide counter behind a fixed company code — the code identifies you, not the item.',
+    random:
+        'No counter at all: each serial is drawn at random, so they cannot be guessed or ordered.',
+    custom: '',
+};
+
+/** Sample context for the preview — the same shape the generator receives. */
+const PREVIEW_CONTEXT = {
+    itemCode: 'IP16',
+    warehouseCode: 'WH01',
+    companyCode: 'ICASE',
+};
 
 /**
  * Serial Number Configuration — company-wide generation settings the Serial
  * Management framework reads on every Generate. The preview renders through
  * the SAME pure strategy engine the server uses, so what you see is exactly
  * what will be generated.
+ *
+ * Laid out with the shared document shell (PageHeader + FormLayout): the
+ * settings occupy the full page width in sectioned cards, and the sticky
+ * sidebar keeps the live preview visible while you edit the fields that drive
+ * it — the one thing you actually want to watch on this screen.
  */
 export default function SerialSettingPage({
     currentPath,
@@ -57,32 +106,33 @@ export default function SerialSettingPage({
         modulePath: currentPath.path,
     });
 
+    const toast = useToast();
     const [cfg, setCfg] = useState<SerialGenerationConfig | null>(null);
     const [saving, setSaving] = useState(false);
-    const [message, setMessage] = useState<string | null>(null);
-    const [error, setError] = useState<string | null>(null);
+    const [loadError, setLoadError] = useState<string | null>(null);
 
     useEffect(() => {
+        let cancelled = false;
         (async () => {
             try {
                 const res = await fetch(API.inventory.serialSetting);
                 const json = await res.json();
                 if (!res.ok) throw new Error(json.error ?? 'Failed to load');
-                setCfg(json.data);
+                if (!cancelled) setCfg(json.data);
             } catch (e) {
-                setError(e instanceof Error ? e.message : 'Failed to load');
+                if (!cancelled)
+                    setLoadError(e instanceof Error ? e.message : 'Failed to load');
             }
         })();
+        return () => {
+            cancelled = true;
+        };
     }, []);
 
     const preview = useMemo(() => {
         if (!cfg) return [];
         try {
-            return renderSerials(cfg, 3, cfg.start_number, {
-                itemCode: 'IP16',
-                warehouseCode: 'WH01',
-                companyCode: 'ICASE',
-            });
+            return renderSerials(cfg, 3, cfg.start_number, PREVIEW_CONTEXT);
         } catch {
             return [];
         }
@@ -98,8 +148,6 @@ export default function SerialSettingPage({
     const save = async () => {
         if (!cfg) return;
         setSaving(true);
-        setError(null);
-        setMessage(null);
         try {
             const res = await fetch(API.inventory.serialSetting, {
                 method: 'PUT',
@@ -117,99 +165,186 @@ export default function SerialSettingPage({
             const json = await res.json();
             if (!res.ok) throw new Error(json.error ?? 'Save failed');
             setCfg(json.data);
-            setMessage('Serial numbering saved');
-            setTimeout(() => setMessage(null), 3000);
+            toast.success('Serial numbering saved.');
         } catch (e) {
-            setError(e instanceof Error ? e.message : 'Save failed');
+            toast.error(e instanceof Error ? e.message : 'Save failed');
         } finally {
             setSaving(false);
         }
     };
 
-    if (!cfg && !error) {
+    if (loadError) {
         return (
-            <div className="flex h-64 items-center justify-center">
-                <Loader2 className="animate-spin text-emerald-500" size={24} />
+            <div className="space-y-4 font-mono">
+                <PageHeader
+                    title="Serial Numbering"
+                    description="How serial numbers are generated across receipts, adjustments and future modules."
+                />
+                <EmptyState
+                    icon={FileWarning}
+                    title="Could not load serial settings"
+                    description={loadError}
+                />
             </div>
         );
     }
 
-    const strategyHint = STRATEGIES.find((s) => s.value === cfg?.strategy)?.hint;
+    if (!cfg) return <LoadingState label="Loading serial settings…" />;
+
+    const strategy = STRATEGIES.find((s) => s.value === cfg.strategy);
+    const resetRule = RESET_RULES.find((r) => r.value === cfg.reset_rule);
+    const readOnly = !permission.can_update;
+    // A custom pattern with nothing in it would generate empty serials.
+    const incomplete = cfg.strategy === 'custom' && !cfg.pattern?.trim();
 
     return (
-        <div className="animate-in fade-in space-y-4 font-mono text-xs duration-300">
+        <div className="animate-in fade-in space-y-4 font-mono duration-300">
             <PageHeader
                 title="Serial Numbering"
                 description="How serial numbers are generated across receipts, adjustments and future modules."
+                actions={
+                    permission.can_update && (
+                        <Button
+                            className={PAGE_ACTION_CLASS}
+                            onClick={save}
+                            disabled={saving || incomplete}
+                        >
+                            {saving ? <Spinner size={15} className="text-current" /> : <Save size={15} />}
+                            Save settings
+                        </Button>
+                    )
+                }
             />
 
-            <div className="max-w-xl space-y-4 rounded-2xl border border-slate-200 bg-white p-5">
-                <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-                    <Barcode size={16} className="text-[#1a9e52]" />
-                    Generation strategy
-                </h2>
-
-                {cfg && (
+            <FormLayout
+                sidebar={
                     <>
-                        <div className="space-y-1.5">
-                            <Label>Default strategy</Label>
-                            <Select
-                                value={cfg.strategy}
-                                onValueChange={(v) => set('strategy', v as SerialStrategy)}
-                                disabled={!permission.can_update}
-                            >
-                                <SelectTrigger>
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {STRATEGIES.map((s) => (
-                                        <SelectItem key={s.value} value={s.value}>
-                                            {s.label}
-                                        </SelectItem>
+                        <SidebarCard icon={<Sparkles size={13} />} title="Live Preview">
+                            {preview.length ? (
+                                <div className="space-y-1.5">
+                                    {preview.map((sn, i) => (
+                                        <div
+                                            key={`${sn}-${i}`}
+                                            className="rounded-lg border border-success/30 bg-success-muted px-3 py-2 text-center text-sm font-semibold text-success tnums"
+                                        >
+                                            {sn}
+                                        </div>
                                     ))}
-                                </SelectContent>
-                            </Select>
-                            {strategyHint && (
-                                <p className="text-[10px] text-slate-400">{strategyHint}</p>
-                            )}
-                        </div>
-
-                        {cfg.strategy === 'custom' && (
-                            <div className="space-y-1.5">
-                                <Label>Custom pattern</Label>
-                                <Input
-                                    value={cfg.pattern ?? ''}
-                                    onChange={(e) => set('pattern', e.target.value)}
-                                    placeholder="{PREFIX}{YYYY}{MM}-{SEQ}{SUFFIX}"
-                                    disabled={!permission.can_update}
-                                />
-                                <p className="text-[10px] text-slate-400">
-                                    Tokens: {'{PREFIX} {SUFFIX} {SEQ} {YYYY} {YY} {MM} {DD} {ITEM} {WH} {COMPANY} {RAND}'}
+                                    <p className="pt-1 text-center text-[10px] text-muted-foreground">
+                                        The next three serials this configuration
+                                        would generate.
+                                    </p>
+                                </div>
+                            ) : (
+                                <p className="py-2 text-center text-xs text-muted-foreground">
+                                    Enter a valid pattern to see a preview.
                                 </p>
-                            </div>
-                        )}
+                            )}
+                        </SidebarCard>
 
-                        <div className="grid grid-cols-2 gap-3">
-                            <div className="space-y-1.5">
-                                <Label>Prefix</Label>
+                        <SidebarCard icon={<Barcode size={13} />} title="Summary">
+                            <div className="space-y-2 text-xs">
+                                <SummaryRow label="Strategy">
+                                    {strategy?.label ?? cfg.strategy}
+                                </SummaryRow>
+                                <SummaryRow label="Prefix">
+                                    {cfg.prefix || '—'}
+                                </SummaryRow>
+                                <SummaryRow label="Suffix">
+                                    {cfg.suffix || '—'}
+                                </SummaryRow>
+                                <SummaryRow label="Number length">
+                                    {cfg.seq_length}
+                                </SummaryRow>
+                                <SummaryRow label="Starts at">
+                                    {cfg.start_number}
+                                </SummaryRow>
+                                <SummaryRow label="Resets">
+                                    {resetRule?.label ?? cfg.reset_rule}
+                                </SummaryRow>
+                            </div>
+                        </SidebarCard>
+                    </>
+                }
+            >
+                <div className="space-y-5">
+                    <SectionCard
+                        icon={<Barcode size={13} />}
+                        title="Generation Strategy"
+                    >
+                        <FieldGrid>
+                            <div>
+                                <FieldLabel>Default strategy</FieldLabel>
+                                <Select
+                                    value={cfg.strategy}
+                                    onValueChange={(v) => set('strategy', v as SerialStrategy)}
+                                    disabled={readOnly}
+                                >
+                                    <SelectTrigger className="w-full">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {STRATEGIES.map((s) => (
+                                            <SelectItem key={s.value} value={s.value}>
+                                                {s.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                {strategy && (
+                                    <p className="mt-1.5 text-xs text-muted-foreground">
+                                        Example: {strategy.hint}
+                                    </p>
+                                )}
+                            </div>
+
+                            {/* The second cell is the strategy's own
+                                explanation, so the card fills its width whether
+                                or not the custom-pattern field is showing. */}
+                            {cfg.strategy === 'custom' ? (
+                                <div>
+                                    <FieldLabel required>Custom pattern</FieldLabel>
+                                    <Input
+                                        value={cfg.pattern ?? ''}
+                                        onChange={(e) => set('pattern', e.target.value)}
+                                        placeholder="{PREFIX}{YYYY}{MM}-{SEQ}{SUFFIX}"
+                                        disabled={readOnly}
+                                    />
+                                    <p className="mt-1.5 text-xs text-muted-foreground">
+                                        Tokens:{' '}
+                                        {'{PREFIX} {SUFFIX} {SEQ} {YYYY} {YY} {MM} {DD} {ITEM} {WH} {COMPANY} {RAND}'}
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="rounded-xl border border-border/60 bg-muted/30 p-4 text-xs text-muted-foreground">
+                                    {STRATEGY_NOTE[cfg.strategy]}
+                                </div>
+                            )}
+                        </FieldGrid>
+                    </SectionCard>
+
+                    <SectionCard icon={<Hash size={13} />} title="Number Format">
+                        <FieldGrid cols={4}>
+                            <div>
+                                <FieldLabel>Prefix</FieldLabel>
                                 <Input
                                     value={cfg.prefix}
                                     maxLength={20}
                                     onChange={(e) => set('prefix', e.target.value)}
-                                    disabled={!permission.can_update}
+                                    disabled={readOnly}
                                 />
                             </div>
-                            <div className="space-y-1.5">
-                                <Label>Suffix</Label>
+                            <div>
+                                <FieldLabel>Suffix</FieldLabel>
                                 <Input
                                     value={cfg.suffix}
                                     maxLength={20}
                                     onChange={(e) => set('suffix', e.target.value)}
-                                    disabled={!permission.can_update}
+                                    disabled={readOnly}
                                 />
                             </div>
-                            <div className="space-y-1.5">
-                                <Label>Number length (padding)</Label>
+                            <div>
+                                <FieldLabel>Number length (padding)</FieldLabel>
                                 <Input
                                     type="number"
                                     min={1}
@@ -218,11 +353,11 @@ export default function SerialSettingPage({
                                     onChange={(e) =>
                                         set('seq_length', Math.max(1, Math.min(20, Number(e.target.value) || 1)))
                                     }
-                                    disabled={!permission.can_update}
+                                    disabled={readOnly}
                                 />
                             </div>
-                            <div className="space-y-1.5">
-                                <Label>Starting number</Label>
+                            <div>
+                                <FieldLabel>Starting number</FieldLabel>
                                 <Input
                                     type="number"
                                     min={1}
@@ -230,81 +365,53 @@ export default function SerialSettingPage({
                                     onChange={(e) =>
                                         set('start_number', Math.max(1, Number(e.target.value) || 1))
                                     }
-                                    disabled={!permission.can_update}
+                                    disabled={readOnly}
                                 />
                             </div>
-                        </div>
+                        </FieldGrid>
+                    </SectionCard>
 
-                        <div className="space-y-1.5">
-                            <Label>Reset rule</Label>
-                            <Select
-                                value={cfg.reset_rule}
-                                onValueChange={(v) => set('reset_rule', v as SerialResetRule)}
-                                disabled={!permission.can_update}
-                            >
-                                <SelectTrigger>
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {RESET_RULES.map((r) => (
-                                        <SelectItem key={r.value} value={r.value}>
-                                            {r.label}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                            <p className="text-[10px] text-slate-400">
-                                The counter starts over per year / month / day — each period keeps its own sequence.
-                            </p>
-                        </div>
+                    <SectionCard icon={<RotateCcw size={13} />} title="Sequence Reset">
+                        <FieldGrid>
+                            <div>
+                                <FieldLabel>Reset rule</FieldLabel>
+                                <Select
+                                    value={cfg.reset_rule}
+                                    onValueChange={(v) => set('reset_rule', v as SerialResetRule)}
+                                    disabled={readOnly}
+                                >
+                                    <SelectTrigger className="w-full">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {RESET_RULES.map((r) => (
+                                            <SelectItem key={r.value} value={r.value}>
+                                                {r.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                {resetRule && (
+                                    <p className="mt-1.5 text-xs text-muted-foreground">
+                                        {resetRule.hint}
+                                    </p>
+                                )}
+                            </div>
+                            <div className="rounded-xl border border-border/60 bg-muted/30 p-4 text-xs text-muted-foreground">
+                                Each period keeps its own sequence, so a reset
+                                never reuses a serial already issued in an
+                                earlier period.
+                            </div>
+                        </FieldGrid>
+                    </SectionCard>
 
-                        {/* Live preview through the real strategy engine */}
-                        <div className="rounded-xl border border-dashed border-emerald-200 bg-emerald-50/40 p-3">
-                            <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                                Preview
-                            </p>
-                            {preview.length ? (
-                                <div className="flex flex-wrap gap-1.5">
-                                    {preview.map((sn, i) => (
-                                        <span
-                                            key={`${sn}-${i}`}
-                                            className="rounded-md border border-emerald-200 bg-white px-1.5 py-0.5 font-mono text-[11px] text-emerald-800"
-                                        >
-                                            {sn}
-                                        </span>
-                                    ))}
-                                </div>
-                            ) : (
-                                <p className="text-[11px] text-slate-400">
-                                    Enter a valid pattern to see a preview.
-                                </p>
-                            )}
-                        </div>
-                    </>
-                )}
-
-                {error && (
-                    <p className="rounded-xl bg-rose-50 px-3 py-2 text-rose-600">{error}</p>
-                )}
-                {message && (
-                    <p className="rounded-xl bg-emerald-50 px-3 py-2 text-emerald-700">{message}</p>
-                )}
-
-                {permission.can_update && cfg && (
-                    <Button
-                        onClick={save}
-                        disabled={saving || (cfg.strategy === 'custom' && !cfg.pattern?.trim())}
-                        className="gap-1.5 bg-emerald-600 hover:bg-emerald-500"
-                    >
-                        {saving ? (
-                            <Loader2 size={14} className="animate-spin" />
-                        ) : (
-                            <Settings size={14} />
-                        )}
-                        Save settings
-                    </Button>
-                )}
-            </div>
+                    {readOnly && (
+                        <p className="text-xs text-muted-foreground">
+                            You have view-only access to serial numbering.
+                        </p>
+                    )}
+                </div>
+            </FormLayout>
         </div>
     );
 }

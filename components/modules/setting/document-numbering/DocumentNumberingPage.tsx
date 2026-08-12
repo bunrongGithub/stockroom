@@ -1,10 +1,20 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Check, Hash, Loader2, Pencil, X } from 'lucide-react';
 
 import { FormHeader, HeaderAction, SectionCard } from '@/components/ui/FormShell';
 import { EditableInput, EditableSelect, FieldLabel } from '@/components/ui/FieldLabel';
+import {
+    DataTable,
+    type DataTableColumn,
+    type DataTableFilterDef,
+} from '@/components/ui/DataTable';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { StatusBadge } from '@/components/ui/StatusBadge';
+import { RowAction, RowActions } from '@/components/ui/button-action';
+import { useToast } from '@/components/ui/Toast';
+import { useTableQuery } from '@/hook/useTableQuery';
 import {
     FORMAT_PRESETS,
     DOCUMENT_RESET_RULES,
@@ -47,23 +57,56 @@ const RESET_LABELS: Record<DocumentResetRule, string> = {
     daily: 'Daily — restarts each day',
 };
 
-const GROUP_LABELS: Record<string, string> = {
-    sales: 'Sales',
-    inventory: 'Inventory',
-    purchasing: 'Purchasing',
-    master: 'Internal reference codes',
-};
-
 const STEPS = ['General', 'Format', 'Reset', 'Review'] as const;
+
+/**
+ * `group` is registry metadata, not a column — the route resolves this facet
+ * against DOCUMENT_TYPES and pins the matching doc_types. Leaving it unset
+ * hides the internal reference codes, which is why 'master' is offered as an
+ * explicit choice rather than a hidden toggle.
+ */
+const FILTER_DEFS: DataTableFilterDef[] = [
+    {
+        key: 'group',
+        label: 'Group',
+        type: 'select',
+        options: [
+            { value: 'sales', label: 'Sales' },
+            { value: 'inventory', label: 'Inventory' },
+            { value: 'purchasing', label: 'Purchasing' },
+            { value: 'master', label: 'Internal reference codes' },
+        ],
+    },
+    {
+        key: 'reset_rule',
+        label: 'Resets',
+        type: 'select',
+        options: [
+            { value: 'never', label: 'Never' },
+            { value: 'yearly', label: 'Yearly' },
+            { value: 'monthly', label: 'Monthly' },
+            { value: 'daily', label: 'Daily' },
+        ],
+    },
+    {
+        key: 'is_active',
+        label: 'Status',
+        type: 'select',
+        options: [
+            { value: 'true', label: 'Active' },
+            { value: 'false', label: 'Inactive' },
+        ],
+    },
+];
 
 /**
  * Settings → Document Numbering.
  *
- * Two surfaces: a grouped overview of every sequence, and a four-step wizard
- * for changing one. The wizard exists because the four decisions are genuinely
- * sequential — the reset options available at step 3 depend on the format
- * chosen at step 2 — so walking through them prevents the combination that
- * silently breaks document creation (see resetRuleIssue).
+ * Two surfaces: a list of every sequence, and a four-step wizard for changing
+ * one. The wizard exists because the four decisions are genuinely sequential —
+ * the reset options available at step 3 depend on the format chosen at step 2 —
+ * so walking through them prevents the combination that silently breaks
+ * document creation (see resetRuleIssue).
  *
  * Every preview on this page is rendered by renderDocumentNumber, the same
  * pure function the server uses to mint real numbers. It runs locally, so the
@@ -71,61 +114,10 @@ const STEPS = ['General', 'Format', 'Reset', 'Review'] as const;
  * what actually gets issued.
  */
 export default function DocumentNumberingPage() {
-    const [loaded, setLoaded] = useState<{
-        includeMaster: boolean;
-        rows: Sequence[];
-    } | null>(null);
-    const [error, setError] = useState('');
-    const [showInternal, setShowInternal] = useState(false);
+    const toast = useToast();
     const [editing, setEditing] = useState<Sequence | null>(null);
-    const [flash, setFlash] = useState('');
 
-    /**
-     * Rows are stored WITH the scope they were fetched for, so toggling the
-     * internal codes can never render the previous list, and both `rows` and
-     * `loading` derive from that one value rather than being set synchronously
-     * inside the effect.
-     */
-    const [reloadToken, setReloadToken] = useState(0);
-
-    useEffect(() => {
-        let active = true;
-        fetch(`${API}${showInternal ? '?include_master=1' : ''}`)
-            .then(async (res) => {
-                const json = await res.json();
-                if (!res.ok) throw new Error(json.error ?? 'Failed to load');
-                return (json.data ?? []) as Sequence[];
-            })
-            .then((rows) => {
-                if (!active) return;
-                setLoaded({ includeMaster: showInternal, rows });
-                setError('');
-            })
-            .catch((e: unknown) => {
-                if (!active) return;
-                setLoaded({ includeMaster: showInternal, rows: [] });
-                setError(e instanceof Error ? e.message : 'Failed to load');
-            });
-        return () => {
-            active = false;
-        };
-    }, [showInternal, reloadToken]);
-
-    const fresh = loaded !== null && loaded.includeMaster === showInternal;
-    const loading = !fresh;
-
-    const grouped = useMemo(() => {
-        const order = ['sales', 'inventory', 'purchasing', 'master'];
-        const out = new Map<string, Sequence[]>();
-        for (const row of fresh ? loaded.rows : []) {
-            const list = out.get(row.group) ?? [];
-            list.push(row);
-            out.set(row.group, list);
-        }
-        return [...out.entries()].sort(
-            (a, b) => order.indexOf(a[0]) - order.indexOf(b[0]),
-        );
-    }, [fresh, loaded]);
+    const table = useTableQuery<Sequence>({ endpoint: API });
 
     async function save(draft: Draft) {
         if (!editing) return;
@@ -136,10 +128,9 @@ export default function DocumentNumberingPage() {
         });
         const json = await res.json();
         if (!res.ok) throw new Error(json.error ?? 'Failed to save');
+        toast.success(`${editing.label} numbering saved`);
         setEditing(null);
-        setFlash(`${editing.label} numbering saved`);
-        setReloadToken((n) => n + 1);
-        setTimeout(() => setFlash(''), 4000);
+        await table.refresh();
     }
 
     if (editing) {
@@ -152,101 +143,101 @@ export default function DocumentNumberingPage() {
         );
     }
 
+    const columns: DataTableColumn<Sequence>[] = [
+        {
+            key: 'label',
+            header: 'Document',
+            primary: true,
+            sortable: true,
+            sortKey: 'doc_type',
+            cell: (row) => (
+                <div>
+                    <span className="font-medium text-foreground">{row.label}</span>
+                    <p className="text-xs text-muted-foreground">{row.doc_type}</p>
+                </div>
+            ),
+        },
+        {
+            key: 'format',
+            header: 'Format',
+            cell: (row) => <span className="text-xs">{row.format}</span>,
+        },
+        {
+            key: 'reset_rule',
+            header: 'Resets',
+            sortable: true,
+            cell: (row) => (
+                <span className="text-xs">
+                    {RESET_LABELS[row.reset_rule].split(' — ')[0]}
+                </span>
+            ),
+        },
+        {
+            key: 'preview',
+            header: 'Next Number',
+            align: 'right',
+            cell: (row) => (
+                <span className="font-medium text-primary tnums">{row.preview}</span>
+            ),
+        },
+        {
+            key: 'last_issued',
+            header: 'Last Issued',
+            align: 'right',
+            hideOnCard: true,
+            cell: (row) => (
+                <span className="text-xs text-muted-foreground tnums">
+                    {row.last_issued ?? '—'}
+                </span>
+            ),
+        },
+        {
+            key: 'is_active',
+            header: 'Status',
+            sortable: true,
+            cell: (row) => (
+                <StatusBadge status={row.is_active ? 'ACTIVE' : 'INACTIVE'} />
+            ),
+        },
+        {
+            key: 'actions',
+            header: 'Actions',
+            sticky: 'right',
+            align: 'right',
+            cardFooter: true,
+            cell: (row) => (
+                <RowActions>
+                    <RowAction
+                        label="Configure"
+                        icon={<Pencil size={13} />}
+                        onClick={() => setEditing(row)}
+                    />
+                </RowActions>
+            ),
+        },
+    ];
+
     return (
         <div className="space-y-4 font-mono">
-            <FormHeader
-                icon={<Hash size={24} />}
+            <PageHeader
                 title="Document Numbering"
-                subtitle="How each document type numbers itself"
+                description="How each document type numbers itself"
             />
 
-            {flash && (
-                <div className="rounded-xl border border-[#1a9e52]/30 bg-[#1a9e52]/10 px-4 py-3 text-xs text-[#0f6b36]">
-                    {flash}
-                </div>
-            )}
-            {error && (
-                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700">
-                    {error}
-                </div>
-            )}
-
-            {loading ? (
-                <div className="flex h-48 items-center justify-center">
-                    <Loader2 className="animate-spin text-[#1a9e52]" size={26} />
-                </div>
-            ) : (
-                <div className="space-y-4">
-                    {grouped.map(([group, list]) => (
-                        <SectionCard
-                            key={group}
-                            title={GROUP_LABELS[group] ?? group}
-                        >
-                            <div className="divide-y divide-slate-100">
-                                {list.map((row) => (
-                                    <SequenceRow
-                                        key={row.id}
-                                        row={row}
-                                        onEditAction={() => setEditing(row)}
-                                    />
-                                ))}
-                            </div>
-                        </SectionCard>
-                    ))}
-
-                    <button
-                        type="button"
-                        onClick={() => setShowInternal((v) => !v)}
-                        className="text-xs text-slate-500 underline-offset-2 hover:text-slate-700 hover:underline"
-                    >
-                        {showInternal ? 'Hide' : 'Show'} internal reference codes
-                        (item, category, partner)
-                    </button>
-                </div>
-            )}
-        </div>
-    );
-}
-
-/** One row in the overview: what it looks like now, and what comes next. */
-function SequenceRow({
-    row,
-    onEditAction,
-}: {
-    row: Sequence;
-    onEditAction: () => void;
-}) {
-    return (
-        <div className="flex flex-wrap items-center gap-3 py-3 text-xs">
-            <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-slate-800">
-                    {row.label}
-                </p>
-                <p className="mt-0.5 truncate text-slate-400">
-                    {row.format} · {RESET_LABELS[row.reset_rule].split(' — ')[0]}
-                </p>
-            </div>
-
-            <div className="shrink-0 text-right">
-                <p className="text-[10px] uppercase tracking-wider text-slate-400">
-                    Next
-                </p>
-                <p className="font-semibold text-[#1a9e52]">{row.preview}</p>
-            </div>
-
-            {!row.is_active && (
-                <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
-                    Inactive
-                </span>
-            )}
-
-            <button
-                type="button"
-                onClick={onEditAction}
-                className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-slate-600 transition-colors hover:bg-slate-50"
-            >
-                <Pencil size={13} /> Configure
-            </button>
+            <DataTable<Sequence>
+                columns={columns}
+                data={table.data}
+                keyExtractor={(row) => row.id}
+                mobileVariant="cards"
+                minTableWidth="900px"
+                searchPlaceholder="Search by document type, prefix, or format..."
+                pageSizeOptions={[10, 20, 50]}
+                serverQuery={table.binding}
+                filterDefs={FILTER_DEFS}
+                enableColumnVisibility
+                emptyTitle="No sequences configured"
+                emptyDescription="No document sequences match your search criteria"
+            />
         </div>
     );
 }

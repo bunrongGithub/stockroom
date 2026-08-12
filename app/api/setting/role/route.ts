@@ -2,29 +2,18 @@ import { PERMISSIONS, requirePermission } from '@/service/core/authz';
 import { getRequestContext } from '@/lib/request-context';
 import { ApiError, ApiResponseSuccess } from '@/service/core/api-response';
 import { Role } from '@/service/apps/base/core/role';
+import { parseListParams } from '@/service/core/query/http';
 import { NextRequest } from 'next/server';
 
 export const Service = new Role();
 
 export async function GET(request: NextRequest) {
     const context = getRequestContext(request);
-    const { searchParams } = request.nextUrl;
-    const page = Math.max(1, Number(searchParams.get('page') ?? 1));
-    // Default stays 10 per page; dropdown callers may request more.
-    const limit = Math.min(
-        1000,
-        Math.max(1, Number(searchParams.get('limit') ?? 10)),
-    );
-    const companyId = Number(searchParams.get('company_id')) || undefined;
     try {
         await requirePermission(context, PERMISSIONS.setting.role.view, {
             req: request,
         });
-        const data = await Service.findAll(
-            context,
-            { page, limit },
-            companyId,
-        );
+        const data = await Service.findAllV2(context, parseListParams(request));
         const response = new ApiResponseSuccess(data).toResponse();
         return response;
     } catch (exception) {

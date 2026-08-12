@@ -1,4 +1,6 @@
-import { BaseRepository } from '@/service/core/base-repository';
+import { BaseRepository, type QueryScope } from '@/service/core/base-repository';
+import type { QueryConfig } from '@/service/core/query/config.ts';
+import type { QueryObject } from '@/service/core/query/types.ts';
 import type {
     PaginatedResult,
     PaginationParams,
@@ -30,6 +32,42 @@ export type AppModuleNested = AppModule & {
 };
 
 export class ModuleRepository extends BaseRepository {
+    /** The module catalog is global — it has no company_id to scope by. */
+    protected readonly scope: QueryScope = 'none';
+
+    /** Query Framework registry. */
+    protected readonly queryConfig: QueryConfig = {
+        table: TABLE,
+        defaultSelect:
+            'id, key, label, path, component, parent_id, icon, sort_order, is_active, type, is_initial_data',
+        searchable: ['key', 'label', 'path'],
+        sortable: ['id', 'key', 'label', 'path', 'type', 'sort_order', 'is_active'],
+        filterable: {
+            type: {
+                type: 'enum',
+                values: ['transaction', 'configuration', 'action'],
+            },
+            is_active: { type: 'boolean' },
+            parent_id: { type: 'foreign-key' },
+        },
+        defaultSort: [{ field: 'sort_order', direction: 'asc' }],
+    };
+
+    /**
+     * Standardized list path (Query Framework).
+     *
+     * Action rows are pinned out: they exist only to carry a permission for a
+     * verb (approve, post, …) and are managed from the role editor, not here.
+     */
+    async findAllV2(
+        ctx: RequestContext,
+        query: QueryObject,
+    ): Promise<PaginatedResult<Omit<AppModule, 'permission'>>> {
+        return this.findAllQuery<Omit<AppModule, 'permission'>>(ctx, query, {
+            forced: [{ column: 'type', operator: 'neq', value: 'action' }],
+        });
+    }
+
     private static instance: ModuleRepository;
     private constructor() {
         super();

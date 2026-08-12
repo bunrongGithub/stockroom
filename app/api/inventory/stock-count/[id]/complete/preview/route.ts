@@ -5,8 +5,18 @@ import { StockCountRepository } from '@/service/apps/inventory/repo/stock-count'
 import { stockCountIdSchema } from '@/service/schema/stock-count.schema';
 import { ApiError, ApiResponseSuccess } from '@/service/core/api-response';
 import type { RequestParam } from '@/app/api/http';
+import { z } from 'zod';
 
 const service = StockCountRepository.getInstance();
+
+/**
+ * Dry run of completion. The policy comes in as a query param because the user
+ * is still choosing it in the dialog this preview feeds — it is only persisted
+ * when they commit.
+ */
+const previewQuerySchema = z.object({
+    uncounted_policy: z.enum(['ignore', 'zero']).optional(),
+});
 
 export async function GET(req: NextRequest, { params }: RequestParam) {
     try {
@@ -20,7 +30,21 @@ export async function GET(req: NextRequest, { params }: RequestParam) {
                 { status: 400 },
             );
         }
-        const data = await service.approvalPreview(ctx, idParsed.data.id);
+        const queryParsed = previewQuerySchema.safeParse({
+            uncounted_policy:
+                req.nextUrl.searchParams.get('uncounted_policy') ?? undefined,
+        });
+        if (!queryParsed.success) {
+            return NextResponse.json(
+                { error: z.flattenError(queryParsed.error).fieldErrors },
+                { status: 422 },
+            );
+        }
+        const data = await service.completionPreview(
+            ctx,
+            idParsed.data.id,
+            queryParsed.data.uncounted_policy,
+        );
         return new ApiResponseSuccess({ data }, 'Success').toResponse();
     } catch (error) {
         if (error instanceof ApiError) return error.toResponse();

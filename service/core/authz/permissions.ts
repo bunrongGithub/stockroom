@@ -74,7 +74,7 @@ export const PERMISSIONS = {
         serialSetting: res('/inventory/configurations/serial-setting', 'inventory.serial_setting', ['view', 'create', 'update', 'delete']),
         receipt: res('/inventory/receipts', 'inventory.receipt', [...CRUD, 'post', 'void']),
         adjustment: res('/inventory/stock_adjust', 'inventory.adjustment', [...CRUD, 'post', 'void']),
-        stockCount: res('/inventory/stock_count', 'inventory.stock_count', [...CRUD, 'prepare', 'count', 'approve', 'complete', 'cancel']),
+        stockCount: res('/inventory/stock_count', 'inventory.stock_count', [...CRUD, 'prepare', 'count', 'complete', 'cancel']),
     },
 
     sales: {

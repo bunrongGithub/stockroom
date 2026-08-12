@@ -86,7 +86,7 @@ export default function UserForm({
         (async () => {
             try {
                 const res = await fetch(
-                    `${API.setting.role.root}?limit=1000&company_id=${effectiveCompanyId}`,
+                    `${API.setting.role.root}?limit=1000&filter[company_id]=${effectiveCompanyId}`,
                 );
                 const body = await res.json();
                 const list = (body.data ?? []) as RoleOption[];

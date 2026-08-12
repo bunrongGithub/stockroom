@@ -19,6 +19,8 @@ export function getUserColumns({
       key: 'name',
       header: 'Name',
       primary: true,
+      sortable: true,
+      sortKey: 'full_name',
       cell: (row) => (
         <div className="flex items-center gap-2.5">
           <Avatar
@@ -57,6 +59,7 @@ export function getUserColumns({
     {
       key: 'status',
       header: 'Status',
+      sortable: true,
       cell: (row) => (
         <StatusBadge
           status={row.status === 'active' ? 'ACTIVE' : 'INACTIVE'}
@@ -66,6 +69,8 @@ export function getUserColumns({
     {
       key: 'last_login',
       header: 'Last Login',
+      sortable: true,
+      sortKey: 'last_login_at',
       cell: (row) => (
         <span className="font-mono text-xs text-muted-foreground">
           {row.last_login_at ? DateTimeFormat(row.last_login_at) : '—'}
@@ -75,6 +80,7 @@ export function getUserColumns({
     {
       key: 'created_at',
       header: 'Joined',
+      sortable: true,
       cell: (row) => (
         <span className="font-mono text-xs text-muted-foreground">
           {DateTimeFormat(row.created_at)}
@@ -86,6 +92,9 @@ export function getUserColumns({
           {
             key: 'actions',
             header: 'Actions',
+            sticky: 'right',
+            align: 'right',
+            cardFooter: true,
             cell: (row: TUser) =>
               ButtonActionDynamicRender(dynamicActions, row, () =>
                 onDelete(Number(row.id)),

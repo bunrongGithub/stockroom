@@ -2,7 +2,7 @@
 
 import { DataTable, type DataTableColumn } from '@/components/ui/DataTable';
 import { auditUserColumns } from '@/components/ui/audit-columns';
-import { PageHeader } from '@/components/ui/PageHeader';
+import { PageHeader, PAGE_ACTION_CLASS } from '@/components/ui/PageHeader';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { RowAction, RowActions } from '@/components/ui/button-action';
@@ -25,11 +25,18 @@ import {
     CheckCircleIcon,
 } from 'lucide-react';
 
+/**
+ * Statuses read in upper case so they scan as states rather than prose, and
+ * "partial delivery" matches what the fulfilment document is actually called
+ * in this system — a Delivery Note, not a shipment.
+ *
+ * The detail page (action/Get.tsx) carries the same map; both must agree.
+ */
 const STATUS_LABEL: Record<SalesOrderStatus, string> = {
-    open: 'Open',
-    partial_shipment: 'Partial Shipment',
-    closed: 'Closed',
-    cancelled: 'Cancelled',
+    open: 'OPEN',
+    partial_shipment: 'PARTIAL DELIVERY',
+    closed: 'CLOSED',
+    cancelled: 'CANCELLED',
 };
 
 function fmt(n: number) {
@@ -77,7 +84,7 @@ export default function SaleOrderPage({ currentPath, permission, currentPathActi
             cell: (row) => (
                 <button
                     onClick={() => router.push(`/sale/order/${row.id}/view`)}
-                    className="font-medium text-primary hover:underline"
+                    className="font-mono text-xs font-semibold text-sky-600 hover:underline"
                 >
                     {row.order_no}
                 </button>
@@ -96,7 +103,13 @@ export default function SaleOrderPage({ currentPath, permission, currentPathActi
         {
             key: 'status',
             header: 'Status',
-            cell: (row) => <StatusBadge status={row.status} label={STATUS_LABEL[row.status]} />,
+            cell: (row) => (
+                <StatusBadge
+                    status={row.status}
+                    label={STATUS_LABEL[row.status]}
+                    className="uppercase"
+                />
+            ),
         },
         ...auditUserColumns<SalesOrder>(),
         {
@@ -160,7 +173,10 @@ export default function SaleOrderPage({ currentPath, permission, currentPathActi
                 description="Manage customer orders and shipments"
                 actions={
                     permission?.can_create && (
-                        <Button onClick={() => router.push('/sale/order/create')}>
+                        <Button
+                            className={PAGE_ACTION_CLASS}
+                            onClick={() => router.push('/sale/order/create')}
+                        >
                             <PlusIcon size={16} /> Create
                         </Button>
                     )

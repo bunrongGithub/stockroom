@@ -80,11 +80,9 @@ export const API = {
             ...resource('/api/inventory/stock-count'),
             prepare: (id: Id) => `/api/inventory/stock-count/${id}/prepare`,
             start: (id: Id) => `/api/inventory/stock-count/${id}/start`,
-            submit: (id: Id) => `/api/inventory/stock-count/${id}/submit`,
-            approve: (id: Id) => `/api/inventory/stock-count/${id}/approve`,
-            approvePreview: (id: Id) =>
-                `/api/inventory/stock-count/${id}/approve/preview`,
-            reopen: (id: Id) => `/api/inventory/stock-count/${id}/reopen`,
+            complete: (id: Id) => `/api/inventory/stock-count/${id}/complete`,
+            completePreview: (id: Id) =>
+                `/api/inventory/stock-count/${id}/complete/preview`,
             cancel: (id: Id) => `/api/inventory/stock-count/${id}/cancel`,
             summary: (id: Id) => `/api/inventory/stock-count/${id}/summary`,
             lines: (id: Id) => `/api/inventory/stock-count/${id}/lines`,

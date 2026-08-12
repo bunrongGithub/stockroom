@@ -1,4 +1,7 @@
 import { BaseRepository, PaginationParams } from '@/service/core';
+import type { PaginatedResult } from '@/service/core/pagination';
+import type { QueryConfig } from '@/service/core/query/config.ts';
+import type { QueryObject } from '@/service/core/query/types.ts';
 import {
     ApiError,
     BadRequesstExceptionError,
@@ -18,6 +21,33 @@ import type {
 // with an explicit id — everyone else gets their own company by construction,
 // so cross-company access is impossible regardless of what the client sends.
 export class CompanyRepository extends BaseRepository {
+    /**
+     * Company is the tenancy root, so its own primary key IS the company
+     * column: a non-super user scoped to "their company" sees exactly the one
+     * row whose id matches their session.
+     */
+    protected readonly companyColumn: string = 'id';
+
+    /** Query Framework registry. */
+    protected readonly queryConfig: QueryConfig = {
+        table: 'company',
+        searchable: ['name', 'email', 'registration_number', 'phone'],
+        sortable: ['id', 'name', 'email', 'status', 'created_at'],
+        filterable: {
+            status: { type: 'enum', values: ['active', 'inactive'] },
+            created_at: { type: 'date' },
+        },
+        defaultSort: [{ field: 'id', direction: 'asc' }],
+    };
+
+    /** Standardized list path (Query Framework). */
+    async findAllV2(
+        ctx: RequestContext,
+        query: QueryObject,
+    ): Promise<PaginatedResult<Company>> {
+        return this.findAllQuery<Company>(ctx, query);
+    }
+
     private targetCompanyId(ctx: RequestContext, overrideId?: number): number {
         const companyId = Number(ctx.companyId);
         if (overrideId) {

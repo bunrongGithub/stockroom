@@ -2,7 +2,7 @@
 
 import { DataTable, type DataTableColumn } from '@/components/ui/DataTable';
 import { auditUserColumns } from '@/components/ui/audit-columns';
-import { PageHeader } from '@/components/ui/PageHeader';
+import { PageHeader, PAGE_ACTION_CLASS } from '@/components/ui/PageHeader';
 import { RowAction, RowActions } from '@/components/ui/button-action';
 import { Button } from '@/components/ui/button';
 import { useRegisterModule } from '@/hook/useModule';
@@ -159,13 +159,20 @@ export default function SaleCashSaleList({
 
     return (
         <div className="space-y-4 font-mono">
+            {/* Titled for the menu entry that leads here ("Sales History"),
+                not for the register it lists — the sibling "Cash Sale" item is
+                the register itself, and two screens called Cash Sale gave no
+                way to tell from the page which one you had opened. */}
             <PageHeader
-                title="Cash Sale"
+                title="Sales History"
                 description="Completed counter sales — view or reprint a receipt."
                 actions={
                     permission?.can_create && (
-                        <Button onClick={() => router.push('/sale/cash-sale')}>
-                            <ShoppingCart size={15} /> New Sale
+                        <Button
+                            className={PAGE_ACTION_CLASS}
+                            onClick={() => router.push('/sale/cash-sale')}
+                        >
+                            <ShoppingCart size={16} /> New Sale
                         </Button>
                     )
                 }

@@ -15,6 +15,7 @@ import {
     type AdjustmentPlan,
     type CountLineInput,
     type LineSerialSets,
+    type UncountedPolicy,
 } from './stock-count-logic';
 import type {
     CreateStockCountInput,
@@ -23,7 +24,7 @@ import type {
     SubmitStockCountInput,
 } from '@/service/schema/stock-count.schema';
 import type {
-    ApprovalPreview,
+    CompletionPreview,
     StockCount,
     StockCountItem,
     StockCountSerial,
@@ -64,7 +65,6 @@ function mapStockCount(r: any): StockCount {
         snapshot_at: r.snapshot_at ?? null,
         counting_started_at: r.counting_started_at ?? null,
         submitted_at: r.submitted_at ?? null,
-        approved_at: r.approved_at ?? null,
         completed_at: r.completed_at ?? null,
         cancelled_at: r.cancelled_at ?? null,
         cancel_reason: r.cancel_reason ?? null,
@@ -133,7 +133,7 @@ function mapSerial(r: any): StockCountSerial {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// Header repository — session lifecycle + approval orchestration
+// Header repository — session lifecycle + completion orchestration
 // ═════════════════════════════════════════════════════════════════════════════
 
 export class StockCountRepository extends BaseRepository {
@@ -151,8 +151,6 @@ export class StockCountRepository extends BaseRepository {
                     'DRAFT',
                     'PREPARED',
                     'COUNTING',
-                    'PENDING_APPROVAL',
-                    'APPROVED',
                     'COMPLETED',
                     'CANCELLED',
                 ],
@@ -358,47 +356,6 @@ export class StockCountRepository extends BaseRepository {
         };
     }
 
-    async submitForApproval(
-        ctx: RequestContext,
-        id: number,
-        input: SubmitStockCountInput,
-    ): Promise<StockCount> {
-        await this.assertAction(ctx, id, 'can_submit');
-        const { count: countedLines, error } = await this.db
-            .from(LINE_TABLE)
-            .select('id', { count: 'exact', head: true })
-            .eq('count_id', id)
-            .eq('status', 'COUNTED');
-        if (error) throw new ApiError(error.message, 500);
-        if (!countedLines) {
-            throw new ApiError(
-                'Nothing counted yet — count at least one line before submitting',
-                400,
-                'NOTHING_COUNTED',
-            );
-        }
-        await this.auditedUpdate(ctx, HEADER_TABLE, id, {
-            status: 'PENDING_APPROVAL',
-            uncounted_policy: input.uncounted_policy,
-            submitted_by: ctx.userId,
-            submitted_at: new Date().toISOString(),
-        });
-        return (await this.findOne(ctx, id))!;
-    }
-
-    async reopenToCounting(
-        ctx: RequestContext,
-        id: number,
-    ): Promise<StockCount> {
-        await this.assertAction(ctx, id, 'can_reopen');
-        await this.auditedUpdate(ctx, HEADER_TABLE, id, {
-            status: 'COUNTING',
-            submitted_by: null,
-            submitted_at: null,
-        });
-        return (await this.findOne(ctx, id))!;
-    }
-
     async cancel(
         ctx: RequestContext,
         id: number,
@@ -414,27 +371,36 @@ export class StockCountRepository extends BaseRepository {
         return (await this.findOne(ctx, id))!;
     }
 
-    /** Read-only dry run of the approve algorithm — powers the review UI. */
-    async approvalPreview(
+    /**
+     * Read-only dry run of the completion algorithm — powers the review UI.
+     *
+     * The policy is passed in rather than read off the header because the user
+     * picks it in the same dialog that shows this preview; it is only persisted
+     * when they actually commit.
+     */
+    async completionPreview(
         ctx: RequestContext,
         id: number,
-    ): Promise<ApprovalPreview> {
+        policy?: UncountedPolicy,
+    ): Promise<CompletionPreview> {
         const count = await this.findOne(ctx, id);
         if (!count) throw new NotFoundError('Stock count not found');
-        if (count.status !== 'PENDING_APPROVAL') {
+        if (!computeCountActions(count.status).can_complete) {
             throw new ApiError(
-                'Preview is only available while pending approval',
+                `Preview is not available while the session is ${count.status}`,
                 400,
                 'INVALID_STATUS',
             );
         }
+        const effectivePolicy = policy ?? count.uncounted_policy;
         const { plan, doneLocations, locationNames } = await this.buildPlan(
             ctx,
             count,
+            effectivePolicy,
         );
         return {
             count_id: id,
-            uncounted_policy: count.uncounted_policy,
+            uncounted_policy: effectivePolicy,
             uncounted_lines: plan.uncounted_lines,
             locations: plan.locations.map((loc) => ({
                 location_id: loc.location_id,
@@ -463,26 +429,52 @@ export class StockCountRepository extends BaseRepository {
     }
 
     /**
-     * PENDING_APPROVAL → COMPLETED. Generates + posts ONE Stock Adjustment per
-     * location with variance (reason STOCK_COUNT) through the existing
-     * adjustment service — the movement engine stays the only balance writer.
+     * COUNTING → COMPLETED. Generates + posts ONE Stock Adjustment per location
+     * with variance (reason STOCK_COUNT) through the existing adjustment
+     * service — the movement engine stays the only balance writer.
+     *
+     * There is no approval gate: finishing the count is what commits it.
      *
      * Not atomic across locations by design (posted adjustments are never
-     * rolled back). A mid-sequence failure leaves the session PENDING_APPROVAL;
-     * re-running approve resumes at the locations without a link row.
+     * rolled back). A mid-sequence failure leaves the session COUNTING; running
+     * complete again resumes at the locations without a link row.
      */
-    async approve(ctx: RequestContext, id: number): Promise<StockCount> {
-        const count = await this.findOne(ctx, id);
-        if (!count) throw new NotFoundError('Stock count not found');
-        if (count.status !== 'PENDING_APPROVAL') {
+    async complete(
+        ctx: RequestContext,
+        id: number,
+        input: SubmitStockCountInput,
+    ): Promise<StockCount> {
+        await this.assertAction(ctx, id, 'can_complete');
+
+        const { count: countedLines, error } = await this.db
+            .from(LINE_TABLE)
+            .select('id', { count: 'exact', head: true })
+            .eq('count_id', id)
+            .eq('status', 'COUNTED');
+        if (error) throw new ApiError(error.message, 500);
+        if (!countedLines) {
             throw new ApiError(
-                'Only sessions pending approval can be approved',
+                'Nothing counted yet — count at least one line before completing',
                 400,
-                'INVALID_STATUS',
+                'NOTHING_COUNTED',
             );
         }
 
-        const { plan, doneLocations } = await this.buildPlan(ctx, count);
+        // Persist the policy before planning: buildPlan reads it off the
+        // header, and a resumed run after a partial failure must reuse exactly
+        // the policy the earlier locations were generated under.
+        await this.auditedUpdate(ctx, HEADER_TABLE, id, {
+            uncounted_policy: input.uncounted_policy,
+            submitted_by: ctx.userId,
+            submitted_at: new Date().toISOString(),
+        });
+        const count = (await this.findOne(ctx, id))!;
+
+        const { plan, doneLocations } = await this.buildPlan(
+            ctx,
+            count,
+            input.uncounted_policy,
+        );
         const adjustmentRepo = StockAdjustmentRepository.getInstance();
         const failures: string[] = [];
 
@@ -559,16 +551,15 @@ export class StockCountRepository extends BaseRepository {
         if (failures.length > 0) {
             throw new ApiError(
                 `Adjustment generation failed (${failures.join('; ')}). ` +
-                    'Already-generated locations are saved — fix the issue and approve again to resume.',
+                    'Already-generated locations are saved — fix the issue and complete again to resume.',
                 500,
-                'APPROVAL_PARTIAL',
+                'COMPLETION_PARTIAL',
             );
         }
 
         await this.auditedUpdate(ctx, HEADER_TABLE, id, {
             status: 'COMPLETED',
-            approved_by: ctx.userId,
-            approved_at: count.approved_at ?? new Date().toISOString(),
+            completed_by: ctx.userId,
             completed_at: new Date().toISOString(),
         });
         return (await this.findOne(ctx, id))!;
@@ -621,6 +612,7 @@ export class StockCountRepository extends BaseRepository {
     private async buildPlan(
         ctx: RequestContext,
         count: StockCount,
+        policy: UncountedPolicy,
     ): Promise<{
         plan: AdjustmentPlan;
         doneLocations: Set<number>;
@@ -639,7 +631,7 @@ export class StockCountRepository extends BaseRepository {
                 .eq('count_id', count.id)
                 .order('id', { ascending: true })
                 .range(from, from + PAGE - 1);
-            if (count.uncounted_policy === 'ignore') {
+            if (policy === 'ignore') {
                 q = q.eq('status', 'COUNTED');
             }
             const { data, error } = await q;
@@ -765,16 +757,11 @@ export class StockCountRepository extends BaseRepository {
             }
         }
 
-        const plan = buildAdjustmentPlan(
-            lines,
-            liveQty,
-            serialSets,
-            count.uncounted_policy,
-        );
+        const plan = buildAdjustmentPlan(lines, liveQty, serialSets, policy);
 
         // Under 'ignore' the pending lines never reach the plan (the fetch is
         // filtered to COUNTED), so count them separately for the preview.
-        if (count.uncounted_policy === 'ignore') {
+        if (policy === 'ignore') {
             const { count: pending, error: pendingError } = await this.db
                 .from(LINE_TABLE)
                 .select('id', { count: 'exact', head: true })

@@ -2,6 +2,7 @@
 
 import { ButtonActionDynamicRender } from '@/components/ui/button-action';
 import type { DataTableColumn } from '@/components/ui/DataTable';
+import { StatusBadge } from '@/components/ui/StatusBadge';
 import { DateTimeFormat } from '@/lib/utils/dateformat';
 import type { ColumnsOptionsProps } from '@/types/app';
 
@@ -21,44 +22,42 @@ export function getRoleColumns({
         {
             key: 'name',
             header: 'Name',
+            primary: true,
+            sortable: true,
             cell: (row) => (
-                <span className="font-mono text-xs">{row.name}</span>
+                <span className="font-medium text-foreground">{row.name}</span>
             ),
         },
         {
             key: 'description',
             header: 'Description',
             cell: (row) => (
-                <span className="font-mono text-xs">{row.description}</span>
+                <span className="text-xs text-muted-foreground">
+                    {row.description || '—'}
+                </span>
             ),
         },
         {
             key: 'company',
             header: 'Company Name',
             cell: (row) => (
-                <span className="font-mono text-xs">{row.company?.name}</span>
+                <span className="text-xs">{row.company?.name ?? '—'}</span>
             ),
         },
         {
             key: 'is_active',
             header: 'Status',
+            sortable: true,
             cell: (row) => (
-                <span
-                    className={`inline-block rounded-full px-2 py-0.5 font-mono text-[10px] font-semibold ${
-                        row.is_active
-                            ? 'bg-emerald-100 text-emerald-700'
-                            : 'bg-slate-100 text-slate-500'
-                    }`}
-                >
-                    {row.is_active ? 'Active' : 'Inactive'}
-                </span>
+                <StatusBadge status={row.is_active ? 'ACTIVE' : 'INACTIVE'} />
             ),
         },
         {
             key: 'created_at',
             header: 'Created At',
+            sortable: true,
             cell: (row) => (
-                <span className="font-mono text-xs">
+                <span className="text-xs text-muted-foreground tnums">
                     {DateTimeFormat(row.created_at)}
                 </span>
             ),
@@ -68,6 +67,9 @@ export function getRoleColumns({
                   {
                       key: 'actions',
                       header: 'Actions',
+                      sticky: 'right',
+                      align: 'right',
+                      cardFooter: true,
                       cell: (row: TRole) =>
                           ButtonActionDynamicRender(dynamicActions, row, () =>
                               onDelete(row.id),

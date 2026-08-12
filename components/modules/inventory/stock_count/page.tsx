@@ -2,7 +2,8 @@
 
 import { DataTable, type DataTableColumn } from '@/components/ui/DataTable';
 import { auditUserColumns } from '@/components/ui/audit-columns';
-import { PageHeader } from '@/components/ui/PageHeader';
+import { PAGE_ACTION_CLASS, PageHeader } from '@/components/ui/PageHeader';
+import { RowAction, RowActions } from '@/components/ui/button-action';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Button } from '@/components/ui/button';
@@ -22,8 +23,6 @@ const STATUS_LABEL: Record<StockCountStatus, string> = {
     DRAFT: 'Draft',
     PREPARED: 'Prepared',
     COUNTING: 'Counting',
-    PENDING_APPROVAL: 'Pending Approval',
-    APPROVED: 'Approved',
     COMPLETED: 'Completed',
     CANCELLED: 'Cancelled',
 };
@@ -100,32 +99,35 @@ export default function InventoryStockCountModule({
         {
             key: 'actions',
             header: 'Actions',
+            sticky: 'right',
             align: 'right',
             hideOnCard: false,
             cardFooter: true,
             cell: (row) => {
                 const a = row.actions;
                 return (
-                    <div className="flex flex-wrap items-center justify-end gap-1.5">
-                        <Button variant="outline" size="sm" onClick={() => router.push(`/inventory/stock_count/${row.id}/view`)}>
-                            <EyeIcon size={14} /> View
-                        </Button>
+                    <RowActions>
+                        <RowAction
+                            label="View"
+                            icon={<EyeIcon size={13} />}
+                            href={`/inventory/stock_count/${row.id}/view`}
+                        />
                         {permission?.can_update && a?.can_update && (
-                            <Button variant="outline" size="sm" onClick={() => router.push(`/inventory/stock_count/${row.id}/update`)}>
-                                <PencilIcon size={14} /> Edit
-                            </Button>
+                            <RowAction
+                                label="Edit"
+                                icon={<PencilIcon size={13} />}
+                                href={`/inventory/stock_count/${row.id}/update`}
+                            />
                         )}
                         {permission?.can_delete && a?.can_delete && (
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                className="text-danger hover:text-danger"
+                            <RowAction
+                                label="Delete"
+                                icon={<Trash2Icon size={13} />}
+                                tone="danger"
                                 onClick={() => setConfirmDelete({ id: row.id, no: row.count_no })}
-                            >
-                                <Trash2Icon size={14} /> Delete
-                            </Button>
+                            />
                         )}
-                    </div>
+                    </RowActions>
                 );
             },
         },
@@ -138,7 +140,10 @@ export default function InventoryStockCountModule({
                 description="Count inventory against a frozen snapshot and correct variances"
                 actions={
                     permission?.can_create && (
-                        <Button onClick={() => router.push('/inventory/stock_count/create')}>
+                        <Button
+                            className={PAGE_ACTION_CLASS}
+                            onClick={() => router.push('/inventory/stock_count/create')}
+                        >
                             <PlusIcon size={16} /> New Count
                         </Button>
                     )
@@ -150,7 +155,7 @@ export default function InventoryStockCountModule({
                 data={table.data}
                 keyExtractor={(row) => row.id}
                 mobileVariant="cards"
-                minTableWidth="860px"
+                minTableWidth="1700px"
                 searchPlaceholder="Search by count no..."
                 pageSizeOptions={[10, 20, 50]}
                 serverQuery={table.binding}

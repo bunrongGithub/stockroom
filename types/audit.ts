@@ -7,6 +7,8 @@ export type AuditUser = {
     id: string;
     full_name: string | null;
     avatar_url: string | null;
+    /** Null when the profile has no auth user (deleted account, seed data). */
+    email: string | null;
 };
 
 /** Attached to detail responses and enriched rows. */
