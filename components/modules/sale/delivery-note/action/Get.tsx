@@ -449,7 +449,7 @@ export default function SaleShipmentDetail({
                               number: order.order_no,
                               href: `/sale/order/${order.id}/view`,
                               date: order.order_date,
-                              status: order.status.replace('_', ' '),
+                              status: order.status.replace('_', ' ').toLocaleUpperCase(),
                               statusClass: ORDER_STATUS_BADGE[order.status],
                               meta: [
                                 {

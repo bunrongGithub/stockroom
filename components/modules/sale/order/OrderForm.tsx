@@ -2,7 +2,6 @@
 
 import AsyncSearchSelect from '@/components/ui/AsyncSearchSelect';
 import BusinessPartnerLookup from '@/components/master-data/BusinessPartnerLookup';
-import ItemClassBadge from '@/components/ui/ItemClassBadge';
 import ItemUomSelect, {
   baseOptionOf,
   fetchItemUoms,
@@ -15,6 +14,10 @@ import {
   FieldLabel,
 } from '@/components/ui/FieldLabel';
 import { ReadonlyInput } from '@/components/ui/Readonly';
+import {
+  LineDialogFact,
+  LineItemDialog,
+} from '@/components/ui/LineItemDialog';
 import {
   FieldGrid,
   FormHeader,
@@ -39,6 +42,7 @@ import {
   ClipboardList,
   Loader2Icon,
   Package,
+  PencilIcon,
   PlusIcon,
   ReceiptText,
   SaveIcon,
@@ -158,40 +162,59 @@ export default function OrderForm({
           discount: i.discount,
           tax: i.tax,
         }))
-      : [emptyLine()],
+      : [],
   );
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
+  // Line editor modal: null = closed; -1 = new line; ≥0 = editing that index.
+  // Mirrors Stock Adjustment, so a line is only ever committed from the dialog
+  // and the tab itself stays a clean summary of what the order contains.
+  const [editorIndex, setEditorIndex] = useState<number | null>(null);
+  const [draft, setDraft] = useState<LineDraft>(emptyLine);
+  const [lineError, setLineError] = useState<string | null>(null);
+
   const { resolveItemDefaults } = useItemAutoFill();
 
-  function focusQty(key: string) {
-    requestAnimationFrame(() => {
-      const el = document.querySelector<HTMLInputElement>(
-        `input[data-qty="${key}"]`,
-      );
-      el?.focus();
-      el?.select();
-    });
+  function openEditor(index: number) {
+    setLineError(null);
+    setDraft(index === -1 ? emptyLine() : { ...items[index] });
+    setEditorIndex(index);
   }
 
-  function setLine(idx: number, patch: Partial<LineDraft>) {
+  function patchDraft(patch: Partial<LineDraft>) {
+    setDraft((d) => ({ ...d, ...patch }));
+  }
+
+  /** Validate the draft, then append or replace. */
+  function commitLine() {
+    setLineError(null);
+    if (!draft.item_id) return setLineError('Select a product.');
+    if (!(draft.ordered_qty > 0))
+      return setLineError('Quantity must be greater than 0.');
+    if (draft.unit_price < 0) return setLineError('Unit price cannot be negative.');
+    if (draft.discount < 0 || draft.discount > 100)
+      return setLineError('Discount must be between 0 and 100.');
+    if (draft.tax < 0 || draft.tax > 100)
+      return setLineError('Tax must be between 0 and 100.');
+
     setItems((prev) =>
-      prev.map((l, i) => (i === idx ? { ...l, ...patch } : l)),
+      editorIndex === -1
+        ? [...prev, draft]
+        : prev.map((l, i) => (i === editorIndex ? draft : l)),
     );
+    setEditorIndex(null);
   }
 
-  // Auto-populate a line from the item master on selection. Fills price + UOM
-  // and defaults the (header) warehouse when empty; preserves qty/discount/tax
-  // already entered. A stale response for a superseded selection is ignored.
+  // Auto-populate the DRAFT from the item master on selection. Fills price +
+  // UOM and defaults the (header) warehouse when empty; preserves qty/discount/
+  // tax already entered. A stale response for a superseded selection is ignored.
   async function onPickItem(
-    idx: number,
-    key: string,
     sel: { id: string | number | null; name: string } | null,
   ) {
     const id = sel?.id ? Number(sel.id) : null;
     // Immediate: set the item + reset the dependent UOM select.
-    setLine(idx, {
+    patchDraft({
       item_id: id,
       item_class: null,
       product_name: sel?.name ?? '',
@@ -211,28 +234,24 @@ export default function OrderForm({
       const base = baseOptionOf(uoms);
       const picked = uoms.find((u) => u.id === d.itemUomId) ?? base;
 
-      setItems((prev) =>
-        prev.map((l) =>
-          l.key === key && l.item_id === id
-            ? {
-                ...l,
-                item_class: d.itemClass,
-                unit_price: d.price ?? l.unit_price,
-                item_uom_id: d.itemUomId ?? picked?.id ?? l.item_uom_id,
-                uom: d.uomName || picked?.name || l.uom,
-                base_factor: picked?.baseFactor ?? 1,
-                base_uom_name: base?.name ?? '',
-              }
-            : l,
-        ),
+      setDraft((l) =>
+        l.item_id === id
+          ? {
+              ...l,
+              item_class: d.itemClass,
+              unit_price: d.price ?? l.unit_price,
+              item_uom_id: d.itemUomId ?? picked?.id ?? l.item_uom_id,
+              uom: d.uomName || picked?.name || l.uom,
+              base_factor: picked?.baseFactor ?? 1,
+              base_uom_name: base?.name ?? '',
+            }
+          : l,
       );
       // Default the header warehouse only when the user hasn't chosen one.
       if (d.defaultWarehouseId) {
         setWarehouseId((w) => w ?? d.defaultWarehouseId);
         setWarehouseName((n) => n || d.defaultWarehouseName);
       }
-      // Move focus to quantity for fast entry.
-      focusQty(key);
     } catch {
       // Auto-fill is best-effort; the user can still enter values manually.
     }
@@ -516,156 +535,112 @@ export default function OrderForm({
               action={
                 <button
                   type="button"
-                  onClick={() => setItems((p) => [...p, emptyLine()])}
+                  onClick={() => openEditor(-1)}
                   className="inline-flex items-center gap-1 rounded-lg bg-[#1a9e52] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#158042]"
                 >
                   <PlusIcon size={12} /> Add Item
                 </button>
               }
             >
-              <div className="space-y-4">
-                {items.map((line, idx) => {
-                  const lineTotal =
-                    line.ordered_qty *
-                    line.unit_price *
-                    (1 - line.discount / 100) *
-                    (1 + line.tax / 100);
-                  return (
-                    <div
-                      key={line.key}
-                      className="space-y-3 rounded-xl border border-slate-200 p-3"
-                    >
-                      <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3">
-                        <div className="relative">
-                          <AsyncSearchSelect
-                            label="Product"
-                            required
-                            placeholder="Select product..."
-                            apiUrl={`${API.inventory.item.root}?sellable=true`}
-                            value={line.item_id}
-                            selectedLabel={line.product_name}
-                            enablePopupSearch
-                            onChangeAction={(sel) =>
-                              onPickItem(idx, line.key, sel)
-                            }
-                          />
-                          {line.item_class && (
-                            <span className="absolute right-0 top-0">
-                              <ItemClassBadge itemClass={line.item_class} />
-                            </span>
-                          )}
-                        </div>
-                        {items.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setItems((p) => p.filter((_, i) => i !== idx))
-                            }
-                            className="mt-7 h-11.5 w-11.5 shrink-0 rounded-xl border border-rose-200 text-rose-400 transition-colors hover:bg-rose-50 hover:text-rose-600"
-                            title="Remove item"
+              {items.length === 0 ? (
+                <p className="rounded-xl border border-dashed border-slate-200 py-8 text-center text-slate-400">
+                  No items yet
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs font-mono">
+                    <thead>
+                      <tr className="border-b text-muted-foreground">
+                        <th className="py-2 pr-3 text-left font-medium">Product</th>
+                        <th className="py-2 pr-3 text-right font-medium">Qty</th>
+                        <th className="py-2 pr-3 text-left font-medium">UOM</th>
+                        <th className="py-2 pr-3 text-right font-medium">
+                          Unit Price
+                        </th>
+                        <th className="py-2 pr-3 text-right font-medium">Disc %</th>
+                        <th className="py-2 pr-3 text-right font-medium">Tax %</th>
+                        <th className="py-2 pr-3 text-right font-medium">
+                          Line Total
+                        </th>
+                        <th className="py-2 text-right font-medium">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {items.map((line, idx) => {
+                        const lineTotal =
+                          line.ordered_qty *
+                          line.unit_price *
+                          (1 - line.discount / 100) *
+                          (1 + line.tax / 100);
+                        return (
+                          <tr
+                            key={line.key}
+                            onClick={() => openEditor(idx)}
+                            title="Edit this line"
+                            className="cursor-pointer border-b last:border-b-0 hover:bg-muted/30"
                           >
-                            <Trash2Icon size={14} className="mx-auto" />
-                          </button>
-                        )}
-                      </div>
-                      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-                        {/* Defaults to the item's base UOM (unchanged); any
-                            other unit the item defines can now be chosen. */}
-                        <ItemUomSelect
-                          itemId={line.item_id}
-                          value={line.item_uom_id}
-                          onChangeAction={(sel) => {
-                            // The item's price is per base unit, so switching
-                            // to a Box of 12 turns $5/Piece into $60/Box.
-                            // Without rescaling the line would bill Box
-                            // quantities at Piece prices.
-                            const from = line.base_factor ?? 1;
-                            const to = sel.baseFactor || 1;
-                            setLine(idx, {
-                              item_uom_id: sel.itemUomId,
-                              uom: sel.name,
-                              base_factor: to,
-                              unit_price: roundQty(
-                                (line.unit_price / from) * to,
-                                4,
-                              ),
-                            });
-                          }}
-                        />
-                        <div>
-                          <FieldLabel required>Qty</FieldLabel>
-                          <EditableInput
-                            data-qty={line.key}
-                            type="number"
-                            min={0}
-                            step="0.001"
-                            value={line.ordered_qty}
-                            onChange={(e) =>
-                              setLine(idx, {
-                                ordered_qty: Number(e.target.value),
-                              })
-                            }
-                          />
-                          {/* Only renders when the line is not in base UOM. */}
-                          <QuantityInBase
-                            quantity={line.ordered_qty}
-                            conversion={line.base_factor ?? 1}
-                            uomName={line.uom}
-                            baseUomName={line.base_uom_name ?? ''}
-                          />
-                        </div>
-                        <div>
-                          <FieldLabel required>Unit Price</FieldLabel>
-                          <EditableInput
-                            type="number"
-                            min={0}
-                            step="0.0001"
-                            value={line.unit_price}
-                            onChange={(e) =>
-                              setLine(idx, {
-                                unit_price: Number(e.target.value),
-                              })
-                            }
-                          />
-                        </div>
-                        <div>
-                          <FieldLabel>Disc %</FieldLabel>
-                          <EditableInput
-                            type="number"
-                            min={0}
-                            max={100}
-                            step="0.01"
-                            value={line.discount}
-                            onChange={(e) =>
-                              setLine(idx, {
-                                discount: Number(e.target.value),
-                              })
-                            }
-                          />
-                        </div>
-                        <div>
-                          <FieldLabel>Tax %</FieldLabel>
-                          <EditableInput
-                            type="number"
-                            min={0}
-                            max={100}
-                            step="0.01"
-                            value={line.tax}
-                            onChange={(e) =>
-                              setLine(idx, {
-                                tax: Number(e.target.value),
-                              })
-                            }
-                          />
-                        </div>
-                      </div>
-                      <div className="text-right font-semibold text-slate-600">
-                        Line Total: {fmt(lineTotal)}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+                            <td className="py-2 pr-3 font-medium">
+                              <span className="inline-flex items-center gap-1.5">
+                                {line.product_name || '—'}
+                              </span>
+                            </td>
+                            <td className="py-2 pr-3 text-right">
+                              {line.ordered_qty}
+                              <QuantityInBase
+                                quantity={line.ordered_qty}
+                                conversion={line.base_factor ?? 1}
+                                uomName={line.uom}
+                                baseUomName={line.base_uom_name ?? ''}
+                              />
+                            </td>
+                            <td className="py-2 pr-3">{line.uom || '—'}</td>
+                            <td className="py-2 pr-3 text-right">
+                              {fmt(line.unit_price)}
+                            </td>
+                            <td className="py-2 pr-3 text-right">
+                              {line.discount}
+                            </td>
+                            <td className="py-2 pr-3 text-right">{line.tax}</td>
+                            <td className="py-2 pr-3 text-right font-semibold">
+                              {fmt(lineTotal)}
+                            </td>
+                            <td className="py-2 text-right">
+                              {/* stopPropagation: the row itself opens the
+                                  editor, so a delete click must not also. */}
+                              <div className="flex justify-end gap-1.5">
+                                <button
+                                  type="button"
+                                  title="Edit item"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openEditor(idx);
+                                  }}
+                                  className="rounded-lg border border-violet-200 p-1.5 text-violet-600 hover:bg-violet-50"
+                                >
+                                  <PencilIcon size={12} />
+                                </button>
+                                <button
+                                  type="button"
+                                  title="Remove item"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setItems((p) =>
+                                      p.filter((_, i) => i !== idx),
+                                    );
+                                  }}
+                                  className="rounded-lg border border-rose-200 p-1.5 text-rose-600 hover:bg-rose-50"
+                                >
+                                  <Trash2Icon size={12} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </SectionCard>
 
             <div className="flex justify-start">
@@ -676,6 +651,119 @@ export default function OrderForm({
           </TabPanel>
         )}
       </FormLayout>
+
+      {/* ── Line editor ── */}
+      <LineItemDialog
+        open={editorIndex !== null}
+        onOpenChange={(o) => !o && setEditorIndex(null)}
+        mode={editorIndex === -1 ? 'create' : 'edit'}
+        error={lineError}
+        confirmDisabled={!draft.item_id}
+        onConfirm={commitLine}
+        context={
+          <>
+            <LineDialogFact icon={<ReceiptText size={13} />}>
+              {partner?.name || 'No partner selected'}
+            </LineDialogFact>
+            {warehouseName && (
+              <LineDialogFact icon={<Package size={13} />}>
+                {warehouseName}
+              </LineDialogFact>
+            )}
+          </>
+        }
+      >
+        <div className="relative">
+          <AsyncSearchSelect
+            label="Product *"
+            placeholder="Select product..."
+            apiUrl={`${API.inventory.item.root}?sellable=true`}
+            value={draft.item_id}
+            selectedLabel={draft.product_name}
+            enablePopupSearch
+            onChangeAction={onPickItem}
+          />
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          {/* Defaults to the item's base UOM; any other unit the item
+              defines can be chosen. */}
+          <ItemUomSelect
+            itemId={draft.item_id}
+            value={draft.item_uom_id}
+            onChangeAction={(sel) => {
+              // The item's price is per base unit, so switching to a Box of
+              // 12 turns $5/Piece into $60/Box. Without rescaling the line
+              // would bill Box quantities at Piece prices.
+              const from = draft.base_factor ?? 1;
+              const to = sel.baseFactor || 1;
+              patchDraft({
+                item_uom_id: sel.itemUomId,
+                uom: sel.name,
+                base_factor: to,
+                unit_price: roundQty((draft.unit_price / from) * to, 4),
+              });
+            }}
+          />
+          <div>
+            <FieldLabel required>Qty</FieldLabel>
+            <EditableInput
+              type="number"
+              min={0}
+              step="0.001"
+              value={draft.ordered_qty}
+              onChange={(e) =>
+                patchDraft({ ordered_qty: Number(e.target.value) })
+              }
+            />
+            {/* Only renders when the line is not in base UOM. */}
+            <QuantityInBase
+              quantity={draft.ordered_qty}
+              conversion={draft.base_factor ?? 1}
+              uomName={draft.uom}
+              baseUomName={draft.base_uom_name ?? ''}
+            />
+          </div>
+          <div>
+            <FieldLabel required>Unit Price</FieldLabel>
+            <EditableInput
+              type="number"
+              min={0}
+              step="0.0001"
+              value={draft.unit_price}
+              onChange={(e) =>
+                patchDraft({ unit_price: Number(e.target.value) })
+              }
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <FieldLabel>Disc %</FieldLabel>
+              <EditableInput
+                type="number"
+                min={0}
+                max={100}
+                step="0.01"
+                value={draft.discount}
+                onChange={(e) =>
+                  patchDraft({ discount: Number(e.target.value) })
+                }
+              />
+            </div>
+            <div>
+              <FieldLabel>Tax %</FieldLabel>
+              <EditableInput
+                type="number"
+                min={0}
+                max={100}
+                step="0.01"
+                value={draft.tax}
+                onChange={(e) => patchDraft({ tax: Number(e.target.value) })}
+              />
+            </div>
+          </div>
+        </div>
+      </LineItemDialog>
     </div>
   );
 }

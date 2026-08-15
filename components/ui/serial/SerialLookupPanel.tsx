@@ -193,11 +193,11 @@ export default function SerialLookupPanel({
     }
 
     return (
-        <div className="space-y-2 rounded-xl border border-emerald-100 bg-emerald-50/40 p-3">
+        <div className="space-y-2 rounded-xl">
             <SerialScannerInput
                 onCommit={handleScan}
                 error={error}
-                placeholder="Scan serial or type to search…"
+                placeholder="Search…"
             />
 
             {/* Counter + auto-fill */}

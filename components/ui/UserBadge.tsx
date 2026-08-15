@@ -74,7 +74,7 @@ export function UserBadge({
             <span className="shrink-0">
                 <Avatar src={user.avatar_url} name={name} size={size} />
             </span>
-            <span className="min-w-0 truncate text-slate-700">{name}</span>
+            <span className="min-w-0 truncate text-slate-800">{name}</span>
         </span>
     );
 }

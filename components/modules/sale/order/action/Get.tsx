@@ -4,7 +4,6 @@ import { useRegisterModule } from '@/hook/useModule';
 import type { ModuleProps } from '@/lib/registry';
 import { saleOrderApi, saleShipmentApi } from '@/lib/api/sale';
 import { financesInvoiceApi } from '@/lib/api/finances';
-import ItemClassBadge from '@/components/ui/ItemClassBadge';
 import { RelatedDocumentsPanel } from '@/components/ui/RelatedDocuments';
 import { FieldLabel } from '@/components/ui/FieldLabel';
 import { ReadonlyInput } from '@/components/ui/Readonly';
@@ -493,10 +492,6 @@ export default function SaleOrderDetail({
                             <td className="py-2 pr-3 font-medium">
                               <span className="inline-flex items-center gap-1.5">
                                 {item.product_name}
-                                <ItemClassBadge
-                                  itemClass={item.item_class}
-                                  iconOnly
-                                />
                               </span>
                             </td>
                             <td className="py-2 pr-3 text-right">

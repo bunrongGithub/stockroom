@@ -50,6 +50,8 @@ export interface SalesOrderItem {
     item_class: string;
     track_serial: boolean;
     product_name: string;
+    /** The item's own reference/part number. Null when the item has none. */
+    product_reference_no: string | null;
     description: string;
     uom: string;
     ordered_qty: number;
@@ -97,6 +99,8 @@ export interface SalesShipmentItem {
     item_id: number;
     track_serial: boolean;
     product_name: string;
+    /** The item's own reference/part number. Null when the item has none. */
+    product_reference_no: string | null;
     location_id: number;
     location_name: string;
     item_uom_id: number | null;

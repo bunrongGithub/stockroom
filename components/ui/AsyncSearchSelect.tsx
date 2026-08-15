@@ -1,7 +1,13 @@
 'use client';
 
 import { ChevronDown, Loader2, Search } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
+import { createPortal } from 'react-dom';
 import { FieldLabel } from './FieldLabel';
 import PopUpSearch from './PopUpSearch';
 import { PopUpSearchTable } from './PopUpSearchTable';
@@ -66,12 +72,59 @@ export default function AsyncSearchSelect<
   popupPageSizeOptions,
 }: AsyncSearchSelectProps<T>) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const [open, setOpen] = useState(false);
   const [popupOpen, setPopupOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [options, setOptions] = useState<Option[]>([]);
+
+  /**
+   * Inside a modal the field sits in a scrolling body, which would clip an
+   * absolutely-positioned dropdown and turn opening it into a scroll. So when
+   * there is a dialog ancestor the list is portaled OUT of that scroll box and
+   * onto the dialog itself — still inside Radix's focus trap, so clicking an
+   * option neither dismisses the dialog nor loses focus, which is exactly what
+   * a document.body portal would break.
+   *
+   * Outside a dialog nothing changes: the dropdown stays in place, so every
+   * non-modal form keeps its current behaviour.
+   */
+  const [host, setHost] = useState<HTMLElement | null>(null);
+  const [pos, setPos] = useState<{ top: number; left: number; width: number }>();
+
+  /**
+   * Absolute coordinates within the dialog. The dialog is `fixed` — hence a
+   * positioned ancestor — so its own transform never enters the maths.
+   */
+  const placeAgainst = useCallback((dialog: HTMLElement) => {
+    const trigger = containerRef.current?.querySelector('button');
+    if (!trigger) return;
+    const t = trigger.getBoundingClientRect();
+    const d = dialog.getBoundingClientRect();
+    setPos({
+      top: t.bottom - d.top + 8,
+      left: t.left - d.left,
+      width: t.width,
+    });
+  }, []);
+
+  // While open, keep the list pinned to a trigger that moves when the dialog
+  // body scrolls or the window resizes.
+  useEffect(() => {
+    if (!open || !host) return;
+    const place = () => placeAgainst(host);
+    const scroller = containerRef.current?.closest<HTMLElement>(
+      '.overflow-y-auto',
+    );
+    scroller?.addEventListener('scroll', place);
+    window.addEventListener('resize', place);
+    return () => {
+      scroller?.removeEventListener('scroll', place);
+      window.removeEventListener('resize', place);
+    };
+  }, [open, host, placeAgainst]);
 
   // ───────────────── Fetch Data ─────────────────
   const fetchOptions = useCallback(
@@ -106,6 +159,14 @@ export default function AsyncSearchSelect<
   );
 
   const handleOpen = () => {
+    // Resolve placement here rather than in an effect: the trigger's rect is
+    // already final at click time, so host/pos/open land in one render and the
+    // list never paints in the wrong place first.
+    const dialog = containerRef.current?.closest<HTMLElement>(
+      '[data-slot="dialog-content"]',
+    );
+    setHost(dialog ?? null);
+    if (dialog) placeAgainst(dialog);
     setOpen(true);
     if (options.length === 0) fetchOptions();
   };
@@ -119,9 +180,14 @@ export default function AsyncSearchSelect<
   // ───────────────── Close on Outside Click ─────────────────
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as Node;
+      // The dropdown may be portaled out of containerRef, so it has to be
+      // tested separately — otherwise clicking an option counts as "outside"
+      // and closes the list before the option's onClick can fire.
       if (
         containerRef.current &&
-        !containerRef.current.contains(e.target as Node)
+        !containerRef.current.contains(target) &&
+        !dropdownRef.current?.contains(target)
       ) {
         setOpen(false);
       }
@@ -154,14 +220,23 @@ export default function AsyncSearchSelect<
         <ChevronDown size={18} className="text-slate-400" />
       </button>
 
-      {/* Dropdown */}
-      <div
-        className={`absolute z-50 mt-2 w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg transition-all duration-200 ${
-          open
-            ? 'visible translate-y-0 opacity-100'
-            : 'invisible -translate-y-1 opacity-0'
-        }`}
-      >
+      {/* Dropdown — portaled onto the dialog when the field is inside one.
+          Rendered ONLY while open: an absolutely-positioned list left mounted
+          but hidden still counts toward its scroll container's scrollHeight,
+          which is what put a phantom scrollbar on the line-item modal once the
+          options had loaded. */}
+      {open && (!host || pos) && (() => {
+        const portaled = host && pos;
+        const dropdown = (
+          <div
+            ref={dropdownRef}
+            style={
+              portaled
+                ? { top: pos.top, left: pos.left, width: pos.width }
+                : undefined
+            }
+            className={`${portaled ? 'absolute z-60' : 'absolute z-50 mt-2 w-full'} overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg`}
+          >
         {/* Search input */}
         <div className="border-b border-slate-100 p-2">
           <div className="relative">
@@ -220,7 +295,11 @@ export default function AsyncSearchSelect<
             ))
           )}
         </div>
-      </div>
+          </div>
+        );
+        return portaled ? createPortal(dropdown, host) : dropdown;
+      })()}
+
 
       {/* Hidden input for native form required validation */}
       {required && (

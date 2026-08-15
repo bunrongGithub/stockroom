@@ -41,6 +41,7 @@ export function HeaderAction({
     href,
     onClick,
     tone = 'default',
+    size = 'default',
     disabled,
     type = 'button',
     form,
@@ -50,6 +51,8 @@ export function HeaderAction({
     href?: string;
     onClick?: () => void;
     tone?: HeaderActionTone;
+    /** `sm` for tighter contexts — the line-editor modal's footer. */
+    size?: 'default' | 'sm';
     disabled?: boolean;
     type?: 'button' | 'submit';
     /**
@@ -59,7 +62,9 @@ export function HeaderAction({
      */
     form?: string;
 }) {
-    const className = `inline-flex shrink-0 items-center justify-center gap-2 rounded-xl px-4 py-2.5 transition-colors disabled:opacity-50 ${HEADER_ACTION_TONE[tone]}`;
+    const className = `inline-flex shrink-0 items-center justify-center gap-2 rounded-xl transition-colors disabled:opacity-50 ${
+        size === 'sm' ? 'px-3.5 py-2' : 'px-4 py-2.5'
+    } ${HEADER_ACTION_TONE[tone]}`;
 
     if (href && !disabled) {
         return (
@@ -278,21 +283,30 @@ export type ShellTab<T extends string> = {
     id: T;
     label: string;
     num?: number;
+    /** Trailing pill — a live count such as "2/12" serials, a status, etc. */
+    badge?: ReactNode;
 };
 
 /**
  * Underlined tab strip. When a tab carries `num` it renders the numbered pill
  * used by the item form to signal step order.
+ *
+ * `size="compact"` trims the padding for tight containers — the line-item
+ * modal uses it so the strip reads as part of the dialog rather than a second
+ * page header.
  */
 export function TabNav<T extends string>({
     tabs,
     active,
     onChangeAction,
+    size = 'default',
 }: {
     tabs: readonly ShellTab<T>[];
     active: T;
     onChangeAction: (id: T) => void;
+    size?: 'default' | 'compact';
 }) {
+    const pad = size === 'compact' ? 'px-4 py-2.5' : 'px-5 py-3';
     return (
         <div className="flex gap-0 overflow-x-auto border-b border-slate-200">
             {tabs.map((tab) => {
@@ -302,24 +316,19 @@ export function TabNav<T extends string>({
                         key={tab.id}
                         type="button"
                         onClick={() => onChangeAction(tab.id)}
-                        className={`flex shrink-0 items-center gap-2 border-b-2 px-5 py-3 transition-all ${
+                        className={`flex shrink-0 items-center gap-2 border-b-2 ${pad} transition-all ${
                             on
                                 ? 'border-[#1a9e52] text-[#1a9e52]'
                                 : 'border-transparent text-slate-500 hover:text-slate-700'
                         }`}
                     >
-                        {tab.num !== undefined && (
-                            <span
-                                className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold transition-all ${
-                                    on
-                                        ? 'bg-[#1a9e52] text-white'
-                                        : 'bg-slate-100 text-slate-500'
-                                }`}
-                            >
-                                {tab.num}
+
+                        {tab.label}
+                        {tab.badge != null && (
+                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                                {tab.badge}
                             </span>
                         )}
-                        {tab.label}
                     </button>
                 );
             })}

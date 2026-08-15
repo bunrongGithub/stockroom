@@ -20,6 +20,7 @@ import { businessPartnerApi } from '@/lib/api/business-partner';
 import type { ModuleProps } from '@/lib/registry';
 import type { BusinessPartner } from '@/types/master-data/business-partner';
 import { Contact } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
 const FILTER_DEFS: DataTableFilterDef[] = [
@@ -52,6 +53,7 @@ export default function BusinessPartnerModule({
         modulePath: currentPath.path,
     });
 
+    const router = useRouter();
     const pageAction = usePageActions();
     const staticActions = pageAction?.actions.filter((a) => !a.dynamic) ?? [];
     const dynamicActions = pageAction?.actions.filter((a) => a.dynamic) ?? [];
@@ -98,13 +100,21 @@ export default function BusinessPartnerModule({
 
     const columns: DataTableColumn<BusinessPartner>[] = [
         {
+            // Same treatment as every other document number in the app (order
+            // no, shipment no, invoice no…): the code is the row's identity, so
+            // it is also the way into the record.
             key: 'code',
             header: 'Code',
             sortable: true,
             cell: (row) => (
-                <span className="rounded bg-gray-100 px-2.5 py-1 font-mono text-xs text-gray-600">
+                <button
+                    onClick={() =>
+                        router.push(`/master-data/business-partner/${row.id}/view`)
+                    }
+                    className="font-mono text-xs font-semibold text-sky-600 hover:underline"
+                >
                     {row.code}
-                </span>
+                </button>
             ),
         },
         {

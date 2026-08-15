@@ -38,7 +38,7 @@ const LINE_TABLE = 'sales_shipment_items' as const;
 const SELECT_LIST =
     '*, sales_order:sales_order(id, order_no), warehouse:warehouse(id, name)';
 const SELECT_DETAIL =
-    '*, sales_order:sales_order(id, order_no), warehouse:warehouse(id, name), items:sales_shipment_items(*, item:inventory_item(id, name, track_serial), location:warehouse_location(id, name), item_uom:inventory_item_uom(id, uom:inventory_uom(id, name, display_name)))';
+    '*, sales_order:sales_order(id, order_no), warehouse:warehouse(id, name), items:sales_shipment_items(*, item:inventory_item(id, name, reference_no, track_serial), location:warehouse_location(id, name), item_uom:inventory_item_uom(id, uom:inventory_uom(id, name, display_name)))';
 
 /**
  * DRAFT shipments can be edited/posted/voided (POSTED is immutable). A POSTED
@@ -64,6 +64,7 @@ function mapShipmentItem(r: any): SalesShipmentItem {
         sales_order_item_id: r.sales_order_item_id,
         item_id: r.item_id,
         product_name: r.item?.name ?? `#${r.item_id}`,
+        product_reference_no: r.item?.reference_no ?? null,
         track_serial: r.item?.track_serial ?? false,
         location_id: r.location_id,
         location_name: r.location?.name ?? '',

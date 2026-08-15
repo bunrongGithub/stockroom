@@ -8,6 +8,7 @@ import {
   FieldLabel,
 } from '@/components/ui/FieldLabel';
 import { ReadonlyInput } from '@/components/ui/Readonly';
+import { LineDialogFact, LineItemDialog } from '@/components/ui/LineItemDialog';
 import {
   FieldGrid,
   FormHeader,
@@ -22,10 +23,7 @@ import {
 } from '@/components/ui/FormShell';
 import { QuantityInBase } from '@/components/ui/UomConversionPreview';
 import { toBaseQty } from '@/service/core/uom-conversion';
-import {
-  baseOptionOf,
-  fetchItemUoms,
-} from '@/components/ui/ItemUomSelect';
+import { baseOptionOf, fetchItemUoms } from '@/components/ui/ItemUomSelect';
 import { saleShipmentApi } from '@/lib/api/sale';
 import { API } from '@/lib/constant';
 import { behaviorOf } from '@/service/core/item-behavior';
@@ -36,6 +34,7 @@ import {
   ChevronRight,
   Loader2Icon,
   Package,
+  PencilIcon,
   SaveIcon,
   Truck,
   X,
@@ -53,6 +52,8 @@ type ShipLine = {
   sales_order_item_id: number;
   item_id: number;
   product_name: string;
+  /** The item's own reference/part number, shown ahead of the name. */
+  product_reference_no: string | null;
   uom: string;
   item_uom_id: number | null;
   track_serial: boolean;
@@ -80,6 +81,10 @@ function buildLines(order: SalesOrder, initial?: SalesShipment): ShipLine[] {
         sales_order_item_id: s.sales_order_item_id,
         item_id: s.item_id,
         product_name: s.product_name,
+        // Prefer the order line: it is the same item, and on older shipments
+        // saved before the field existed the shipment row has nothing.
+        product_reference_no:
+          so?.product_reference_no ?? s.product_reference_no ?? null,
         uom: s.uom,
         item_uom_id: s.item_uom_id,
         track_serial: s.track_serial ?? so?.track_serial ?? false,
@@ -108,6 +113,7 @@ function buildLines(order: SalesOrder, initial?: SalesShipment): ShipLine[] {
         sales_order_item_id: o.id,
         item_id: o.item_id,
         product_name: o.product_name,
+        product_reference_no: o.product_reference_no ?? null,
         uom: o.uom,
         item_uom_id: o.item_uom_id,
         track_serial: o.track_serial ?? false,
@@ -188,10 +194,53 @@ export default function ShipmentForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function setLine(idx: number, patch: Partial<ShipLine>) {
-    setLines((prev) =>
-      prev.map((l, i) => (i === idx ? { ...l, ...patch } : l)),
-    );
+  // ── Line editor modal ────────────────────────────────────────────────
+  // Unlike Sales Order there is no "add": a shipment can only fulfil lines the
+  // order already has, so the editor always opens on an existing line.
+  const [editorIndex, setEditorIndex] = useState<number | null>(null);
+  const [draft, setDraft] = useState<ShipLine | null>(null);
+  const [lineError, setLineError] = useState<string | null>(null);
+  // Controlled so a serial-count failure can pull the user to that tab instead
+  // of reporting an error about fields they cannot see.
+  const [editorTab, setEditorTab] = useState('details');
+
+  function openEditor(index: number) {
+    setLineError(null);
+    setEditorTab('details');
+    setDraft({ ...lines[index] });
+    setEditorIndex(index);
+  }
+
+  function patchDraft(patch: Partial<ShipLine>) {
+    setDraft((d) => (d ? { ...d, ...patch } : d));
+  }
+
+  function commitLine() {
+    if (!draft || editorIndex === null) return;
+    setLineError(null);
+
+    const qty = Number(draft.shipment_qty) || 0;
+    const fail = (message: string, tab = 'details') => {
+      setEditorTab(tab);
+      setLineError(message);
+    };
+
+    if (qty < 0) return fail('Shipment quantity cannot be negative.');
+    if (qty > draft.remaining)
+      return fail(
+        `Only ${draft.remaining} ${draft.uom || 'unit(s)'} remain to ship on this line.`,
+      );
+    if (qty > 0 && !draft.location_id)
+      return fail('Select the location this line ships from.');
+
+    if (draft.track_serial && draft.serial_numbers.length !== requiredSerials)
+      return fail(
+        `Exactly ${requiredSerials} serial number(s) required for ${draft.product_name}.`,
+        'serials',
+      );
+
+    setLines((prev) => prev.map((l, i) => (i === editorIndex ? draft : l)));
+    setEditorIndex(null);
   }
 
   async function handleSubmit() {
@@ -278,6 +327,63 @@ export default function ShipmentForm({
     0,
   );
 
+  // One serial identifies one BASE unit, so 2 Box of 12 needs 24 — not 2.
+  const requiredSerials = draft
+    ? Math.round((Number(draft.shipment_qty) || 0) * (draft.base_factor ?? 1))
+    : 0;
+
+  /**
+   * The quantity half of the line editor. Held here because it is the whole
+   * body for a plain line and the first tab for a serial-tracked one.
+   */
+  const detailFields = draft && (
+    <section className='grid gap-4'>
+      <div className="grid gap-4 sm:grid-cols-1">
+        <AsyncSearchSelect
+          label="Location *"
+          placeholder="Select location..."
+          apiUrl={API.inventory.warehouse.locations(order.warehouse_id ?? 0)}
+          value={draft.location_id}
+          selectedLabel={draft.location_name}
+          enablePopupSearch
+          onChangeAction={(sel) =>
+            patchDraft({
+              location_id: sel?.id ? Number(sel.id) : null,
+              location_name: sel?.name ?? '',
+            })
+          }
+        />
+      </div>
+      <div className='grid gap-4 sm:grid-cols-2'>
+        <div>
+          {/* A shipment fulfils an order line, so it is always denominated in
+            that line's unit — the remaining quantity is expressed in it. */}
+          <FieldLabel>UOM</FieldLabel>
+          <ReadonlyInput value={draft.uom ?? ''} />
+        </div>
+        <div>
+          <FieldLabel required>Delivery Qty</FieldLabel>
+          <EditableInput
+            type="number"
+            min={0}
+            max={draft.remaining}
+            step="0.001"
+            value={draft.shipment_qty}
+            onChange={(e) =>
+              patchDraft({ shipment_qty: Number(e.target.value) })
+            }
+          />
+          <QuantityInBase
+            quantity={draft.shipment_qty}
+            conversion={draft.base_factor ?? 1}
+            uomName={draft.uom}
+            baseUomName={draft.base_uom_name ?? ''}
+          />
+        </div>
+      </div>
+    </section>
+  );
+
   return (
     <div className="space-y-4 font-mono text-xs">
       <FormHeader
@@ -287,7 +393,7 @@ export default function ShipmentForm({
         title={
           mode === 'create'
             ? 'Delivery'
-            : `Edit ${initial?.shipment_no ?? 'Shipment'}`
+            : `Edit ${initial?.shipment_no ?? 'Delivery'}`
         }
         subtitle={`For order ${order.order_no} • ${order.customer_name}`}
         actions={
@@ -423,96 +529,116 @@ export default function ShipmentForm({
         {/* Tab 2: Shipment Items */}
         {activeTab === 'items' && (
           <TabPanel>
-            <SectionCard icon={<Package size={13} />} title="Shipment Items">
-              <div className="space-y-4">
-                {lines.length === 0 ? (
-                  <p className="py-6 text-center text-slate-400">
-                    Nothing left to ship on this order.
-                  </p>
-                ) : (
-                  lines.map((line, idx) => (
-                    <div
-                      key={line.sales_order_item_id}
-                      className="space-y-3 rounded-xl border border-slate-200 p-3"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-semibold text-slate-700">
-                          {line.product_name}
-                        </span>
-                        <span className="text-slate-400">
-                          Ordered {line.ordered_qty} • Shipped{' '}
-                          {line.previously_shipped_qty} • Remaining{' '}
-                          <span className="font-medium text-amber-600">
-                            {line.remaining}
-                          </span>
-                        </span>
-                      </div>
-                      <div className="grid gap-4 sm:grid-cols-3">
-                        <AsyncSearchSelect
-                          label="Location"
-                          required
-                          placeholder="Select location..."
-                          apiUrl={API.inventory.warehouse.locations(
-                            order.warehouse_id ?? 0,
-                          )}
-                          value={line.location_id}
-                          selectedLabel={line.location_name}
-                          enablePopupSearch
-                          onChangeAction={(sel) =>
-                            setLine(idx, {
-                              location_id: sel?.id ? Number(sel.id) : null,
-                              location_name: sel?.name ?? '',
-                            })
-                          }
-                        />
-                        <div>
-                          {/* A shipment fulfils an order line, so it is always
-                              denominated in that line's unit — the remaining
-                              quantity is expressed in it. */}
-                          <FieldLabel>UOM</FieldLabel>
-                          <ReadonlyInput value={line.uom ?? ''} />
-                        </div>
-                        <div>
-                          <FieldLabel required>Shipment Qty</FieldLabel>
-                          <EditableInput
-                            type="number"
-                            min={0}
-                            max={line.remaining}
-                            step="0.001"
-                            value={line.shipment_qty}
-                            onChange={(e) =>
-                              setLine(idx, {
-                                shipment_qty: Number(e.target.value),
-                              })
-                            }
-                          />
-                          <QuantityInBase
-                            quantity={line.shipment_qty}
-                            conversion={line.base_factor ?? 1}
-                            uomName={line.uom}
-                            baseUomName={line.base_uom_name ?? ''}
-                          />
-                        </div>
-                      </div>
-                      {line.track_serial && (
-                        <SerialLookupPanel
-                          itemId={line.item_id}
-                          warehouseId={order.warehouse_id ?? 0}
-                          locationId={line.location_id}
-                          requiredCount={
-                            (Number(line.shipment_qty) || 0) *
-                            (line.base_factor ?? 1)
-                          }
-                          value={line.serial_numbers}
-                          onChange={(serials) =>
-                            setLine(idx, { serial_numbers: serials })
-                          }
-                        />
-                      )}
-                    </div>
-                  ))
-                )}
-              </div>
+            <SectionCard icon={<Package size={13} />} title="Delivery Items">
+              {lines.length === 0 ? (
+                <p className="py-6 text-center text-slate-400">
+                  Nothing left to ship on this order.
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs font-mono">
+                    <thead>
+                      <tr className="border-b text-muted-foreground">
+                        <th className="py-2 pr-3 text-left font-medium">
+                          Product
+                        </th>
+                        <th className="py-2 pr-3 text-right font-medium">
+                          Ordered
+                        </th>
+                        <th className="py-2 pr-3 text-right font-medium">
+                          Shipped
+                        </th>
+                        <th className="py-2 pr-3 text-right font-medium">
+                          Remaining
+                        </th>
+                        <th className="py-2 pr-3 text-left font-medium">
+                          Location
+                        </th>
+                        <th className="py-2 pr-3 text-left font-medium">UOM</th>
+                        <th className="py-2 pr-3 text-right font-medium">
+                          Ship Qty
+                        </th>
+                        <th className="py-2 pr-3 text-left font-medium">
+                          Serials
+                        </th>
+                        <th className="py-2 text-right font-medium">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {lines.map((line, idx) => {
+                        const required = Math.round(
+                          (Number(line.shipment_qty) || 0) *
+                            (line.base_factor ?? 1),
+                        );
+                        return (
+                          <tr
+                            key={line.sales_order_item_id}
+                            onClick={() => openEditor(idx)}
+                            title="Edit this line"
+                            className="cursor-pointer border-b last:border-b-0 hover:bg-muted/30"
+                          >
+                            <td className="py-2 pr-3 font-medium">
+                              {line.product_name}
+                            </td>
+                            <td className="py-2 pr-3 text-right">
+                              {line.ordered_qty}
+                            </td>
+                            <td className="py-2 pr-3 text-right text-muted-foreground">
+                              {line.previously_shipped_qty}
+                            </td>
+                            <td className="py-2 pr-3 text-right font-medium text-amber-600">
+                              {line.remaining}
+                            </td>
+                            <td className="py-2 pr-3">
+                              {line.location_name || (
+                                <span className="text-rose-500">Not set</span>
+                              )}
+                            </td>
+                            <td className="py-2 pr-3">{line.uom || '—'}</td>
+                            <td className="py-2 pr-3 text-right font-semibold">
+                              {line.shipment_qty}
+                              <QuantityInBase
+                                quantity={line.shipment_qty}
+                                conversion={line.base_factor ?? 1}
+                                uomName={line.uom}
+                                baseUomName={line.base_uom_name ?? ''}
+                              />
+                            </td>
+                            <td className="py-2 pr-3 text-muted-foreground">
+                              {line.track_serial ? (
+                                <span
+                                  className={
+                                    line.serial_numbers.length === required
+                                      ? 'text-emerald-600'
+                                      : 'text-amber-600'
+                                  }
+                                >
+                                  {line.serial_numbers.length}/{required}
+                                </span>
+                              ) : (
+                                '—'
+                              )}
+                            </td>
+                            <td className="py-2 text-right">
+                              <button
+                                type="button"
+                                title="Edit line"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openEditor(idx);
+                                }}
+                                className="rounded-lg border border-violet-200 p-1.5 text-violet-600 hover:bg-violet-50"
+                              >
+                                <PencilIcon size={12} />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </SectionCard>
 
             <div className="flex justify-start">
@@ -523,6 +649,86 @@ export default function ShipmentForm({
           </TabPanel>
         )}
       </FormLayout>
+
+      {/* ── Line editor ── */}
+      {draft && (
+        <LineItemDialog
+          open={editorIndex !== null}
+          onOpenChange={(o) => !o && setEditorIndex(null)}
+          mode="edit"
+          // Items without a reference number drop the separator rather than
+          // showing a leading "~".
+          title={
+            draft.product_reference_no
+              ? `${draft.product_reference_no}~${draft.product_name}`
+              : draft.product_name
+          }
+          error={lineError}
+          onConfirm={commitLine}
+          // Quantities and the serial roster are two jobs; a serial-tracked
+          // line splits them so neither pushes the other out of view. A plain
+          // line has nothing to split, so it stays single-panel.
+          activeTab={editorTab}
+          onTabChangeAction={setEditorTab}
+          tabs={
+            draft.track_serial
+              ? [
+                  {
+                    id: 'details',
+                    label: 'Item Details',
+                    content: detailFields,
+                  },
+                  {
+                    id: 'serials',
+                    label: 'Serials',
+                    badge: (
+                      <span
+                        className={
+                          draft.serial_numbers.length === requiredSerials
+                            ? 'text-emerald-600'
+                            : 'text-amber-600'
+                        }
+                      >
+                        {draft.serial_numbers.length}/{requiredSerials}
+                      </span>
+                    ),
+                    content: (
+                      <SerialLookupPanel
+                        itemId={draft.item_id}
+                        warehouseId={order.warehouse_id ?? 0}
+                        locationId={draft.location_id}
+                        requiredCount={requiredSerials}
+                        value={draft.serial_numbers}
+                        onChange={(serials) =>
+                          patchDraft({ serial_numbers: serials })
+                        }
+                      />
+                    ),
+                  },
+                ]
+              : undefined
+          }
+          context={
+            <>
+              <LineDialogFact
+                icon={<Package className="text-emerald-600" size={13} />}
+              >
+                Ordered {draft.ordered_qty} · Delivered{' '}
+                {draft.previously_shipped_qty} · Remaining {draft.remaining}
+              </LineDialogFact>
+              {order.warehouse_name && (
+                <LineDialogFact
+                  icon={<Truck className="text-emerald-600" size={13} />}
+                >
+                  {order.warehouse_name}
+                </LineDialogFact>
+              )}
+            </>
+          }
+        >
+          {detailFields}
+        </LineItemDialog>
+      )}
     </div>
   );
 }

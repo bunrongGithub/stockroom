@@ -33,7 +33,7 @@ const SHIPMENT_TABLE = 'sales_shipment' as const;
 const SELECT_LIST =
     '*, warehouse:warehouse(id, name), customer:business_partner(id, code, name)';
 const SELECT_DETAIL =
-    '*, warehouse:warehouse(id, name), customer:business_partner(id, code, name), items:sales_order_items(*, item:inventory_item(id, name, track_serial), item_uom:inventory_item_uom(id, uom:inventory_uom(id, name, display_name)))';
+    '*, warehouse:warehouse(id, name), customer:business_partner(id, code, name), items:sales_order_items(*, item:inventory_item(id, name, reference_no, track_serial), item_uom:inventory_item_uom(id, uom:inventory_uom(id, name, display_name)))';
 
 // ─── Pure helpers ───────────────────────────────────────────────────────────
 
@@ -96,6 +96,7 @@ function mapOrderItem(r: any): SalesOrderItem {
         item_class: r.item_class ?? 'stock',
         track_serial: r.item?.track_serial ?? false,
         product_name: r.item?.name ?? r.description ?? '',
+        product_reference_no: r.item?.reference_no ?? null,
         description: r.description ?? '',
         uom: r.uom ?? r.item_uom?.uom?.name ?? '',
         ordered_qty: Number(r.ordered_qty),
