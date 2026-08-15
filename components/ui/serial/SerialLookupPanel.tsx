@@ -1,6 +1,6 @@
 'use client';
 
-import { Loader2, X, Zap } from 'lucide-react';
+import { Loader2, Search, X, Zap } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { API } from '@/lib/constant';
 import SerialScannerInput from './SerialScannerInput';
@@ -42,6 +42,7 @@ export default function SerialLookupPanel({
     requiredCount,
     value,
     onChange,
+    readOnly = false,
 }: {
     itemId: number;
     warehouseId: number;
@@ -49,6 +50,14 @@ export default function SerialLookupPanel({
     requiredCount: number;
     value: string[];
     onChange: (serials: string[]) => void;
+    /**
+     * Display the serials a document already committed, without any way to
+     * change them — the detail pages' mode. Everything that exists to *pick* a
+     * serial (scanner, auto-fill, availability search) is dropped, and with it
+     * the availability request: these serials are recorded on the document, so
+     * whether they are still in stock is not the question being asked.
+     */
+    readOnly?: boolean;
 }) {
     const [rows, setRows] = useState<SerialRow[]>([]);
     const [total, setTotal] = useState(0);
@@ -91,13 +100,14 @@ export default function SerialLookupPanel({
 
     // Initial load + reload when the location changes.
     useEffect(() => {
+        if (readOnly) return;
         setSearch('');
         loadList('');
         // Selections may no longer be valid for a different location.
         // (Parent decides; we only prune when location is cleared.)
         if (!locationId && value.length) onChange([]);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [locationId, loadList]);
+    }, [locationId, loadList, readOnly]);
 
     // Debounced incremental search.
     function onSearchChange(term: string) {
@@ -180,6 +190,57 @@ export default function SerialLookupPanel({
         } finally {
             setBusy(false);
         }
+    }
+
+    if (readOnly) {
+        // Filters the serials the document recorded, not stock availability —
+        // a long roster is still worth searching, but there is nothing to add.
+        const term = search.trim().toLowerCase();
+        const shown = term
+            ? value.filter((sn) => sn.toLowerCase().includes(term))
+            : value;
+
+        return (
+            <div className="space-y-2 rounded-xl">
+                <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-1.5">
+                    <Search size={12} className="shrink-0 text-slate-300" />
+                    <input
+                        type="text"
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        placeholder="Filter serial numbers…"
+                        autoComplete="off"
+                        spellCheck={false}
+                        className="w-full bg-transparent font-mono text-[11px] outline-none placeholder:text-slate-300"
+                    />
+                </div>
+
+                <span className="block font-mono text-[11px] font-semibold tabular-nums text-emerald-600">
+                    {term
+                        ? `${shown.length} of ${value.length} serial(s)`
+                        : `${value.length} serial(s)`}
+                </span>
+
+                {shown.length === 0 ? (
+                    <p className="px-2 py-3 text-center font-mono text-[11px] text-slate-400">
+                        {value.length === 0
+                            ? 'No serial numbers recorded on this line.'
+                            : 'No serial matches that filter.'}
+                    </p>
+                ) : (
+                    <div className="flex flex-wrap gap-1.5">
+                        {shown.map((sn) => (
+                            <span
+                                key={sn}
+                                className="inline-flex items-center rounded-md border border-emerald-200 bg-emerald-100 px-1.5 py-0.5 font-mono text-[11px] text-emerald-800"
+                            >
+                                {sn}
+                            </span>
+                        ))}
+                    </div>
+                )}
+            </div>
+        );
     }
 
     if (!locationId) {

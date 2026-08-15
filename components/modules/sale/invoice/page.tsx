@@ -149,7 +149,7 @@ export default function SaleInvoicePage({
     },
     {
       key: 'shipment',
-      header: 'Shipment',
+      header: 'Delivery',
       cell: (row) => (
         <span className="font-mono text-xs">{row.shipment_no}</span>
       ),

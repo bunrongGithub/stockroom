@@ -373,12 +373,6 @@ export default function ShipmentForm({
               patchDraft({ shipment_qty: Number(e.target.value) })
             }
           />
-          <QuantityInBase
-            quantity={draft.shipment_qty}
-            conversion={draft.base_factor ?? 1}
-            uomName={draft.uom}
-            baseUomName={draft.base_uom_name ?? ''}
-          />
         </div>
       </div>
     </section>

@@ -325,7 +325,7 @@ export default function SaleInvoiceDetail({
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Shipment</span>
+                  <span className="text-slate-400">Delivery</span>
                   <button
                     onClick={() =>
                       router.push(

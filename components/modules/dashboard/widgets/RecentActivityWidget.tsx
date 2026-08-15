@@ -21,7 +21,7 @@ const DOC_META: Record<
     },
     shipments: {
         chip: 'bg-violet-50 text-violet-700',
-        label: 'Shipment',
+        label: 'Delivery',
         href: (id) => `/sale/delivery-note/${id}/view`,
     },
     invoices: {
@@ -39,7 +39,7 @@ const DOC_META: Record<
 const TABS = [
     { id: 'all' as const, label: 'All' },
     { id: 'orders' as const, label: 'Orders' },
-    { id: 'shipments' as const, label: 'Shipments' },
+    { id: 'shipments' as const, label: 'Delivery' },
     { id: 'invoices' as const, label: 'Invoices' },
     { id: 'payments' as const, label: 'Payments' },
 ];

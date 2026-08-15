@@ -7,9 +7,14 @@ import type { ModuleProps } from '@/lib/registry';
 import {saleOrderApi, saleShipmentApi } from '@/lib/api/sale';
 import { financesInvoiceApi } from '@/lib/api/finances';
 import { RelatedDocumentsPanel } from '@/components/ui/RelatedDocuments';
+import SerialLookupPanel from '@/components/ui/serial/SerialLookupPanel';
 // import { AuditInformationCard } from '@/components/ui/AuditInformationCard';
 import { FieldLabel } from '@/components/ui/FieldLabel';
 import { ReadonlyInput } from '@/components/ui/Readonly';
+import {
+  LineDialogFact,
+  LineItemDialog,
+} from '@/components/ui/LineItemDialog';
 import {
   FieldGrid,
   FormHeader,
@@ -28,6 +33,7 @@ import type {
   SalesOrder,
   SalesOrderStatus,
   SalesShipment,
+  SalesShipmentItem,
   SalesShipmentStatus,
 } from '@/types/sales/order-management';
 import { useEffect, useState } from 'react';
@@ -49,6 +55,38 @@ const TABS = [
   { id: 'items' as const, label: 'Items', num: 2 },
   { id: 'related' as const, label: 'Related Documents', num: 3 },
 ];
+
+/** The quantity half of the line detail — mirrors the editor's first tab. */
+function LineDetailFields({ item }: { item: SalesShipmentItem }) {
+  return (
+    <div className="grid gap-4 sm:grid-cols-3">
+      <div>
+        <FieldLabel>Location</FieldLabel>
+        <ReadonlyInput value={item.location_name || '—'} />
+      </div>
+      <div>
+        <FieldLabel>UOM</FieldLabel>
+        <ReadonlyInput value={item.uom || '—'} />
+      </div>
+      <div>
+        <FieldLabel>Delivery Qty</FieldLabel>
+        <ReadonlyInput value={String(item.shipment_qty)} />
+      </div>
+      <div>
+        <FieldLabel>Ordered Qty</FieldLabel>
+        <ReadonlyInput value={String(item.ordered_qty)} />
+      </div>
+      <div>
+        <FieldLabel>Previously Delivery</FieldLabel>
+        <ReadonlyInput value={String(item.previously_shipped_qty)} />
+      </div>
+      <div>
+        <FieldLabel>Serial Tracked</FieldLabel>
+        <ReadonlyInput value={item.track_serial ? 'Yes' : 'No'} />
+      </div>
+    </div>
+  );
+}
 
 function money(n: number) {
   return n.toLocaleString('en-US', {
@@ -114,6 +152,12 @@ export default function SaleShipmentDetail({
     type: 'success' | 'error';
   } | null>(null);
   const [busy, setBusy] = useState<'post' | 'void' | null>(null);
+  /**
+   * The line the reader clicked. Opens the same LineItemDialog the form uses,
+   * in `view` mode — a posted shipment is a record, so the detail is readable
+   * without offering any way to change it.
+   */
+  const [detailItem, setDetailItem] = useState<SalesShipmentItem | null>(null);
 
   // UX gating; server enforces. Show only if status allows AND user is granted.
   const mayPost = useCan(PERMISSIONS.sales.shipment.post);
@@ -382,19 +426,20 @@ export default function SaleShipmentDetail({
                           Ordered
                         </th>
                         <th className="text-right py-2 pr-3 font-medium">
-                          Prev. Shipped
+                          Prev. Delivery
                         </th>
                         <th className="text-right py-2 pr-3 font-medium">
-                          Shipment Qty
+                          Delivery Qty
                         </th>
-                        <th className="text-left py-2 font-medium">Serials</th>
                       </tr>
                     </thead>
                     <tbody>
                       {shipment.items.map((item) => (
                         <tr
                           key={item.id}
-                          className="border-b hover:bg-muted/20"
+                          onClick={() => setDetailItem(item)}
+                          title="View this line"
+                          className="cursor-pointer border-b hover:bg-muted/20"
                         >
                           <td className="py-2 pr-3 font-medium">
                             {item.product_name}
@@ -411,11 +456,6 @@ export default function SaleShipmentDetail({
                           </td>
                           <td className="py-2 pr-3 text-right font-semibold text-emerald-600">
                             {item.shipment_qty}
-                          </td>
-                          <td className="py-2 text-slate-500">
-                            {item.serial_numbers?.length
-                              ? item.serial_numbers.join(', ')
-                              : '—'}
                           </td>
                         </tr>
                       ))}
@@ -497,7 +537,7 @@ export default function SaleShipmentDetail({
                     summary={
                       <div className="flex flex-wrap gap-4 rounded-xl border border-slate-100 bg-slate-50 px-4 py-2.5">
                         <span className="text-slate-400">
-                          Shipped{' '}
+                          Delivered{' '}
                           <span className="font-semibold text-slate-700">
                             {shippedTotal}
                           </span>
@@ -522,6 +562,71 @@ export default function SaleShipmentDetail({
           </TabPanel>
         )}
       </FormLayout>
+
+      {/* ── Line detail (read-only) ──
+          Same dialog and same field order as ShipmentForm's editor, so a line
+          reads identically whether you are entering it or reviewing it. */}
+      {detailItem && (
+        <LineItemDialog
+          open
+          onOpenChange={(o) => !o && setDetailItem(null)}
+          mode="view"
+          title={
+            detailItem.product_reference_no
+              ? `${detailItem.product_reference_no}~${detailItem.product_name}`
+              : detailItem.product_name
+          }
+          context={
+            <>
+              <LineDialogFact
+                icon={<Package className="text-emerald-600" size={13} />}
+              >
+                Ordered {detailItem.ordered_qty} · Previously Delivered{' '}
+                {detailItem.previously_shipped_qty} · This delivery{' '}
+                {detailItem.shipment_qty}
+              </LineDialogFact>
+              {shipment.warehouse_name && (
+                <LineDialogFact
+                  icon={<Truck className="text-emerald-600" size={13} />}
+                >
+                  {shipment.warehouse_name}
+                </LineDialogFact>
+              )}
+            </>
+          }
+          tabs={
+            detailItem.track_serial
+              ? [
+                  {
+                    id: 'details',
+                    label: 'Item Details',
+                    content: <LineDetailFields item={detailItem} />,
+                  },
+                  {
+                    id: 'serials',
+                    label: 'Serials',
+                    badge: detailItem.serial_numbers?.length ?? 0,
+                    content: (
+                      // The same panel the shipment editor uses, in its
+                      // read-only mode: filterable roster, nothing to change.
+                      <SerialLookupPanel
+                        readOnly
+                        itemId={detailItem.item_id}
+                        warehouseId={shipment.warehouse_id}
+                        locationId={detailItem.location_id}
+                        requiredCount={detailItem.serial_numbers?.length ?? 0}
+                        value={detailItem.serial_numbers ?? []}
+                        onChange={() => {}}
+                      />
+                    ),
+                  },
+                ]
+              : undefined
+          }
+        >
+          <LineDetailFields item={detailItem} />
+        </LineItemDialog>
+      )}
     </div>
   );
 }

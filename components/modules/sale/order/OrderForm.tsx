@@ -586,12 +586,6 @@ export default function OrderForm({
                             </td>
                             <td className="py-2 pr-3 text-right">
                               {line.ordered_qty}
-                              <QuantityInBase
-                                quantity={line.ordered_qty}
-                                conversion={line.base_factor ?? 1}
-                                uomName={line.uom}
-                                baseUomName={line.base_uom_name ?? ''}
-                              />
                             </td>
                             <td className="py-2 pr-3">{line.uom || '—'}</td>
                             <td className="py-2 pr-3 text-right">
@@ -608,17 +602,6 @@ export default function OrderForm({
                               {/* stopPropagation: the row itself opens the
                                   editor, so a delete click must not also. */}
                               <div className="flex justify-end gap-1.5">
-                                <button
-                                  type="button"
-                                  title="Edit item"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    openEditor(idx);
-                                  }}
-                                  className="rounded-lg border border-violet-200 p-1.5 text-violet-600 hover:bg-violet-50"
-                                >
-                                  <PencilIcon size={12} />
-                                </button>
                                 <button
                                   type="button"
                                   title="Remove item"
@@ -708,28 +691,15 @@ export default function OrderForm({
           <div>
             <FieldLabel required>Qty</FieldLabel>
             <EditableInput
-              type="number"
-              min={0}
-              step="0.001"
               value={draft.ordered_qty}
               onChange={(e) =>
                 patchDraft({ ordered_qty: Number(e.target.value) })
               }
             />
-            {/* Only renders when the line is not in base UOM. */}
-            <QuantityInBase
-              quantity={draft.ordered_qty}
-              conversion={draft.base_factor ?? 1}
-              uomName={draft.uom}
-              baseUomName={draft.base_uom_name ?? ''}
-            />
           </div>
           <div>
             <FieldLabel required>Unit Price</FieldLabel>
             <EditableInput
-              type="number"
-              min={0}
-              step="0.0001"
               value={draft.unit_price}
               onChange={(e) =>
                 patchDraft({ unit_price: Number(e.target.value) })
@@ -740,9 +710,6 @@ export default function OrderForm({
             <div>
               <FieldLabel>Disc %</FieldLabel>
               <EditableInput
-                type="number"
-                min={0}
-                max={100}
                 step="0.01"
                 value={draft.discount}
                 onChange={(e) =>
@@ -753,10 +720,6 @@ export default function OrderForm({
             <div>
               <FieldLabel>Tax %</FieldLabel>
               <EditableInput
-                type="number"
-                min={0}
-                max={100}
-                step="0.01"
                 value={draft.tax}
                 onChange={(e) => patchDraft({ tax: Number(e.target.value) })}
               />

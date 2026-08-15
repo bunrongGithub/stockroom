@@ -18,26 +18,26 @@ import { useState } from 'react';
 
 function PartnerRow({ p }: { p: BusinessPartnerOption }) {
     return (
-        <span className="flex items-center gap-2">
-            <span className="shrink-0 rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[10px] text-gray-500">
-                {p.code}
-            </span>
-            <span className="min-w-0 flex-1">
-                <span className="block truncate font-mono text-xs text-slate-800">
-                    {p.name}
-                </span>
-                {p.phone && (
-                    <span className="block truncate text-[10px] text-slate-400">
-                        {p.phone}
-                    </span>
-                )}
-            </span>
-            <span className="flex shrink-0 gap-1">
-                {p.roles?.slice(0, 3).map((r) => (
-                    <PartnerRoleBadge key={r} role={r} iconOnly />
-                ))}
-            </span>
+      <span className="flex items-center gap-2">
+        <span className="font-mono text-xs font-semibold text-sky-600 hover:underline">
+          {p.code} ~
         </span>
+        <span className="min-w-0 flex-2">
+          <span className="block truncate font-mono text-xs text-slate-800">
+            Customer Name: {p.name}
+          </span>
+          {p.phone && (
+            <span className="block truncate text-[10px] text-slate-400">
+              Customer Phone: {p.phone}
+            </span>
+          )}
+        </span>
+        <span className="flex shrink-0 gap-1">
+          {p.roles?.slice(0, 3).map((r) => (
+            <PartnerRoleBadge key={r} role={r} iconOnly />
+          ))}
+        </span>
+      </span>
     );
 }
 
@@ -162,42 +162,42 @@ export default function BusinessPartnerLookup({
     }
 
     return (
-        <div className="space-y-1">
-            <EntityLookup<BusinessPartnerOption>
-                endpoint={businessPartnerApi.lookupUrl}
-                params={{ role }}
-                recentsScope={`partner_${role}`}
-                value={value}
-                onSelect={(p) => {
-                    setNotice('');
-                    onChange(p);
-                }}
-                label={label}
-                placeholder={placeholder}
-                required={required}
-                disabled={disabled}
-                autoFocus={autoFocus}
-                emptyText="No partner found"
-                createLabel={allowCreate ? 'Create partner' : undefined}
-                onCreateNew={allowCreate ? startCreate : undefined}
-                renderRow={(p) => <PartnerRow p={p} />}
-                renderValue={(p) => (
-                    <span className="flex items-center gap-2">
-                        <span className="shrink-0 rounded bg-white px-1.5 py-0.5 font-mono text-[10px] text-gray-600">
-                            {p.code}
-                        </span>
-                        <span className="truncate font-mono text-xs text-slate-800">
-                            {p.name}
-                        </span>
-                        {p.phone && (
-                            <span className="shrink-0 text-[10px] text-slate-500">
-                                {p.phone}
-                            </span>
-                        )}
-                    </span>
-                )}
-            />
-            {notice && <p className="text-[10px] text-emerald-600">{notice}</p>}
-        </div>
+      <div className="space-y-1">
+        <EntityLookup<BusinessPartnerOption>
+          endpoint={businessPartnerApi.lookupUrl}
+          params={{ role }}
+          recentsScope={`partner_${role}`}
+          value={value}
+          onSelect={(p) => {
+            setNotice('');
+            onChange(p);
+          }}
+          label={label}
+          placeholder={placeholder}
+          required={required}
+          disabled={disabled}
+          autoFocus={autoFocus}
+          emptyText="No partner found"
+          createLabel={allowCreate ? 'Create partner' : undefined}
+          onCreateNew={allowCreate ? startCreate : undefined}
+          renderRow={(p) => <PartnerRow p={p} />}
+          renderValue={(p) => (
+            <span className="flex items-center gap-2">
+              <span className="font-mono text-xs font-semibold text-sky-600 hover:underline">
+                {p.code}
+              </span>
+              <span className="truncate font-mono text-xs text-slate-800">
+                {p.name}
+              </span>
+              {p.phone && (
+                <span className="shrink-0 text-[10px] text-slate-500">
+                  {p.phone}
+                </span>
+              )}
+            </span>
+          )}
+        />
+        {notice && <p className="text-[10px] text-emerald-600">{notice}</p>}
+      </div>
     );
 }
