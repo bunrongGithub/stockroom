@@ -468,7 +468,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-gray-50 font-sans print:h-auto print:overflow-visible print:bg-white">
+    <div className="flex h-screen w-full overflow-hidden bg-gray-50 font-mono print:h-auto print:overflow-visible print:bg-white">
       {/* ═══════════════════ SIDEBAR (desktop, in-flow) ═══════════════════ */}
       <aside className="hidden lg:flex w-64 bg-gray-950 border-r border-gray-800 flex-col shrink-0 print:hidden">
         {sidebarBody}

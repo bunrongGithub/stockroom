@@ -79,7 +79,7 @@ export default function Register() {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4 font-sans">
+        <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4 font-mono">
             <Card className="w-full max-w-md shadow-2xl border-slate-100 rounded-3xl">
                 <CardHeader className="text-center pt-10 pb-6">
                     <div className="mx-auto h-20 w-20 bg-emerald-600 rounded-3xl flex items-center justify-center mb-6 shadow-lg">

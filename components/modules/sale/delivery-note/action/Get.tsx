@@ -7,7 +7,7 @@ import type { ModuleProps } from '@/lib/registry';
 import {saleOrderApi, saleShipmentApi } from '@/lib/api/sale';
 import { financesInvoiceApi } from '@/lib/api/finances';
 import { RelatedDocumentsPanel } from '@/components/ui/RelatedDocuments';
-import { AuditInformationCard } from '@/components/ui/AuditInformationCard';
+// import { AuditInformationCard } from '@/components/ui/AuditInformationCard';
 import { FieldLabel } from '@/components/ui/FieldLabel';
 import { ReadonlyInput } from '@/components/ui/Readonly';
 import {
@@ -309,7 +309,7 @@ export default function SaleShipmentDetail({
               </div>
             </SidebarCard>
             {/* Edit / Void / Post / Create Invoice live in the page header. */}
-            <AuditInformationCard audit={shipment as Partial<AuditMeta>} />
+            {/* <AuditInformationCard audit={shipment as Partial<AuditMeta>} /> */}
           </>
         }
       >

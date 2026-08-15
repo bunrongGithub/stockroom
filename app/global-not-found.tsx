@@ -1,12 +1,10 @@
 import './globals.css';
-import { Inter } from 'next/font/google';
+import { fontClassName } from './fonts';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { FileQuestion } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-
-const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
     title: '404 - Page Not Found',
@@ -15,7 +13,7 @@ export const metadata: Metadata = {
 
 export default function GlobalNotFound() {
     return (
-        <html lang="en" className={inter.className}>
+        <html lang="en" className={fontClassName}>
             <body className="bg-background text-foreground antialiased">
                 <div className="flex min-h-screen flex-col items-center justify-center px-4">
                     <div className="w-full max-w-sm space-y-8 text-center">

@@ -3,8 +3,19 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --font-sans: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-mono), ui-monospace, monospace;
+  /* Two faces, one stack, resolved per character by unicode-range: Latin hits
+     Geist Mono, Khmer misses it there and falls through to Bokor. Order
+     matters — Bokor also declares a Latin range, so it must come second.
+
+     Named literally, NOT via var(--font-latin): those variables append
+     next/font's metric-adjusted "… Fallback" face, which has no unicode-range
+     and would therefore capture Khmer before Bokor. See app/fonts.ts.
+
+     font-sans is an alias of the same stack rather than a third face. Left in
+     place because Tailwind's built-in `font-sans` would otherwise fall back to
+     ui-sans-serif wherever a component still asks for it. */
+  --font-sans: 'Geist Mono', 'Bokor', ui-monospace, monospace;
+  --font-mono: 'Geist Mono', 'Bokor', ui-monospace, monospace;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -107,7 +118,9 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sans);
+  /* Repeated rather than var(--font-sans): this is plain CSS, so that name
+     would resolve to next/font's own variable, not the theme token above. */
+  font-family: 'Geist Mono', 'Bokor', ui-monospace, monospace;
 }
 
 /* Referenced by the shell nav + DataTable; previously undefined (no-op). */
@@ -121,7 +134,7 @@ body {
 
 /* Tabular numerals for data-dense numeric/serial cells. */
 @utility tnums {
-  font-family: var(--font-mono);
+  font-family: 'Geist Mono', 'Bokor', ui-monospace, monospace;
   font-variant-numeric: tabular-nums;
 }
 

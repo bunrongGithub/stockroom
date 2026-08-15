@@ -62,7 +62,7 @@ export default function Sigin() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4 font-sans">
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4 font-mono">
       <Card className="w-full max-w-md shadow-2xl border-slate-100 rounded-3xl">
         <CardHeader className="text-center pt-10">
           <h2 className="text-4xl font-black text-slate-900 tracking-tighter">
