@@ -145,7 +145,7 @@ export default function BusinessPartnerDetail({
                 href="/master-data/business-partner"
                 className="inline-flex items-center gap-2 text-slate-500 transition-colors hover:text-slate-700"
             >
-                <ArrowLeftIcon size={16} /> Back to Business Partners
+                <ArrowLeftIcon size={16} /> Back
             </Link>
 
             {/* Header */}

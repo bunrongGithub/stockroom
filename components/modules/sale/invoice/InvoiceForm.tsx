@@ -202,7 +202,7 @@ export default function InvoiceForm({
             <HeaderAction label="Discard" href="/finances/invoice" />
             <HeaderAction
               tone="primary"
-              label={saving ? 'Saving…' : 'Save'}
+              label={saving ? 'Saving' : 'Save'}
               icon={
                 saving ? (
                   <Loader2Icon className="animate-spin" size={16} />

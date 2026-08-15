@@ -19,6 +19,7 @@ import {
     extendedActionsForModule,
     impliedParentAction,
 } from '@/service/core/authz/permissions';
+import { isSuperUserOnlyModulePath } from '@/service/core/authz/super-user-modules';
 import { z } from 'zod';
 
 export class Role extends BaseRepository {
@@ -302,27 +303,66 @@ export class Role extends BaseRepository {
      * failure mid-way leaves the role with fewer grants than intended, which is
      * fail-closed and fixed by saving again.
      */
+    /**
+     * Module ids (parents *and* their action children) that only a super user
+     * may grant. Resolved from `modules.path` so it survives environments where
+     * the ids differ.
+     */
+    private async superUserOnlyModuleIds(): Promise<number[]> {
+        const { data, error } = await this.db.from('modules').select('id, path');
+        if (error) throw new ApiError(error.message, 500, error.code);
+        return (data ?? [])
+            .filter((m) => isSuperUserOnlyModulePath(m.path as string | null))
+            .map((m) => m.id as number);
+    }
+
     async syncActionGrants(
         context: RequestContext,
         roleId: number,
         roleCompanyId: number,
         permissions: ModuleActionGrantInput[],
     ) {
-        const granted = permissions.filter((p) => p.actions.length > 0);
+        /**
+         * Super-user-only modules are invisible to everyone else's access tree,
+         * so a normal admin's payload can never mention them. Two consequences,
+         * both handled here:
+         *
+         *  - a payload that mentions one anyway was hand-crafted; drop it.
+         *  - the wipe below must skip them, or simply renaming a role would
+         *    revoke grants the editor was never shown and could not re-submit.
+         *
+         * A super user sees them in the tree, so their payload is authoritative
+         * and nothing is withheld.
+         */
+        const offLimits = (await this.isSupperUser(context))
+            ? []
+            : await this.superUserOnlyModuleIds();
+
+        const granted = permissions.filter(
+            (p) => p.actions.length > 0 && !offLimits.includes(p.module_id),
+        );
 
         // Wipe first: the editor always submits the complete desired state, so
         // anything absent has been revoked.
-        const { error: delActions } = await this.db
+        const keepList = `(${offLimits.join(',')})`;
+
+        let delActionsQuery = this.db
             .from('role_module_action_permission')
             .delete()
             .eq('role_id', roleId);
+        if (offLimits.length)
+            delActionsQuery = delActionsQuery.not('module_id', 'in', keepList);
+        const { error: delActions } = await delActionsQuery;
         if (delActions)
             throw new ApiError(delActions.message, 500, delActions.code);
 
-        const { error: delFlags } = await this.db
+        let delFlagsQuery = this.db
             .from('role_module_permission')
             .delete()
             .eq('role_id', roleId);
+        if (offLimits.length)
+            delFlagsQuery = delFlagsQuery.not('module_id', 'in', keepList);
+        const { error: delFlags } = await delFlagsQuery;
         if (delFlags) throw new ApiError(delFlags.message, 500, delFlags.code);
 
         if (granted.length === 0) return { success: true };

@@ -97,11 +97,7 @@ export function QuantityInBase({
 
     return (
         <span className="inline-flex items-center gap-1.5 text-[11px] text-slate-500">
-            {trimNumber(quantity)} {uomName}
-            <ArrowRight size={11} className="text-slate-300" />
-            <span className="font-semibold text-slate-700">
-                {trimNumber(base)} {baseUomName}
-            </span>
+            {uomName}
         </span>
     );
 }

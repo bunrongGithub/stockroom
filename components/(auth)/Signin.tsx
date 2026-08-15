@@ -64,16 +64,11 @@ export default function Sigin() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4 font-sans">
       <Card className="w-full max-w-md shadow-2xl border-slate-100 rounded-3xl">
-        <CardHeader className="text-center pt-10 pb-6">
-          <div className="mx-auto h-20 w-20 bg-emerald-600 rounded-3xl flex items-center justify-center mb-6 shadow-lg">
-            <Lock className="text-white" size={40} />
-          </div>
+        <CardHeader className="text-center pt-10">
           <h2 className="text-4xl font-black text-slate-900 tracking-tighter">
             {process.env.NEXT_PUBLIC_APP_NAME || 'iCase Service'}
           </h2>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Log in to manage your mobile store
-          </p>
+
         </CardHeader>
 
         <CardContent className="px-10 pb-10 space-y-6">
@@ -138,7 +133,7 @@ export default function Sigin() {
                 {loading ? (
                   <Loader2 className="animate-spin" />
                 ) : (
-                  'ចូលប្រើប្រាស់'
+                  'Sigin'
                 )}
               </Button>
               {/* <Button

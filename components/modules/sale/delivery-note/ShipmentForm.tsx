@@ -401,7 +401,7 @@ export default function ShipmentForm({
             <HeaderAction label="Discard" href="/sale/delivery-note" />
             <HeaderAction
               tone="primary"
-              label={saving ? 'Saving…' : 'Save'}
+              label={saving ? 'Saving' : 'Save'}
               icon={
                 saving ? (
                   <Loader2Icon className="animate-spin" size={16} />
@@ -546,7 +546,7 @@ export default function ShipmentForm({
                           Ordered
                         </th>
                         <th className="py-2 pr-3 text-right font-medium">
-                          Shipped
+                          Delivered
                         </th>
                         <th className="py-2 pr-3 text-right font-medium">
                           Remaining
@@ -556,12 +556,8 @@ export default function ShipmentForm({
                         </th>
                         <th className="py-2 pr-3 text-left font-medium">UOM</th>
                         <th className="py-2 pr-3 text-right font-medium">
-                          Ship Qty
+                          Delivery Qty
                         </th>
-                        <th className="py-2 pr-3 text-left font-medium">
-                          Serials
-                        </th>
-                        <th className="py-2 text-right font-medium">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -597,40 +593,6 @@ export default function ShipmentForm({
                             <td className="py-2 pr-3">{line.uom || '—'}</td>
                             <td className="py-2 pr-3 text-right font-semibold">
                               {line.shipment_qty}
-                              <QuantityInBase
-                                quantity={line.shipment_qty}
-                                conversion={line.base_factor ?? 1}
-                                uomName={line.uom}
-                                baseUomName={line.base_uom_name ?? ''}
-                              />
-                            </td>
-                            <td className="py-2 pr-3 text-muted-foreground">
-                              {line.track_serial ? (
-                                <span
-                                  className={
-                                    line.serial_numbers.length === required
-                                      ? 'text-emerald-600'
-                                      : 'text-amber-600'
-                                  }
-                                >
-                                  {line.serial_numbers.length}/{required}
-                                </span>
-                              ) : (
-                                '—'
-                              )}
-                            </td>
-                            <td className="py-2 text-right">
-                              <button
-                                type="button"
-                                title="Edit line"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  openEditor(idx);
-                                }}
-                                className="rounded-lg border border-violet-200 p-1.5 text-violet-600 hover:bg-violet-50"
-                              >
-                                <PencilIcon size={12} />
-                              </button>
                             </td>
                           </tr>
                         );

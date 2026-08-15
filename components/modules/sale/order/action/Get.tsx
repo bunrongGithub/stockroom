@@ -62,7 +62,7 @@ function StatusBadge({ status }: { status: SalesOrderStatus }) {
   };
   return (
     <span
-      className={`inline-block rounded-full px-3 py-1 text-xs font-mono font-semibold ${map[status]}`}
+      className={`inline-block rounded-xl px-3 py-1 text-xs font-mono font-semibold ${map[status]}`}
     >
       {labels[status]}
     </span>

@@ -223,7 +223,7 @@ export default function BusinessPartnerModule({
                     <div>
                         <h2 className="flex items-center gap-2 text-2xl text-slate-800">
                             <Contact className="text-[#1a9e52]" />
-                            Business Partners
+                            Customer
                         </h2>
                         <p className="mt-1 text-slate-500">
                             Customers, suppliers, carriers and employees — one record each

@@ -285,7 +285,7 @@ export default function SaleShipmentDetail({
       <FormLayout
         sidebar={
           <>
-            <SidebarCard icon={<Truck size={13} />} title="Shipment Summary">
+            <SidebarCard icon={<Truck size={13} />} title="Delivery Summary">
               <div className="space-y-2">
                 <SummaryRow label="Order">
                   <button

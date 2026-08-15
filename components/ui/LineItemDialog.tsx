@@ -45,7 +45,7 @@ export type LineDialogTab = {
 
 const TITLE: Record<LineDialogMode, string> = {
     create: 'Add Item',
-    edit: 'Edit Item',
+    edit: 'Update Item',
     view: 'Item Detail',
 };
 

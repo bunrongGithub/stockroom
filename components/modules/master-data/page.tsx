@@ -20,7 +20,7 @@ import Link from 'next/link';
  */
 const ENTITIES = [
     {
-        label: 'Business Partners',
+        label: 'Customer',
         description: 'Customers, suppliers, carriers and employees — one record each.',
         href: '/master-data/business-partner',
         Icon: Contact,

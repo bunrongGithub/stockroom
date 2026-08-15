@@ -1,3 +1,4 @@
+import { isSuperUserOnlyModulePath } from '@/service/core/authz/super-user-modules';
 import { BaseRepository, type QueryScope } from '@/service/core/base-repository';
 import type { QueryConfig } from '@/service/core/query/config.ts';
 import type { QueryObject } from '@/service/core/query/types.ts';
@@ -225,8 +226,12 @@ export class ModuleRepository extends BaseRepository {
      * or a role could never be given access to something it does not already
      * have. Action rows are excluded because their grants are derived from
      * their parent's on save.
+     *
+     * The one exception to "show everything": super-user-only modules are
+     * withheld from everyone else, so a company admin cannot grant themselves
+     * module administration through a role they control.
      */
-    async findAccessTree(_ctx: RequestContext): Promise<AccessTreeModule[]> {
+    async findAccessTree(ctx: RequestContext): Promise<AccessTreeModule[]> {
         const { data, error } = await this.db
             .from(TABLE)
             .select('id, key, label, path, type, parent_id, sort_order')
@@ -235,7 +240,10 @@ export class ModuleRepository extends BaseRepository {
             .order('sort_order', { ascending: true });
 
         if (error) throw new Error(error.message);
-        return (data ?? []) as AccessTreeModule[];
+
+        const rows = (data ?? []) as AccessTreeModule[];
+        if (await this.isSupperUser(ctx)) return rows;
+        return rows.filter((m) => !isSuperUserOnlyModulePath(m.path));
     }
 
     async findAllMenu(

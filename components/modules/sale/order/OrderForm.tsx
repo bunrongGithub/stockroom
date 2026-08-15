@@ -356,7 +356,7 @@ export default function OrderForm({
             <HeaderAction label="Discard" href="/sale/order" />
             <HeaderAction
               tone="primary"
-              label={saving ? 'Saving…' : 'Save'}
+              label={saving ? 'Saving' : 'Save'}
               icon={
                 saving ? (
                   <Loader2Icon className="animate-spin" size={16} />
