@@ -3,8 +3,6 @@
 import AsyncSearchSelect from '@/components/ui/AsyncSearchSelect';
 import SerialEntryPanel from '@/components/ui/serial/SerialEntryPanel';
 import SerialLookupPanel from '@/components/ui/serial/SerialLookupPanel';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { API } from '@/lib/constant';
 import { stockAdjustmentApi } from '@/lib/api/adjustment';
 import { useItemAutoFill } from '@/hook/useItemAutoFill';
@@ -16,9 +14,10 @@ import type {
 import {
   AlertCircle,
   ArrowLeftIcon,
+  ChevronRight,
+  Package as PackageIcon,
   ArrowLeftRight,
   Loader2Icon,
-  LocationEdit,
   MapPin,
   PencilIcon,
   PlusIcon,
@@ -29,6 +28,29 @@ import {
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { EditableInput, FieldLabel } from '@/components/ui/FieldLabel';
+import {
+  FieldGrid,
+  FormHeader,
+  FormLayout,
+  HeaderAction,
+  SectionCard,
+  SidebarCard,
+  StepButton,
+  SummaryRow,
+  TabNav,
+  TabPanel,
+} from '@/components/ui/FormShell';
+import {
+  LineDialogFact,
+  LineItemDialog,
+} from '@/components/ui/LineItemDialog';
+
+const TABS = [
+  { id: 'info' as const, label: 'Adjust Info', num: 1 },
+  { id: 'items' as const, label: 'Items', num: 2 },
+];
+type TabId = (typeof TABS)[number]['id'];
 
 // ─── Stock Adjustment form (create + edit) ──────────────────────────────────
 // Presentation + payload assembly only. All stock effects happen server-side
@@ -48,13 +70,6 @@ type LineDraft = {
   serial_numbers: string[];
   remarks: string;
 };
-
-function money(n: number) {
-  return n.toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-}
 
 const EMPTY_LINE: LineDraft = {
   item_id: 0,
@@ -128,6 +143,11 @@ export default function AdjustmentForm({
 
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabId>('info');
+  /** Validation for the open line, shown inside the dialog rather than the page. */
+  const [lineError, setLineError] = useState<string | null>(null);
+  // Controlled so a serial-count failure can pull the user to that tab.
+  const [editorTab, setEditorTab] = useState('details');
 
   useEffect(() => {
     stockAdjustmentApi
@@ -140,6 +160,8 @@ export default function AdjustmentForm({
   const headerReady = !!warehouse.id && !!location.id;
 
   function openEditor(index: number) {
+    setLineError(null);
+    setEditorTab('details');
     setDraft(index === -1 ? EMPTY_LINE : { ...lines[index] });
     setEditorIndex(index);
   }
@@ -189,11 +211,15 @@ export default function AdjustmentForm({
   const draftNewQty = draft.current_qty + draftQty;
 
   function commitLine() {
-    setError('');
-    if (!draft.item_id) return setError('Select an item.');
-    if (!draftQty) return setError('Adjustment quantity cannot be 0.');
+    setLineError(null);
+    const fail = (message: string, tab = 'details') => {
+      setEditorTab(tab);
+      setLineError(message);
+    };
+    if (!draft.item_id) return fail('Select an item.');
+    if (!draftQty) return fail('Adjustment quantity cannot be 0.');
     if (draftQty < 0 && draft.current_qty + draftQty < 0) {
-      return setError(
+      return fail(
         `Only ${draft.current_qty} on hand — removing ${Math.abs(draftQty)} would make stock negative.`,
       );
     }
@@ -201,8 +227,9 @@ export default function AdjustmentForm({
       draft.track_serial &&
       draft.serial_numbers.length !== Math.abs(draftQty)
     ) {
-      return setError(
+      return fail(
         `Exactly ${Math.abs(draftQty)} serial number(s) required for ${draft.item_label}.`,
+        'serials',
       );
     }
     setLines((prev) =>
@@ -266,26 +293,167 @@ export default function AdjustmentForm({
     0,
   );
 
+  /**
+   * The quantity half of the line editor — the whole body for a plain item and
+   * the first tab for a serial-tracked one, mirroring Delivery Note.
+   */
+  const detailFields = (
+    <>
+      <AsyncSearchSelect
+        label="Item *"
+        placeholder="Search stock item..."
+        apiUrl={API.inventory.stockItem.root}
+        value={draft.item_id || null}
+        selectedLabel={draft.item_label}
+        enablePopupSearch
+        onChangeAction={onPickItem}
+      />
+
+      {/* Live figures from the movement-engine balances */}
+      {draft.item_id > 0 && (
+        <div className="grid grid-cols-3 gap-2 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5">
+          <span className="text-slate-400">Current Stock</span>
+          <span className="text-slate-400">Adjustment</span>
+          <span className="text-slate-400">New Qty</span>
+          <span className="font-semibold">
+            {onHandLoading ? '…' : draft.current_qty}
+          </span>
+          <span
+            className={`font-semibold ${draftQty > 0 ? 'text-emerald-600' : draftQty < 0 ? 'text-rose-600' : ''}`}
+          >
+            {draftQty > 0 ? `+${draftQty}` : draftQty || '—'}
+          </span>
+          <span className={`font-semibold ${draftNewQty < 0 ? 'text-rose-600' : ''}`}>
+            {draftNewQty}
+          </span>
+        </div>
+      )}
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <FieldLabel required>Adjustment Qty (+ in / − out)</FieldLabel>
+          <EditableInput
+            type="number"
+            step="1"
+            value={draft.adjustment_qty}
+            onChange={(e) =>
+              setDraft((d) => ({
+                ...d,
+                adjustment_qty: e.target.value,
+                serial_numbers: [],
+              }))
+            }
+            placeholder="e.g. -3 or +5"
+          />
+        </div>
+        {draftQty > 0 && (
+          <div>
+            <FieldLabel>Unit Cost</FieldLabel>
+            <EditableInput
+              type="number"
+              min={0}
+              step="0.01"
+              value={draft.unit_cost}
+              onChange={(e) =>
+                setDraft((d) => ({ ...d, unit_cost: e.target.value }))
+              }
+            />
+          </div>
+        )}
+        {draft.item_id > 0 && (
+          <AsyncSearchSelect
+            label="UOM"
+            placeholder="Select UOM..."
+            apiUrl={`${API.inventory.itemUom.root}?item_id=${draft.item_id}`}
+            value={draft.item_uom_id}
+            selectedLabel={draft.uom_label}
+            enablePopupSearch
+            onChangeAction={(sel) =>
+              setDraft((d) => ({
+                ...d,
+                item_uom_id: sel?.id ? Number(sel.id) : null,
+                uom_label: sel?.name ?? '',
+              }))
+            }
+          />
+        )}
+        <div className="sm:col-span-2">
+          <FieldLabel>Line Remarks</FieldLabel>
+          <EditableInput
+            value={draft.remarks}
+            onChange={(e) => setDraft((d) => ({ ...d, remarks: e.target.value }))}
+            placeholder="Optional"
+          />
+        </div>
+      </div>
+    </>
+  );
+
+  /**
+   * Serial panel. Direction decides which one: adding stock mints new serials,
+   * removing stock picks existing ones out of the location.
+   */
+  const serialFields =
+    draftQty > 0 ? (
+      <SerialEntryPanel
+        value={draft.serial_numbers}
+        onChange={(serials) => setDraft((d) => ({ ...d, serial_numbers: serials }))}
+        requiredCount={Math.abs(draftQty)}
+        generate={
+          draft.item_id
+            ? {
+                itemId: draft.item_id,
+                warehouseId: warehouse.id ?? undefined,
+                mode: draft.serial_generation,
+              }
+            : undefined
+        }
+      />
+    ) : (
+      <SerialLookupPanel
+        itemId={draft.item_id}
+        warehouseId={warehouse.id!}
+        locationId={location.id}
+        requiredCount={Math.abs(draftQty)}
+        value={draft.serial_numbers}
+        onChange={(serials) => setDraft((d) => ({ ...d, serial_numbers: serials }))}
+      />
+    );
+
   return (
     <div className="space-y-4 font-mono text-xs">
-      <div>
-        <button
-          onClick={() => router.push('/inventory/stock_adjust')}
-          className="inline-flex items-center gap-2 text-slate-500 transition-colors hover:text-slate-700"
-        >
-          <ArrowLeftIcon size={16} /> Back
-        </button>
-        <h2 className="mt-3 flex items-center gap-2 text-2xl font-bold text-slate-800 md:text-3xl">
-          <ArrowLeftRight className="text-[#1a9e52]" />
-          {mode === 'create'
+      <FormHeader
+        onBackAction={() => router.push('/inventory/stock_adjust')}
+        backLabel="Back"
+        icon={<ArrowLeftRight />}
+        title={
+          mode === 'create'
             ? 'New Stock Adjustment'
-            : `Edit ${initial?.adjustment_no ?? 'Adjustment'}`}
-        </h2>
-        <p className="mt-1 text-slate-500">
-          Correct inventory through the movement ledger — balances are never
-          edited directly.
-        </p>
-      </div>
+            : `Edit ${initial?.adjustment_no ?? 'Adjustment'}`
+        }
+        subtitle="Correct inventory through the movement ledger — balances are never edited directly."
+        actions={
+          <>
+            <HeaderAction
+              label="Cancel"
+              onClick={() => router.push('/inventory/stock_adjust')}
+            />
+            <HeaderAction
+              tone="primary"
+              label={saving ? 'Saving…' : 'Save Draft'}
+              icon={
+                saving ? (
+                  <Loader2Icon className="animate-spin" size={16} />
+                ) : (
+                  <SaveIcon size={16} />
+                )
+              }
+              disabled={saving}
+              onClick={handleSubmit}
+            />
+          </>
+        }
+      />
 
       {error && (
         <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
@@ -301,392 +469,300 @@ export default function AdjustmentForm({
         </div>
       )}
 
-      {/* ── Header ── */}
-      <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-        <h3 className="mb-4 text-xs font-bold uppercase tracking-wider text-slate-500">
-          Adjustment Details
-        </h3>
-        <div className="grid gap-4 lg:grid-cols-3">
-          <div className="space-y-1.5">
-            <Label className="text-xs">Adjustment Date *</Label>
-            <Input
-              type="date"
-              value={adjustmentDate}
-              onChange={(e) => setAdjustmentDate(e.target.value)}
-              className="text-xs font-mono"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Reference No</Label>
-            <Input
-              value={referenceNo}
-              onChange={(e) => setReferenceNo(e.target.value)}
-              placeholder="Count sheet / ticket (optional)"
-              className="text-xs font-mono"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Reason *</Label>
-            <select
-              value={reasonCode}
-              onChange={(e) => setReasonCode(e.target.value)}
-              className="w-full rounded-md border border-slate-200 px-2 py-2 text-xs font-mono outline-none focus:border-emerald-500"
-            >
-              <option value="">Select reason…</option>
-              {reasons.map((r) => (
-                <option key={r.code} value={r.code}>
-                  {r.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <AsyncSearchSelect
-            label="Warehouse *"
-            placeholder="Select warehouse..."
-            apiUrl={API.inventory.warehouse.root}
-            value={warehouse.id}
-            selectedLabel={warehouse.name}
-            enablePopupSearch
-            onChangeAction={(s) => {
-              if (!s?.id) return;
-              setWarehouse({ id: Number(s.id), name: s.name });
-              setLocation({ id: null, name: '' });
-              // Location context changed: stock figures are stale.
-              setLines([]);
-            }}
-          />
-          <AsyncSearchSelect
-            label="Location *"
-            placeholder={
-              warehouse.id ? 'Select location...' : 'Pick warehouse first'
-            }
-            apiUrl={
-              warehouse.id
-                ? API.inventory.warehouse.locations(warehouse.id)
-                : ''
-            }
-            value={location.id}
-            selectedLabel={location.name}
-            enablePopupSearch
-            onChangeAction={(s) => {
-              if (!s?.id) return;
-              setLocation({ id: Number(s.id), name: s.name });
-              setLines([]);
-            }}
-          />
-          <div className="space-y-1.5">
-            <Label className="text-xs">Remarks</Label>
-            <Input
-              value={remarks}
-              onChange={(e) => setRemarks(e.target.value)}
-              placeholder="Optional note"
-              className="text-xs font-mono"
-            />
-          </div>
-        </div>
-      </section>
-
-      {/* ── Items ── */}
-      <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-        <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-            Items ({lines.length})
-            <span className="ml-3 font-mono normal-case tracking-normal">
-              <span className="text-emerald-600">+{totalIn}</span>
-              {' · '}
-              <span className="text-rose-600">-{totalOut}</span>
-            </span>
-          </h3>
-          <button
-            type="button"
-            disabled={!headerReady}
-            title={headerReady ? '' : 'Pick warehouse & location first'}
-            onClick={() => openEditor(-1)}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-2 text-white hover:bg-emerald-500 disabled:opacity-40"
+      <FormLayout
+        sidebar={
+          <SidebarCard
+            icon={<ArrowLeftRight size={13} />}
+            title="Adjustment Summary"
           >
-            <PlusIcon size={13} /> Add Item
-          </button>
-        </div>
+            <div className="space-y-2">
+              <SummaryRow label="Date">{adjustmentDate}</SummaryRow>
+              <SummaryRow label="Warehouse" title={warehouse.name || undefined}>
+                {warehouse.name || '—'}
+              </SummaryRow>
+              <SummaryRow label="Location" title={location.name || undefined}>
+                {location.name || '—'}
+              </SummaryRow>
+              <SummaryRow label="Lines">{lines.length}</SummaryRow>
+              <SummaryRow label="Net" strong>
+                <span className="text-emerald-600">+{totalIn}</span>
+                {' · '}
+                <span className="text-rose-600">−{totalOut}</span>
+              </SummaryRow>
+            </div>
+          </SidebarCard>
+        }
+      >
+        <TabNav tabs={TABS} active={activeTab} onChangeAction={setActiveTab} />
 
-        {lines.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-slate-200 py-8 text-center text-slate-400">
-            {headerReady
-              ? 'No items yet — add the first adjustment line.'
-              : 'Select a warehouse and location, then add items.'}
-          </p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full tabular-nums">
-              <thead>
-                <tr className="border-b text-[10px] uppercase tracking-wider text-slate-500">
-                  <th className="py-2 pr-3 text-left font-bold">Item</th>
-                  <th className="py-2 pr-3 text-right font-bold">Current</th>
-                  <th className="py-2 pr-3 text-right font-bold">Adjustment</th>
-                  <th className="py-2 pr-3 text-right font-bold">New Qty</th>
-                  <th className="py-2 pr-3 text-left font-bold">UOM</th>
-                  <th className="py-2 pr-3 text-left font-bold">Serials</th>
-                  <th className="py-2 font-bold">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {lines.map((l, idx) => {
-                  const qty = Number(l.adjustment_qty) || 0;
-                  return (
-                    <tr key={idx} className="border-b last:border-b-0">
-                      <td className="py-2 pr-3 font-medium">{l.item_label}</td>
-                      <td className="py-2 pr-3 text-right text-slate-500">
-                        {l.current_qty}
-                      </td>
-                      <td
-                        className={`py-2 pr-3 text-right font-semibold ${qty > 0 ? 'text-emerald-600' : 'text-rose-600'}`}
-                      >
-                        {qty > 0 ? `+${qty}` : qty}
-                      </td>
-                      <td className="py-2 pr-3 text-right font-semibold">
-                        {l.current_qty + qty}
-                      </td>
-                      <td className="py-2 pr-3">{l.uom_label || '—'}</td>
-                      <td className="py-2 pr-3 text-[10px] text-slate-500">
-                        {l.track_serial
-                          ? `${l.serial_numbers.length} serial(s)`
-                          : '—'}
-                      </td>
-                      <td className="py-2">
-                        <div className="flex gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => openEditor(idx)}
-                            className="rounded-lg border border-violet-200 p-1.5 text-violet-600 hover:bg-violet-50"
-                          >
-                            <PencilIcon size={12} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setLines((p) => p.filter((_, i) => i !== idx))
-                            }
-                            className="rounded-lg border border-rose-200 p-1.5 text-rose-600 hover:bg-rose-50"
-                          >
-                            <Trash2Icon size={12} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-
-      {/* ── Save ── */}
-      <div className="flex justify-end gap-2">
-        <button
-          type="button"
-          onClick={() => router.push('/inventory/stock_adjust')}
-          className="rounded-xl border border-slate-200 px-5 py-2.5 text-slate-600 hover:bg-slate-50"
-        >
-          Cancel
-        </button>
-        <button
-          type="button"
-          onClick={handleSubmit}
-          disabled={saving}
-          className="inline-flex items-center gap-2 rounded-xl bg-[#1a9e52] px-5 py-2.5 font-semibold text-white hover:bg-[#158042] disabled:opacity-50"
-        >
-          {saving ? (
-            <Loader2Icon className="animate-spin" size={15} />
-          ) : (
-            <SaveIcon size={15} />
-          )}
-          {saving ? 'Saving…' : 'Save Draft'}
-        </button>
-      </div>
-
-      {/* ── Line editor modal ── */}
-      {editorIndex !== null && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
-          <div className="max-h-[90vh] w-full max-w-4xl space-y-4 overflow-y-auto rounded-2xl bg-white p-6 shadow-xl">
-            <h3 className="text-sm font-semibold">
-              {editorIndex === -1 ? 'Add Item' : 'Edit Item'}
-            </h3>
-            <span className="ml-2 font-mono text-[10px] font-normal text-slate-400 flex items-center">
-              <Warehouse className="size-5 text-emerald-200" />
-              &nbsp; {warehouse.name} ·{' '}
-              <MapPin className="size-5 text-emerald-200" /> {location.name}
-            </span>
-
-            <AsyncSearchSelect
-              label="Item *"
-              placeholder="Search stock item..."
-              apiUrl={API.inventory.stockItem.root}
-              value={draft.item_id || null}
-              selectedLabel={draft.item_label}
-              enablePopupSearch
-              onChangeAction={onPickItem}
-            />
-
-            {/* Item info (live from the movement-engine balances) */}
-            {draft.item_id > 0 && (
-              <div className="grid grid-cols-3 gap-2 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5 text-[11px]">
-                <span className="text-slate-400">Current Stock</span>
-                <span className="text-slate-400">Adjustment</span>
-                <span className="text-slate-400">New Qty</span>
-                <span className="font-semibold">
-                  {onHandLoading ? '…' : draft.current_qty}
-                </span>
-                <span
-                  className={`font-semibold ${draftQty > 0 ? 'text-emerald-600' : draftQty < 0 ? 'text-rose-600' : ''}`}
-                >
-                  {draftQty > 0 ? `+${draftQty}` : draftQty || '—'}
-                </span>
-                <span
-                  className={`font-semibold ${draftNewQty < 0 ? 'text-rose-600' : ''}`}
-                >
-                  {draftNewQty}
-                </span>
-              </div>
-            )}
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs">
-                  Adjustment Qty * (+ in / − out)
-                </Label>
-                <Input
-                  type="number"
-                  step="1"
-                  value={draft.adjustment_qty}
-                  onChange={(e) =>
-                    setDraft((d) => ({
-                      ...d,
-                      adjustment_qty: e.target.value,
-                      serial_numbers: [],
-                    }))
-                  }
-                  placeholder="e.g. -3 or +5"
-                  className="text-xs font-mono"
-                />
-              </div>
-              {draftQty > 0 && (
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Unit Cost</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    value={draft.unit_cost}
-                    onChange={(e) =>
-                      setDraft((d) => ({
-                        ...d,
-                        unit_cost: e.target.value,
-                      }))
-                    }
-                    className="text-xs font-mono"
+        {/* Tab 1: Adjust Info */}
+        {activeTab === 'info' && (
+          <TabPanel>
+            <SectionCard
+              icon={<ArrowLeftRight size={13} />}
+              title="Adjustment Details"
+            >
+              <FieldGrid>
+                <div>
+                  <FieldLabel required>Adjustment Date</FieldLabel>
+                  <EditableInput
+                    type="date"
+                    value={adjustmentDate}
+                    onChange={(e) => setAdjustmentDate(e.target.value)}
                   />
                 </div>
+                <div>
+                  <FieldLabel>Reference No</FieldLabel>
+                  <EditableInput
+                    value={referenceNo}
+                    onChange={(e) => setReferenceNo(e.target.value)}
+                    placeholder="Count sheet / ticket (optional)"
+                  />
+                </div>
+                <div>
+                  <FieldLabel required>Reason</FieldLabel>
+                  <select
+                    value={reasonCode}
+                    onChange={(e) => setReasonCode(e.target.value)}
+                    className="min-h-11.5 w-full rounded-xl border border-slate-200 bg-white px-4 py-2 shadow-sm outline-none focus:border-[#1a9e52]"
+                  >
+                    <option value="">Select reason…</option>
+                    {reasons.map((r) => (
+                      <option key={r.code} value={r.code}>
+                        {r.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <AsyncSearchSelect
+                  label="Warehouse *"
+                  placeholder="Select warehouse..."
+                  apiUrl={API.inventory.warehouse.root}
+                  value={warehouse.id}
+                  selectedLabel={warehouse.name}
+                  enablePopupSearch
+                  onChangeAction={(s) => {
+                    if (!s?.id) return;
+                    setWarehouse({ id: Number(s.id), name: s.name });
+                    setLocation({ id: null, name: '' });
+                    // Location context changed: stock figures are stale.
+                    setLines([]);
+                  }}
+                />
+                <AsyncSearchSelect
+                  label="Location *"
+                  placeholder={
+                    warehouse.id ? 'Select location...' : 'Pick warehouse first'
+                  }
+                  apiUrl={
+                    warehouse.id
+                      ? API.inventory.warehouse.locations(warehouse.id)
+                      : ''
+                  }
+                  value={location.id}
+                  selectedLabel={location.name}
+                  enablePopupSearch
+                  onChangeAction={(s) => {
+                    if (!s?.id) return;
+                    setLocation({ id: Number(s.id), name: s.name });
+                    setLines([]);
+                  }}
+                />
+                <div>
+                  <FieldLabel>Remarks</FieldLabel>
+                  <EditableInput
+                    value={remarks}
+                    onChange={(e) => setRemarks(e.target.value)}
+                    placeholder="Optional note"
+                  />
+                </div>
+              </FieldGrid>
+            </SectionCard>
+
+            <div className="flex justify-end">
+              <StepButton onClick={() => setActiveTab('items')}>
+                Items <ChevronRight size={16} />
+              </StepButton>
+            </div>
+          </TabPanel>
+        )}
+
+        {/* Tab 2: Items */}
+        {activeTab === 'items' && (
+          <TabPanel>
+            <SectionCard
+              icon={<PackageIcon size={13} />}
+              title={`Items (${lines.length})`}
+              action={
+                <button
+                  type="button"
+                  disabled={!headerReady}
+                  title={headerReady ? '' : 'Pick warehouse & location first'}
+                  onClick={() => openEditor(-1)}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-[#1a9e52] px-3 py-2 text-white transition-colors hover:bg-[#158042] disabled:opacity-40"
+                >
+                  <PlusIcon size={13} /> Add Item
+                </button>
+              }
+            >
+              {lines.length === 0 ? (
+                <p className="rounded-xl border border-dashed border-slate-200 py-8 text-center text-slate-400">
+                  {headerReady
+                    ? 'No items yet — add the first adjustment line.'
+                    : 'Select a warehouse and location, then add items.'}
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs font-mono tabular-nums">
+                    <thead>
+                      <tr className="border-b text-muted-foreground">
+                        <th className="py-2 pr-3 text-left font-medium">Item</th>
+                        <th className="py-2 pr-3 text-right font-medium">
+                          Current
+                        </th>
+                        <th className="py-2 pr-3 text-right font-medium">
+                          Adjustment
+                        </th>
+                        <th className="py-2 pr-3 text-right font-medium">
+                          New Qty
+                        </th>
+                        <th className="py-2 pr-3 text-left font-medium">UOM</th>
+                        <th className="py-2 pr-3 text-left font-medium">
+                          Serials
+                        </th>
+                        <th className="py-2 text-right font-medium">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {lines.map((l, idx) => {
+                        const qty = Number(l.adjustment_qty) || 0;
+                        return (
+                          <tr
+                            key={idx}
+                            onClick={() => openEditor(idx)}
+                            title="Edit this line"
+                            className="cursor-pointer border-b last:border-b-0 hover:bg-muted/30"
+                          >
+                            <td className="py-2 pr-3 font-medium">
+                              {l.item_label}
+                            </td>
+                            <td className="py-2 pr-3 text-right text-muted-foreground">
+                              {l.current_qty}
+                            </td>
+                            <td
+                              className={`py-2 pr-3 text-right font-semibold ${qty > 0 ? 'text-emerald-600' : 'text-rose-600'}`}
+                            >
+                              {qty > 0 ? `+${qty}` : qty}
+                            </td>
+                            <td className="py-2 pr-3 text-right font-semibold">
+                              {l.current_qty + qty}
+                            </td>
+                            <td className="py-2 pr-3">{l.uom_label || '—'}</td>
+                            <td className="py-2 pr-3 text-muted-foreground">
+                              {l.track_serial
+                                ? `${l.serial_numbers.length}/${Math.abs(qty)}`
+                                : '—'}
+                            </td>
+                            <td className="py-2 text-right">
+                              <div className="flex justify-end gap-1.5">
+                                <button
+                                  type="button"
+                                  title="Edit line"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openEditor(idx);
+                                  }}
+                                  className="rounded-lg border border-violet-200 p-1.5 text-violet-600 hover:bg-violet-50"
+                                >
+                                  <PencilIcon size={12} />
+                                </button>
+                                <button
+                                  type="button"
+                                  title="Remove line"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setLines((p) =>
+                                      p.filter((_, i) => i !== idx),
+                                    );
+                                  }}
+                                  className="rounded-lg border border-rose-200 p-1.5 text-rose-600 hover:bg-rose-50"
+                                >
+                                  <Trash2Icon size={12} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               )}
+            </SectionCard>
+
+            <div className="flex justify-start">
+              <StepButton onClick={() => setActiveTab('info')}>
+                <ArrowLeftIcon size={16} /> Adjust Info
+              </StepButton>
             </div>
+          </TabPanel>
+        )}
+      </FormLayout>
 
-            {draft.item_id > 0 && (
-              <AsyncSearchSelect
-                label="UOM"
-                placeholder="Select UOM..."
-                apiUrl={`${API.inventory.itemUom.root}?item_id=${draft.item_id}`}
-                value={draft.item_uom_id}
-                selectedLabel={draft.uom_label}
-                enablePopupSearch
-                onChangeAction={(s) =>
-                  setDraft((d) => ({
-                    ...d,
-                    item_uom_id: s?.id ? Number(s.id) : null,
-                    uom_label: s?.name ?? '',
-                  }))
-                }
-              />
-            )}
-
-            {/* Serial handling — direction decides the panel */}
-            {draft.track_serial && draftQty > 0 && (
-              <div className="space-y-1.5">
-                <Label className="text-xs">
-                  New Serial Numbers ({draft.serial_numbers.length}/
-                  {Math.abs(draftQty)})
-                </Label>
-                <SerialEntryPanel
-                  value={draft.serial_numbers}
-                  onChange={(serials) =>
-                    setDraft((d) => ({
-                      ...d,
-                      serial_numbers: serials,
-                    }))
-                  }
-                  requiredCount={Math.abs(draftQty)}
-                  generate={
-                    draft.item_id
-                      ? {
-                          itemId: draft.item_id,
-                          warehouseId: warehouse.id ?? undefined,
-                          mode: draft.serial_generation,
+      {/* ── Line editor ── */}
+      {editorIndex !== null && (
+        <LineItemDialog
+          open
+          onOpenChange={(o) => !o && setEditorIndex(null)}
+          mode={editorIndex === -1 ? 'create' : 'edit'}
+          error={lineError}
+          onConfirm={commitLine}
+          activeTab={editorTab}
+          onTabChangeAction={setEditorTab}
+          context={
+            <>
+              <LineDialogFact
+                icon={<Warehouse className="text-emerald-600" size={13} />}
+              >
+                {warehouse.name}
+              </LineDialogFact>
+              <LineDialogFact
+                icon={<MapPin className="text-emerald-600" size={13} />}
+              >
+                {location.name}
+              </LineDialogFact>
+            </>
+          }
+          tabs={
+            draft.track_serial && draftQty !== 0
+              ? [
+                  {
+                    id: 'details',
+                    label: 'Item Details',
+                    content: detailFields,
+                  },
+                  {
+                    id: 'serials',
+                    label: draftQty > 0 ? 'New Serials' : 'Remove Serials',
+                    badge: (
+                      <span
+                        className={
+                          draft.serial_numbers.length === Math.abs(draftQty)
+                            ? 'text-emerald-600'
+                            : 'text-amber-600'
                         }
-                      : undefined
-                  }
-                />
-              </div>
-            )}
-            {draft.track_serial && draftQty < 0 && (
-              <div className="space-y-1.5">
-                <Label className="text-xs">
-                  Remove Serial Numbers ({draft.serial_numbers.length}/
-                  {Math.abs(draftQty)})
-                </Label>
-                <SerialLookupPanel
-                  itemId={draft.item_id}
-                  warehouseId={warehouse.id!}
-                  locationId={location.id}
-                  requiredCount={Math.abs(draftQty)}
-                  value={draft.serial_numbers}
-                  onChange={(serials) =>
-                    setDraft((d) => ({
-                      ...d,
-                      serial_numbers: serials,
-                    }))
-                  }
-                />
-              </div>
-            )}
-
-            <div className="space-y-1.5">
-              <Label className="text-xs">Line Remarks</Label>
-              <Input
-                value={draft.remarks}
-                onChange={(e) =>
-                  setDraft((d) => ({ ...d, remarks: e.target.value }))
-                }
-                placeholder="Optional"
-                className="text-xs font-mono"
-              />
-            </div>
-
-            <div className="flex justify-end gap-2 pt-1">
-              <button
-                type="button"
-                onClick={() => setEditorIndex(null)}
-                className="rounded-lg border px-4 py-2 text-xs hover:bg-muted"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={commitLine}
-                className="rounded-lg bg-emerald-600 px-4 py-2 text-xs text-white hover:bg-emerald-500"
-              >
-                {editorIndex === -1 ? 'Add' : 'Update'}
-              </button>
-            </div>
-          </div>
-        </div>
+                      >
+                        {draft.serial_numbers.length}/{Math.abs(draftQty)}
+                      </span>
+                    ),
+                    content: serialFields,
+                  },
+                ]
+              : undefined
+          }
+        >
+          {detailFields}
+        </LineItemDialog>
       )}
     </div>
   );

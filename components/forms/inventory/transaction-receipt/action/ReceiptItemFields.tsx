@@ -54,8 +54,16 @@ export const DEFAULT_LINE: LineItem = {
  */
 export default function ReceiptItemFields({
   warehouseId: warehouseIdProp,
+  section = 'all',
 }: {
   warehouseId?: number | null;
+  /**
+   * Which half to render. The line dialog splits a serial-tracked item across
+   * two tabs, so it asks for `details` and `serials` separately; every other
+   * caller takes the whole form. Splitting here rather than duplicating the
+   * fields keeps ONE react-hook-form wiring for the line.
+   */
+  section?: 'all' | 'details' | 'serials';
 }) {
   const {
     control,
@@ -169,6 +177,31 @@ export default function ReceiptItemFields({
 
   // The SerialEntryPanel manages the serial list itself (scan-first log);
   // no qty-padding here — the panel enforces the count against receipt_qty.
+
+  const showSerials = section === 'all' || section === 'serials';
+
+  if (section === 'serials') {
+    return serialEnabled ? (
+      <SerialEntryPanel
+        value={(serialNumbers as string[]).filter(Boolean)}
+        onChange={(serials) => setValue('serial_numbers', serials)}
+        requiredCount={receiptQty * baseFactor}
+        generate={
+          itemId
+            ? {
+                itemId,
+                warehouseId: warehouseId ?? undefined,
+                mode: serialGeneration,
+              }
+            : undefined
+        }
+      />
+    ) : (
+      <p className="py-6 text-center text-slate-400">
+        This item is not serial tracked.
+      </p>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -316,7 +349,7 @@ export default function ReceiptItemFields({
         </div>
       </div>
 
-      {serialEnabled && (
+      {serialEnabled && showSerials && (
         <div className="space-y-1.5">
           <FieldLabel>Serial Numbers</FieldLabel>
           <SerialEntryPanel
