@@ -8,6 +8,10 @@ import { RelatedDocumentsPanel } from '@/components/ui/RelatedDocuments';
 import { FieldLabel } from '@/components/ui/FieldLabel';
 import { ReadonlyInput } from '@/components/ui/Readonly';
 import {
+  LineDialogFact,
+  LineItemDialog,
+} from '@/components/ui/LineItemDialog';
+import {
   FieldGrid,
   FormHeader,
   FormLayout,
@@ -20,6 +24,7 @@ import {
 import { behaviorOf } from '@/service/core/item-behavior';
 import type {
   SalesOrder,
+  SalesOrderItem,
   SalesOrderStatus,
   SalesShipment,
   SalesShipmentStatus,
@@ -85,6 +90,65 @@ function fmt(n: number) {
   });
 }
 
+/**
+ * The order line as a read-only form — same fields, same order as OrderForm's
+ * editor, so a line reads identically whether you are entering it or reviewing
+ * it. Single-panel: serials belong to the shipment that moves the stock, not
+ * to the order that promises it, so there is no second tab here.
+ */
+function OrderLineDetailFields({
+  item,
+  currency,
+}: {
+  item: SalesOrderItem;
+  currency: string;
+}) {
+  const ships = behaviorOf(item.item_class ?? 'stock').requiresShipment;
+  const fulfilled = ships ? item.shipped_qty : (item.invoiced_qty ?? 0);
+  return (
+    <div className="grid gap-4 sm:grid-cols-3">
+      <div>
+        <FieldLabel>UOM</FieldLabel>
+        <ReadonlyInput value={item.uom || '—'} />
+      </div>
+      <div>
+        <FieldLabel>Ordered Qty</FieldLabel>
+        <ReadonlyInput value={String(item.ordered_qty)} />
+      </div>
+      <div>
+        <FieldLabel>Unit Price</FieldLabel>
+        <ReadonlyInput value={`${currency} ${fmt(item.unit_price)}`} />
+      </div>
+      <div>
+        <FieldLabel>Discount %</FieldLabel>
+        <ReadonlyInput value={`${item.discount}%`} />
+      </div>
+      <div>
+        <FieldLabel>Tax %</FieldLabel>
+        <ReadonlyInput value={`${item.tax}%`} />
+      </div>
+      <div>
+        <FieldLabel>Line Total</FieldLabel>
+        <ReadonlyInput value={`${currency} ${fmt(item.line_total)}`} />
+      </div>
+      <div>
+        {/* Labelled by how this line actually fulfils: stock lines ship,
+            non-stock and service lines invoice. */}
+        <FieldLabel>{ships ? 'Shipped' : 'Invoiced'}</FieldLabel>
+        <ReadonlyInput value={String(fulfilled)} />
+      </div>
+      <div>
+        <FieldLabel>Remaining</FieldLabel>
+        <ReadonlyInput value={String(item.ordered_qty - fulfilled)} />
+      </div>
+      <div>
+        <FieldLabel>Item Class</FieldLabel>
+        <ReadonlyInput value={item.item_class ?? 'stock'} />
+      </div>
+    </div>
+  );
+}
+
 export default function SaleOrderDetail({
   currentPath,
   permission,
@@ -113,6 +177,11 @@ export default function SaleOrderDetail({
     null,
   );
   const [busy, setBusy] = useState(false);
+  /**
+   * The line the reader clicked. Opens the same LineItemDialog the form uses,
+   * in `view` mode — matching the delivery note's detail page.
+   */
+  const [detailItem, setDetailItem] = useState<SalesOrderItem | null>(null);
 
   function showToast(msg: string, type: 'success' | 'error') {
     setToast({ msg, type });
@@ -487,7 +556,9 @@ export default function SaleOrderDetail({
                         return (
                           <tr
                             key={item.id}
-                            className="border-b hover:bg-muted/20"
+                            onClick={() => setDetailItem(item)}
+                            title="View this line"
+                            className="cursor-pointer border-b hover:bg-muted/20"
                           >
                             <td className="py-2 pr-3 font-medium">
                               <span className="inline-flex items-center gap-1.5">
@@ -563,6 +634,41 @@ export default function SaleOrderDetail({
           </TabPanel>
         )}
       </FormLayout>
+
+      {/* ── Line detail (read-only) ── */}
+      {detailItem && (
+        <LineItemDialog
+          open
+          onOpenChange={(o) => !o && setDetailItem(null)}
+          mode="view"
+          title={
+            detailItem.product_reference_no
+              ? `${detailItem.product_reference_no}~${detailItem.product_name}`
+              : detailItem.product_name
+          }
+          context={
+            <>
+              <LineDialogFact
+                icon={<Package className="text-emerald-600" size={13} />}
+              >
+                Ordered {detailItem.ordered_qty} ·{' '}
+                {behaviorOf(detailItem.item_class ?? 'stock').requiresShipment
+                  ? `Shipped ${detailItem.shipped_qty}`
+                  : `Invoiced ${detailItem.invoiced_qty ?? 0}`}
+              </LineDialogFact>
+              {order.warehouse_name && (
+                <LineDialogFact
+                  icon={<TruckIcon className="text-emerald-600" size={13} />}
+                >
+                  {order.warehouse_name}
+                </LineDialogFact>
+              )}
+            </>
+          }
+        >
+          <OrderLineDetailFields item={detailItem} currency={order.currency} />
+        </LineItemDialog>
+      )}
     </div>
   );
 }
