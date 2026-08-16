@@ -8,6 +8,7 @@ import type { Company as TCompany, CompanyStatus } from '@/types/setting/company
 import {
     ArrowLeft,
     Building2,
+    Paintbrush,
     Palette,
     ShieldCheck,
     Users,
@@ -16,6 +17,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import GeneralTab from './tabs/GeneralTab';
 import BrandingTab from './tabs/BrandingTab';
+import ThemeTab from './tabs/ThemeTab';
 import UsersTab from './tabs/UsersTab';
 import RolesTab from './tabs/RolesTab';
 
@@ -101,13 +103,24 @@ export default function CompanyDetail({
             </div>
 
             <Tabs defaultValue="general" className="w-full flex-col">
-                <TabsList className="grid w-full max-w-xl grid-cols-4">
+                {/* Theme is offered only on your OWN company. The theme API is
+                    scoped to the session's company and takes no company id, so
+                    a super admin editing another company's page would otherwise
+                    be silently restyling their own tenant. */}
+                <TabsList
+                    className={`grid w-full ${isOwnCompany ? 'max-w-2xl grid-cols-5' : 'max-w-xl grid-cols-4'}`}
+                >
                     <TabsTrigger value="general">
                         <Building2 size={13} /> General
                     </TabsTrigger>
                     <TabsTrigger value="branding">
                         <Palette size={13} /> Branding
                     </TabsTrigger>
+                    {isOwnCompany && (
+                        <TabsTrigger value="theme">
+                            <Paintbrush size={13} /> Theme
+                        </TabsTrigger>
+                    )}
                     <TabsTrigger value="users">
                         <Users size={13} /> Users
                     </TabsTrigger>
@@ -136,6 +149,11 @@ export default function CompanyDetail({
                         }}
                     />
                 </TabsContent>
+                {isOwnCompany && (
+                    <TabsContent value="theme" className="w-full pt-3">
+                        <ThemeTab canUpdate={canUpdate} />
+                    </TabsContent>
+                )}
                 <TabsContent value="users" className="w-full pt-3">
                     <UsersTab
                         companyId={company.id}

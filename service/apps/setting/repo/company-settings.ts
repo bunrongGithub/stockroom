@@ -1,8 +1,47 @@
 import { ApiError } from '@/service/core/api-response';
 import { BaseRepository } from '@/service/core/base-repository';
+import {
+    sanitizeThemeTokens,
+    type PartialThemeTokens,
+    type ThemePresetId,
+} from '@/service/core/theme/tokens';
 import type { RequestContext } from '@/types/request-context';
 
 const TABLE = 'company_settings' as const;
+
+/** The shape stored under `company_settings.settings.theme`. */
+export type CompanyTheme = {
+    /** Which preset the admin last picked, for the form's radio state. */
+    preset: ThemePresetId;
+    /**
+     * Only the tokens this company overrides. Nested under `light` so a `dark`
+     * sibling can be added later without a migration or a data rewrite — see
+     * the dark-mode note in the Theme tab.
+     */
+    light: PartialThemeTokens;
+};
+
+export const EMPTY_THEME: CompanyTheme = { preset: 'default', light: {} };
+
+/**
+ * Read a theme out of the settings bag, tolerating every historical shape:
+ * missing key, null, or a value written by an older/newer build. Anything
+ * unrecognised degrades to "no overrides" rather than throwing — a malformed
+ * branding record must never be able to take the ERP down.
+ */
+function readTheme(settings: unknown): CompanyTheme {
+    if (!settings || typeof settings !== 'object') return EMPTY_THEME;
+    const theme = (settings as Record<string, unknown>).theme;
+    if (!theme || typeof theme !== 'object') return EMPTY_THEME;
+    const raw = theme as Record<string, unknown>;
+    return {
+        preset:
+            typeof raw.preset === 'string'
+                ? (raw.preset as ThemePresetId)
+                : 'default',
+        light: sanitizeThemeTokens(raw.light),
+    };
+}
 
 export type CompanySettings = {
     company_id: number;
@@ -139,6 +178,62 @@ export class CompanySettingsRepository extends BaseRepository {
         if (error) throw new ApiError(error.message, 500);
 
         return this.getSalesSettings(ctx);
+    }
+
+    /* ── Company theme ────────────────────────────────────────────────────
+     * Tenant isolation is structural: every method reads companyId from the
+     * request context and none of them accepts a company id argument, so there
+     * is no parameter through which one tenant could name another's row.
+     */
+
+    /**
+     * The company's saved overrides. Never throws for a company that has never
+     * configured a theme — it returns an empty override set, which the token
+     * layer resolves to the ERP default.
+     */
+    async getTheme(ctx: RequestContext): Promise<CompanyTheme> {
+        const companyId = Number(ctx.companyId);
+        const { data, error } = await this.db
+            .from(TABLE)
+            .select('settings')
+            .eq('company_id', companyId)
+            .maybeSingle();
+        if (error) throw new ApiError(error.message, 500);
+        return readTheme(data?.settings);
+    }
+
+    /**
+     * Replace the company's theme. Values are re-sanitized here rather than
+     * trusted from the caller: this is the last point before persistence, and
+     * the repository should not depend on a route having validated correctly.
+     */
+    async updateTheme(
+        ctx: RequestContext,
+        input: { preset?: ThemePresetId; tokens?: PartialThemeTokens },
+    ): Promise<CompanyTheme> {
+        const companyId = Number(ctx.companyId);
+        const current = await this.get(ctx); // ensures the row exists
+
+        const theme: CompanyTheme = {
+            preset: input.preset ?? readTheme(current.settings).preset,
+            light: sanitizeThemeTokens(input.tokens ?? {}),
+        };
+
+        const { error } = await this.db
+            .from(TABLE)
+            .update(
+                this.stampUpdate(ctx, {
+                    settings: { ...(current.settings ?? {}), theme },
+                }),
+            )
+            .eq('company_id', companyId);
+        if (error) throw new ApiError(error.message, 500);
+        return theme;
+    }
+
+    /** Drop the overrides so the company falls back to the ERP default. */
+    async resetTheme(ctx: RequestContext): Promise<CompanyTheme> {
+        return this.updateTheme(ctx, { preset: 'default', tokens: {} });
     }
 
     /** Cross-tenant guard: the referenced row must belong to this company. */
